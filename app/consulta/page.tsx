@@ -124,7 +124,7 @@ export default function ConsultaPage() {
       })
     }
     setAcum(false)
-    alert(`¡Listo! ${rows.length} registros acumulados correctamente para el ${new Date(fecha + 'T12:00:00').toLocaleDateString('es-CO')}.`)
+    alert(`¡Listo! ${rows.length} registros acumulados correctamente para el ${new Date(String(fecha).substring(0, 10) + 'T12:00:00').toLocaleDateString('es-CO')}.`)
   }
 
   // ── Indicador de estado por fila ──────────────────────────────────────────
@@ -168,10 +168,10 @@ export default function ConsultaPage() {
             }}
           >
             {fechas.map(f => (
-              <option key={f} value={f}>
-                {new Date(f + 'T12:00:00').toLocaleDateString('es-CO')}
-              </option>
-            ))}
+  <option key={f} value={f}>
+    {new Date(String(f).substring(0, 10) + 'T12:00:00').toLocaleDateString('es-CO')}
+  </option>
+))}
           </select>
 
           {/* Botón ACUMULAR */}
