@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import Sidebar from '@/components/Sidebar' 
 
 type Row = {
   fecha: string; categoria: string; tipo: string; referencia: string
