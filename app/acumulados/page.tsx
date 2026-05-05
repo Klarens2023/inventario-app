@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
-import Sidebar from '@/components/Sidebar' 
+import { exportarExcel } from '@/lib/exportExcel'
 
 type Row = {
   fecha: string; categoria: string; tipo: string; referencia: string
@@ -9,7 +9,6 @@ type Row = {
   conteo_fisico: number; diferencia: number
   costo_diferencia: number; costo_bodega_total: number; observaciones: string
 }
-
 type Totales = { costo_bodega: number; costo_diferencia: number }
 
 function fmt(n: number, prefix = '$') {
@@ -18,86 +17,99 @@ function fmt(n: number, prefix = '$') {
   return (n < 0 ? `-${prefix}` : prefix) + s
 }
 
-// Formato de fecha similar al video (YYYY/MM/DD)
 function fmtFechaCorta(f: string) {
   return String(f).substring(0, 10).replace(/-/g, '/')
 }
 
 export default function AcumuladosPage() {
-  const [desde, setDesde] = useState('')
-  const [hasta, setHasta] = useState('')
-  const [rows, setRows] = useState<Row[]>([])
-  const [totales, setTotales] = useState<Totales | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [desde,    setDesde]   = useState('')
+  const [hasta,    setHasta]   = useState('')
+  const [tipoFil,  setTipoFil] = useState('todos')
+  const [rows,     setRows]    = useState<Row[]>([])
+  const [totales,  setTotales] = useState<Totales | null>(null)
+  const [loading,  setLoading] = useState(false)
+  const [error,    setError]   = useState('')
   const [reiniciando, setRein] = useState(false)
-  const [confirm, setConfirm] = useState(0)
-  
-  // Estado para controlar la vista de detalle (Drill-down)
-  const [detalleSeleccionado, setDetalleSeleccionado] = useState<Row | null>(null)
+  const [confirm,  setConfirm] = useState(0)
+  const [detalle,  setDetalle] = useState<Row | null>(null)
 
   async function buscar() {
-    setLoading(true)
-    setError('')
-    setDetalleSeleccionado(null)
+    setLoading(true); setError(''); setDetalle(null)
     try {
       const params = new URLSearchParams()
       if (desde) params.set('desde', desde)
       if (hasta) params.set('hasta', hasta)
-
-      const res = await fetch(`/api/acumulados?${params}`)
+      const res  = await fetch(`/api/acumulados?${params}`)
       const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error ?? `Error ${res.status}`)
-        setRows([])
-        setTotales(null)
-      } else {
-        setRows(data.rows ?? [])
-        setTotales(data.totales ?? null)
-      }
-    } catch (e: any) {
-      setError('Error de conexion: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
+      if (!res.ok) { setError(data.error ?? `Error ${res.status}`); setRows([]); setTotales(null) }
+      else { setRows(data.rows ?? []); setTotales(data.totales ?? null) }
+    } catch (e: any) { setError('Error: ' + e.message) }
+    finally { setLoading(false) }
   }
 
   async function reiniciar() {
     if (confirm < 1) { setConfirm(1); return }
     setRein(true)
-    try {
-      await fetch('/api/reiniciar', { method: 'DELETE' })
-      setRows([]); setTotales(null); setConfirm(0); setDetalleSeleccionado(null)
-      alert('Historial eliminado correctamente.')
-    } catch { alert('Error al reiniciar.') }
+    try { await fetch('/api/reiniciar', { method: 'DELETE' }); setRows([]); setTotales(null); setConfirm(0); alert('Historial eliminado.') }
+    catch { alert('Error al reiniciar.') }
     setRein(false)
   }
 
-  // Generamos la estructura de Matriz/Pivot Table
+  // Tipos únicos en los resultados para el filtro
+  const tiposDisponibles = useMemo(() => 
+    Array.from(new Set(rows.map(r => r.tipo).filter(Boolean))).sort(), 
+  [rows])
+
+  // Filtrar filas por tipo seleccionado
+  const rowsFiltradas = useMemo(() =>
+    tipoFil !== 'todos' ? rows.filter(r => r.tipo === tipoFil) : rows
+  , [rows, tipoFil])
+
+  // Pivot: filas = referencias, columnas = fechas
   const pivotData = useMemo(() => {
     const fechasSet = new Set<string>()
-    const mapItems: Record<string, { referencia: string, descripcion: string, datosPorFecha: Record<string, Row> }> = {}
-
-    rows.forEach(r => {
-      const fechaCorta = fmtFechaCorta(r.fecha)
-      fechasSet.add(fechaCorta)
-      
+    const mapItems: Record<string, { referencia: string; descripcion: string; categoria: string; tipo: string; datosPorFecha: Record<string, Row> }> = {}
+    rowsFiltradas.forEach(r => {
+      const f = fmtFechaCorta(r.fecha)
+      fechasSet.add(f)
       if (!mapItems[r.referencia]) {
-        mapItems[r.referencia] = { referencia: r.referencia, descripcion: r.descripcion, datosPorFecha: {} }
+        mapItems[r.referencia] = { referencia: r.referencia, descripcion: r.descripcion, categoria: r.categoria, tipo: r.tipo, datosPorFecha: {} }
       }
-      // Almacenamos el registro completo bajo la fecha correspondiente
-      mapItems[r.referencia].datosPorFecha[fechaCorta] = r
+      mapItems[r.referencia].datosPorFecha[f] = r
     })
-
     return {
-      fechas: Array.from(fechasSet).sort((a, b) => a.localeCompare(b)),
-      items: Object.values(mapItems).sort((a, b) => a.referencia.localeCompare(b.referencia))
+      fechas: Array.from(fechasSet).sort(),
+      items:  Object.values(mapItems).sort((a, b) => a.referencia.localeCompare(b.referencia))
     }
-  }, [rows])
+  }, [rowsFiltradas])
 
-  const participacion = totales && totales.costo_bodega !== 0
-    ? ((totales.costo_diferencia / totales.costo_bodega) * 100).toFixed(1) + '%'
+  function exportar() {
+    const cols = ['Referencia', 'Descripcion', 'Categoria', 'Tipo', ...pivotData.fechas.flatMap(f => [`Dif ${f}`, `Costo Dif ${f}`])]
+    
+    // Le decimos a TypeScript que filas será un Array de Arrays que contienen textos o números
+    const filas: (string | number)[][] = pivotData.items.map(item => {
+      
+      const base: (string | number)[] = [item.referencia, item.descripcion, item.categoria, item.tipo]
+      
+      const datos: (string | number)[] = pivotData.fechas.flatMap(f => {
+        const d = item.datosPorFecha[f]
+        // Declaramos explícitamente el tipo de retorno
+        const valores: (string | number)[] = d ? [Number(d.diferencia), Number(d.costo_diferencia)] : ['', '']
+        return valores
+      })
+      
+      return [...base, ...datos]
+    })
+    
+    exportarExcel(`Acumulados_${desde}_${hasta}`, cols, filas)
+  }
+
+  const totalsFiltrados = {
+    costo_bodega:     rowsFiltradas.reduce((s, r) => s + Number(r.costo_bodega_total ?? 0), 0),
+    costo_diferencia: rowsFiltradas.reduce((s, r) => s + Number(r.costo_diferencia ?? 0), 0),
+  }
+  const part = totalsFiltrados.costo_bodega !== 0
+    ? ((totalsFiltrados.costo_diferencia / totalsFiltrados.costo_bodega) * 100).toFixed(1) + '%'
     : '—'
 
   return (
@@ -107,9 +119,7 @@ export default function AcumuladosPage() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>Informe Acumulados</h1>
-          <p style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>
-            Suma de diferencias en matriz por referencia y fecha
-          </p>
+          <p style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>Matriz de diferencias por referencia y fecha</p>
         </div>
         <button onClick={reiniciar} disabled={reiniciando} className="btn btn-danger" style={{ fontSize: 12 }}>
           {confirm === 1 ? 'CONFIRMAR BORRADO TOTAL' : 'Reiniciar historial'}
@@ -131,44 +141,64 @@ export default function AcumuladosPage() {
         <button onClick={buscar} className="btn btn-primary" disabled={loading} style={{ alignSelf: 'flex-end' }}>
           {loading ? 'Buscando...' : 'Buscar'}
         </button>
+
+        {/* Filtro tipo — aparece solo si hay resultados con múltiples tipos */}
+        {tiposDisponibles.length > 1 && (
+          <div>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Sub-categoria</label>
+            <select value={tipoFil} onChange={e => setTipoFil(e.target.value)}
+              style={{ padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13 }}>
+              <option value="todos">Todos</option>
+              {tiposDisponibles.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Exportar */}
+        {rows.length > 0 && (
+          <button onClick={exportar} className="btn" style={{ fontSize: 12, alignSelf: 'flex-end' }}>
+            Exportar Excel
+          </button>
+        )}
       </div>
 
-      {/* Error */}
       {error && (
         <div style={{ padding: '12px 16px', borderRadius: 6, background: 'rgba(248,81,73,0.1)', border: '1px solid var(--danger)', color: 'var(--danger)', fontSize: 13 }}>
           {error}
         </div>
       )}
 
-      {/* Totales globales */}
+      {/* Totales */}
       {totales && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-          <div className="stat-card"><div className="stat-label">Registros</div><div className="stat-value">{rows.length}</div></div>
-          <div className="stat-card"><div className="stat-label">Costo Bodega Total</div><div className="stat-value" style={{ fontSize: 15 }}>{fmt(totales.costo_bodega)}</div></div>
+          <div className="stat-card"><div className="stat-label">Referencias</div><div className="stat-value">{pivotData.items.length}</div></div>
+          <div className="stat-card"><div className="stat-label">Costo Bodega</div><div className="stat-value" style={{ fontSize: 14 }}>{fmt(totalsFiltrados.costo_bodega)}</div></div>
           <div className="stat-card">
-            <div className="stat-label">Costo Diferencia Total</div>
-            <div className="stat-value" style={{ fontSize: 15, color: totales.costo_diferencia < 0 ? 'var(--danger)' : 'var(--accent)' }}>
-              {fmt(totales.costo_diferencia)}
+            <div className="stat-label">Costo Diferencia</div>
+            <div className="stat-value" style={{ fontSize: 14, color: totalsFiltrados.costo_diferencia < 0 ? 'var(--danger)' : 'var(--accent)' }}>
+              {fmt(totalsFiltrados.costo_diferencia)}
             </div>
           </div>
-          <div className="stat-card"><div className="stat-label">Participacion</div><div className="stat-value" style={{ color: 'var(--warn)' }}>{participacion}</div></div>
+          <div className="stat-card"><div className="stat-label">Participacion</div><div className="stat-value" style={{ color: 'var(--warn)' }}>{part}</div></div>
         </div>
       )}
 
-      {/* MATRIZ DE DATOS (Estilo Excel) */}
+      {/* Matriz pivot */}
       <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8 }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Cargando matriz...</div>
-        ) : rows.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Sin datos. Selecciona un rango y presiona Buscar.</div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Cargando...</div>
+        ) : rowsFiltradas.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Sin datos. Selecciona fechas y presiona Buscar.</div>
         ) : (
-          <table style={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'right' }}>
+          <table style={{ minWidth: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg3)' }}>
               <tr>
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 100 }}>REFERENCIA</th>
-                <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 250 }}>DESCRIPCION</th>
+                <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 220 }}>DESCRIPCION</th>
+                <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 80 }}>CATEGORIA</th>
+                <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 70 }}>TIPO</th>
                 {pivotData.fechas.map(f => (
-                  <th key={f} style={{ border: '1px solid var(--border)', padding: '6px 10px', minWidth: 80, textAlign: 'center' }}>
+                  <th key={f} style={{ border: '1px solid var(--border)', padding: '6px 10px', minWidth: 90, textAlign: 'center', color: 'var(--accent)' }}>
                     {f}
                   </th>
                 ))}
@@ -176,27 +206,25 @@ export default function AcumuladosPage() {
             </thead>
             <tbody>
               {pivotData.items.map((item, idx) => (
-                <tr key={item.referencia} style={{ background: idx % 2 === 0 ? 'transparent' : 'var(--bg3)' }}>
-                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'left', fontWeight: 'bold' }}>{item.referencia}</td>
-                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 300 }}>
-                    {item.descripcion}
+                <tr key={item.referencia} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', fontWeight: 600, fontFamily: 'monospace' }}>{item.referencia}</td>
+                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>{item.descripcion}</td>
+                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'center', fontSize: 11, color: 'var(--text2)' }}>{item.categoria}</td>
+                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'center' }}>
+                    <span style={{ background: 'var(--bg3)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>{item.tipo}</span>
                   </td>
                   {pivotData.fechas.map(f => {
-                    const rowData = item.datosPorFecha[f];
-                    const dif = rowData ? Number(rowData.diferencia) : null;
+                    const d   = item.datosPorFecha[f]
+                    const dif = d ? Number(d.diferencia) : null
                     return (
-                      <td 
-                        key={f} 
-                        onClick={() => rowData && setDetalleSeleccionado(rowData)}
-                        style={{ 
-                          border: '1px solid var(--border)', 
-                          padding: '4px 10px',
-                          cursor: rowData ? 'pointer' : 'default',
-                          color: dif && dif < 0 ? 'var(--danger)' : dif && dif > 0 ? 'var(--accent)' : 'inherit',
-                          backgroundColor: rowData ? 'rgba(0,0,0,0.02)' : 'transparent'
+                      <td key={f}
+                        onClick={() => d && setDetalle(d)}
+                        style={{
+                          border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'right',
+                          cursor: d ? 'pointer' : 'default',
+                          color: dif && dif < 0 ? 'var(--danger)' : dif && dif > 0 ? 'var(--accent)' : 'inherit'
                         }}
-                        title={rowData ? "Clic para ver detalles" : ""}
-                      >
+                        title={d ? 'Clic para ver detalles' : ''}>
                         {dif !== null && dif !== 0 ? dif.toLocaleString('es-CO') : (dif === 0 ? '0' : '')}
                       </td>
                     )
@@ -208,53 +236,40 @@ export default function AcumuladosPage() {
         )}
       </div>
 
-      {/* VISTA DE DETALLE (Drill-Down Modal) */}
-      {detalleSeleccionado && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
-        }}>
-          <div style={{ background: 'var(--bg)', width: '95%', maxWidth: 1200, borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg2)' }}>
-              <h2 style={{ fontSize: 16, margin: 0 }}>
-                Detalles de Suma de DIFERENCIAS - {detalleSeleccionado.descripcion} | {fmtFechaCorta(detalleSeleccionado.fecha)}
-              </h2>
-              <button onClick={() => setDetalleSeleccionado(null)} style={{ background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text)' }}>
-                ✕
-              </button>
+      {/* Modal detalle */}
+      {detalle && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div style={{ background: 'var(--bg)', width: '95%', maxWidth: 900, borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg2)' }}>
+              <h2 style={{ fontSize: 14, margin: 0 }}>{detalle.descripcion} — {fmtFechaCorta(detalle.fecha)}</h2>
+              <button onClick={() => setDetalle(null)} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text)' }}>x</button>
             </div>
             <div style={{ padding: 20, overflowX: 'auto' }}>
-              <table className="inv-table" style={{ minWidth: '100%', fontSize: 12 }}>
+              <table className="inv-table" style={{ fontSize: 12 }}>
                 <thead>
-                  <tr style={{ background: '#4A86E8', color: 'white' }}>
-                    <th>REFERENCIA</th>
-                    <th>DESCRIPCION</th>
-                    <th>LOCALIZACION</th>
-                    <th>U.M</th>
-                    <th>FECHA</th>
-                    <th>CONTEO FISICO</th>
-                    <th>CANTIDAD SISTEMA</th>
-                    <th>DIFERENCIA</th>
-                    <th>COSTO UNITARIO</th>
-                    <th>COSTO DIFERENCIA</th>
-                    <th>COSTO BODEGA</th>
-                    <th>OBSERVACIONES</th>
+                  <tr>
+                    <th>Referencia</th><th>Descripcion</th><th>Loc.</th><th>U.M</th>
+                    <th>Fecha</th><th>Categoria</th><th>Tipo</th>
+                    <th>Conteo Fisico</th><th>Cant. Sistema</th><th>Diferencia</th>
+                    <th>Costo Unit.</th><th>Costo Dif.</th><th>Costo Bodega</th><th>Observaciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>{detalleSeleccionado.referencia}</td>
-                    <td>{detalleSeleccionado.descripcion}</td>
-                    <td>{detalleSeleccionado.localizacion}</td>
-                    <td>{detalleSeleccionado.um}</td>
-                    <td>{fmtFechaCorta(detalleSeleccionado.fecha)}</td>
-                    <td style={{ textAlign: 'right' }}>{Number(detalleSeleccionado.conteo_fisico).toLocaleString('es-CO')}</td>
-                    <td style={{ textAlign: 'right' }}>{Number(detalleSeleccionado.cantidad_sistema).toLocaleString('es-CO')}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 'bold' }}>{Number(detalleSeleccionado.diferencia).toLocaleString('es-CO')}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(detalleSeleccionado.costo_unitario)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(detalleSeleccionado.costo_diferencia)}</td>
-                    <td style={{ textAlign: 'right' }}>{fmt(detalleSeleccionado.costo_bodega_total)}</td>
-                    <td>{detalleSeleccionado.observaciones || '—'}</td>
+                    <td className="mono">{detalle.referencia}</td>
+                    <td>{detalle.descripcion}</td>
+                    <td>{detalle.localizacion}</td>
+                    <td>{detalle.um}</td>
+                    <td>{fmtFechaCorta(detalle.fecha)}</td>
+                    <td style={{ fontSize: 11, color: 'var(--text2)' }}>{detalle.categoria}</td>
+                    <td><span style={{ background: 'var(--bg3)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>{detalle.tipo}</span></td>
+                    <td style={{ textAlign: 'right' }}>{Number(detalle.conteo_fisico).toLocaleString('es-CO')}</td>
+                    <td style={{ textAlign: 'right' }}>{Number(detalle.cantidad_sistema).toLocaleString('es-CO')}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 700 }} className={Number(detalle.diferencia) < 0 ? 'neg' : 'pos'}>{Number(detalle.diferencia).toLocaleString('es-CO')}</td>
+                    <td style={{ textAlign: 'right' }}>{fmt(detalle.costo_unitario)}</td>
+                    <td style={{ textAlign: 'right' }} className={Number(detalle.costo_diferencia) < 0 ? 'neg' : ''}>{fmt(detalle.costo_diferencia)}</td>
+                    <td style={{ textAlign: 'right' }}>{fmt(detalle.costo_bodega_total)}</td>
+                    <td style={{ color: 'var(--text2)' }}>{detalle.observaciones || '—'}</td>
                   </tr>
                 </tbody>
               </table>
