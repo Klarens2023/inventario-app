@@ -3,100 +3,138 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import { useState } from 'react'
 
-// Iconos SVG nítidos
 const Icons = {
-  Inicio: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
-  Cargar: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
-  Conteo: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>,
-  Acumulados: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+  Inicio:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+  Cargar:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
+  Conteo:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>,
+  Acumulados: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  Collapse:   ({ open }: { open: boolean }) => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ transition: 'transform 0.3s', transform: open ? 'rotate(0deg)' : 'rotate(180deg)' }}>
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  ),
+  Logout: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
 }
 
 const nav = [
-  { href: '/dashboard',  icon: <Icons.Inicio />, label: 'Inicio' },
-  { href: '/cargar',     icon: <Icons.Cargar />, label: 'Cargar Inventario' },
-  { href: '/consulta',   icon: <Icons.Conteo />, label: 'Conteo Físico' },
+  { href: '/dashboard',  icon: <Icons.Inicio />,     label: 'Inicio' },
+  { href: '/cargar',     icon: <Icons.Cargar />,     label: 'Cargar Inventario' },
+  { href: '/consulta',   icon: <Icons.Conteo />,     label: 'Conteo Fisico' },
   { href: '/acumulados', icon: <Icons.Acumulados />, label: 'Acumulados' },
 ]
 
 export default function Sidebar() {
-  const pathname = usePathname()
+  const pathname  = usePathname()
   const { data: session } = useSession()
+  const [open, setOpen]   = useState(true)
 
   if (pathname === '/login') return null
 
+  const W = open ? 260 : 64
+
   return (
     <aside style={{
-      width: 280, height: '100vh', 
+      width: W, minWidth: W, height: '100vh', flexShrink: 0,
       background: 'linear-gradient(180deg, #0047BA 0%, #002D7A 100%)',
-      color: '#FFFFFF', display: 'flex', flexDirection: 'column', flexShrink: 0,
-      boxShadow: '4px 0 20px rgba(0,0,0,0.15)'
+      color: '#fff', display: 'flex', flexDirection: 'column',
+      boxShadow: '4px 0 20px rgba(0,0,0,0.15)',
+      transition: 'width 0.3s ease, min-width 0.3s ease',
+      overflow: 'hidden'
     }}>
-      
-      {/* SECCIÓN DEL LOGO - EFECTO CRISTAL Y MÁS GRANDE */}
-      <div style={{ padding: '30px 20px 20px' }}>
-        <div style={{
-          // Fondo blanco con 85% de transparencia para el efecto "transparentoso"
-          background: 'rgba(255, 255, 255, 0.85)', 
-          backdropFilter: 'blur(10px)', // Desenfoca un poco el fondo para que se vea premium
-          padding: '12px', 
-          borderRadius: '8px', // Más cuadrado (antes era 15px)
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          display: 'flex', 
-          justifyContent: 'center',
-          alignItems: 'center',
-          width: '100%',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
-        }}>
-          <Image 
-            src="/Klarens-logo.png" // Asegúrate que sea el nuevo PNG sin fondo
-            alt="Logo Klarens" 
-            width={240} // Aumentamos el tamaño
-            height={90} 
-            style={{ objectFit: 'contain' }} 
-            priority 
-          />
-        </div>
+
+      {/* Logo / Colapsar */}
+      <div style={{
+        padding: open ? '20px 16px 16px' : '14px 12px',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex', alignItems: 'center',
+        justifyContent: open ? 'space-between' : 'center',
+        minHeight: 80
+      }}>
+        {open && (
+          <div style={{
+            background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
+            padding: '8px 12px', borderRadius: 8, flex: 1, marginRight: 10,
+            display: 'flex', justifyContent: 'center', alignItems: 'center'
+          }}>
+            <Image src="/Klarens-logo.png" alt="Logo" width={160} height={55} style={{ objectFit: 'contain' }} priority />
+          </div>
+        )}
+        <button
+          onClick={() => setOpen(v => !v)}
+          title={open ? 'Colapsar' : 'Expandir'}
+          style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: '#fff', flexShrink: 0, transition: 'background 0.2s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+        >
+          <Icons.Collapse open={open} />
+        </button>
       </div>
 
-      {/* NAVEGACIÓN */}
-      <nav style={{ flex: 1, padding: '10px 15px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Nav */}
+      <nav style={{ flex: 1, padding: open ? '12px 12px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {nav.map(item => {
           const active = pathname === item.href
           return (
-            <Link key={item.href} href={item.href} style={{
-              display: 'flex', alignItems: 'center', gap: 15,
-              padding: '14px 18px', borderRadius: '12px', textDecoration: 'none',
-              fontSize: '14px', fontWeight: active ? '700' : '500',
-              color: active ? '#0047BA' : '#D1E3FF',
-              background: active ? '#FFFFFF' : 'transparent',
-              transition: 'all 0.3s ease',
-              boxShadow: active ? '0 5px 15px rgba(0,0,0,0.2)' : 'none'
-            }}>
-              <span style={{ display: 'flex', alignItems: 'center' }}>{item.icon}</span>
-              {item.label}
+            <Link key={item.href} href={item.href}
+              title={!open ? item.label : ''}
+              style={{
+                display: 'flex', alignItems: 'center',
+                gap: open ? 12 : 0,
+                justifyContent: open ? 'flex-start' : 'center',
+                padding: open ? '12px 16px' : '12px',
+                borderRadius: 10, textDecoration: 'none',
+                fontSize: 14, fontWeight: active ? 700 : 500,
+                color: active ? '#0047BA' : '#D1E3FF',
+                background: active ? '#fff' : 'transparent',
+                transition: 'all 0.2s',
+                whiteSpace: 'nowrap', overflow: 'hidden',
+                boxShadow: active ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
+              }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+            >
+              <span style={{ flexShrink: 0, display: 'flex' }}>{item.icon}</span>
+              {open && <span style={{ opacity: 1, transition: 'opacity 0.2s' }}>{item.label}</span>}
             </Link>
           )
         })}
       </nav>
 
-      {/* USUARIO */}
-      <div style={{ padding: '25px 20px', background: 'rgba(0,0,0,0.1)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 15 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>{session?.user?.name || 'Usuario'}</div>
-          <div style={{ fontSize: 11, color: '#8AB4F8' }}>Planta Valledupar</div>
-        </div>
+      {/* Usuario */}
+      <div style={{
+        padding: open ? '16px' : '12px 8px',
+        borderTop: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: open ? 'stretch' : 'center', gap: 10
+      }}>
+        {open && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{session?.user?.name || 'Usuario'}</div>
+            <div style={{ fontSize: 11, color: '#8AB4F8', marginTop: 2 }}>Planta Valledupar</div>
+          </div>
+        )}
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
-          style={{ 
-            width: '100%', padding: '12px', borderRadius: '10px',
-            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-            color: 'white', fontWeight: 600, cursor: 'pointer', transition: '0.2s'
+          title={!open ? 'Cerrar sesion' : ''}
+          style={{
+            width: '100%', padding: open ? '10px' : '10px',
+            borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(255,255,255,0.1)', color: '#fff',
+            fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
           }}
           onMouseEnter={e => e.currentTarget.style.background = '#EF4444'}
           onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
         >
-          Cerrar Sesión
+          <Icons.Logout />
+          {open && 'Cerrar Sesion'}
         </button>
       </div>
     </aside>
