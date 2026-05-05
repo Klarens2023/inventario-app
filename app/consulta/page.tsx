@@ -18,18 +18,23 @@ function fmt(n: number, prefix = '$') {
   return (n < 0 ? `-${prefix}` : prefix) + s
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'transparent', border: 'none',
+  color: 'inherit', fontFamily: 'inherit', fontSize: 13,
+  outline: 'none', padding: '2px 4px', cursor: 'text'
+}
+
 export default function ConsultaPage() {
-  const [fechas,     setFechas]    = useState<string[]>([])
-  const [fecha,      setFecha]     = useState('')
-  const [tipos,      setTipos]     = useState<string[]>([])
-  const [tipoSel,    setTipoSel]   = useState('todos')
-  const [rows,       setRows]      = useState<Row[]>([])
-  const [loading,    setLoading]   = useState(false)
-  const [acumulando, setAcum]      = useState(false)
-  const [edits,      setEdits]     = useState<Record<number, EditState>>({})
+  const [fechas,     setFechas]  = useState<string[]>([])
+  const [fecha,      setFecha]   = useState('')
+  const [tipos,      setTipos]   = useState<string[]>([])
+  const [tipoSel,    setTipoSel] = useState('todos')
+  const [rows,       setRows]    = useState<Row[]>([])
+  const [loading,    setLoading] = useState(false)
+  const [acumulando, setAcum]    = useState(false)
+  const [edits,      setEdits]   = useState<Record<number, EditState>>({})
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
-  // Cargar fechas
   useEffect(() => {
     fetch('/api/inventario').then(r => r.json()).then((data: {fecha:string}[]) => {
       const fs = data.map(d => String(d.fecha).substring(0, 10))
@@ -38,39 +43,23 @@ export default function ConsultaPage() {
     })
   }, [])
 
-  // Cargar tipos disponibles al cambiar fecha
   useEffect(() => {
     if (!fecha) return
     fetch(`/api/inventario/tipos?fecha=${fecha}`)
-      .then(r => r.json())
-      .then((ts: string[]) => {
-        setTipos(ts)
-        setTipoSel('todos')
-      })
+      .then(r => r.json()).then((ts: string[]) => { setTipos(ts); setTipoSel('todos') })
   }, [fecha])
 
-  // Cargar filas al cambiar fecha o tipo
   useEffect(() => {
     if (!fecha) return
     setLoading(true)
     const url = tipoSel !== 'todos'
       ? `/api/inventario?fecha=${fecha}&tipo=${encodeURIComponent(tipoSel)}`
       : `/api/inventario?fecha=${fecha}`
-    fetch(url)
-      .then(r => r.json())
-      .then((data: Row[]) => {
-        const init: Record<number, EditState> = {}
-        data.forEach(r => {
-          init[r.id] = {
-            conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '',
-            obs:    r.observaciones || '',
-            status: 'idle'
-          }
-        })
-        setRows(data)
-        setEdits(init)
-        setLoading(false)
-      })
+    fetch(url).then(r => r.json()).then((data: Row[]) => {
+      const init: Record<number, EditState> = {}
+      data.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
+      setRows(data); setEdits(init); setLoading(false)
+    })
   }, [fecha, tipoSel])
 
   const autoguardar = useCallback((id: number, conteo: string, obs: string) => {
@@ -78,73 +67,39 @@ export default function ConsultaPage() {
     if (timers.current[id]) clearTimeout(timers.current[id])
     timers.current[id] = setTimeout(async () => {
       try {
-        await fetch('/api/conteo', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id_inventario: id,
-            conteo_fisico: conteo !== '' ? Number(conteo) : null,
-            observaciones: obs || null,
-          })
-        })
+        await fetch('/api/conteo', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_inventario: id, conteo_fisico: conteo !== '' ? Number(conteo) : null, observaciones: obs || null }) })
         setEdits(prev => ({ ...prev, [id]: { ...prev[id], status: 'saved' } }))
         setTimeout(() => setEdits(prev => ({ ...prev, [id]: { ...prev[id], status: 'idle' } })), 2000)
-      } catch {
-        setEdits(prev => ({ ...prev, [id]: { ...prev[id], status: 'error' } }))
-      }
+      } catch { setEdits(prev => ({ ...prev, [id]: { ...prev[id], status: 'error' } })) }
     }, 1000)
   }, [])
 
   function handleChange(id: number, field: 'conteo' | 'obs', value: string) {
     const current = edits[id]
-    const next = { ...current, [field]: value }
-    setEdits(prev => ({ ...prev, [id]: { ...next, status: 'saving' } }))
+    setEdits(prev => ({ ...prev, [id]: { ...current, [field]: value, status: 'saving' } }))
     autoguardar(id, field === 'conteo' ? value : current.conteo, field === 'obs' ? value : current.obs)
   }
 
   async function acumular() {
-    if (Object.values(edits).some(e => e.status === 'saving')) {
-      alert('Hay cambios guardándose. Espera un momento.')
-      return
-    }
-    if (!confirm(`Enviar ${rows.length} registros (${tipoSel}) a Acumulados?`)) return
+    if (Object.values(edits).some(e => e.status === 'saving')) { alert('Hay cambios guardandose. Espera un momento.'); return }
+    if (!confirm(`Enviar ${rows.length} registros a Acumulados?`)) return
     setAcum(true)
     for (const row of rows) {
-      const e = edits[row.id]
-      if (!e) continue
-      await fetch('/api/conteo', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_inventario: row.id,
-          conteo_fisico: e.conteo !== '' ? Number(e.conteo) : null,
-          observaciones: e.obs || null,
-        })
-      })
+      const e = edits[row.id]; if (!e) continue
+      await fetch('/api/conteo', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_inventario: row.id, conteo_fisico: e.conteo !== '' ? Number(e.conteo) : null, observaciones: e.obs || null }) })
     }
-    setAcum(false)
-    alert(`Listo! ${rows.length} registros acumulados.`)
+    setAcum(false); alert(`Listo! ${rows.length} registros acumulados.`)
   }
 
   function exportar() {
-    const cols = ['Referencia','Descripcion','Localizacion','U.M','Categoria','Tipo','Cant. Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
+    const cols = ['Referencia','Descripcion','Loc','UM','Tipo','Cant Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
     const filas = rows.map(r => {
-      const e      = edits[r.id]
-      const conteo = e?.conteo !== '' ? Number(e?.conteo) : 0
-      const dif    = conteo - Number(r.cantidad_sistema)
-      return [
-        r.referencia, r.descripcion, r.localizacion, r.um,
-        r.categoria, r.tipo,
-        Number(r.cantidad_sistema),
-        conteo || '',
-        dif || '',
-        Number(r.costo_unitario),
-        dif * Number(r.costo_unitario) || '',
-        Number(r.costo_bodega),
-        e?.obs || ''
-      ]
+      const e = edits[r.id]; const conteo = e?.conteo !== '' ? Number(e?.conteo) : 0; const dif = conteo - Number(r.cantidad_sistema)
+      return [r.referencia, r.descripcion, r.localizacion, r.um, r.tipo, Number(r.cantidad_sistema), conteo || '', dif || '', Number(r.costo_unitario), dif * Number(r.costo_unitario) || '', Number(r.costo_bodega), e?.obs || '']
     })
-    exportarExcel(`Conteo_${tipoSel}_${fecha}`, cols, filas)
+    exportarExcel(`Conteo_${tipoSel}_${fecha}`, cols, filas as any)
   }
 
   const totalBodega = rows.reduce((s, r) => s + Number(r.costo_bodega), 0)
@@ -154,134 +109,141 @@ export default function ConsultaPage() {
   }, 0)
   const hayPendientes = Object.values(edits).some(e => e.status === 'saving')
 
-  function StatusIcon({ status }: { status: EditState['status'] }) {
-    if (status === 'saving') return <span style={{ color: 'var(--warn)', fontSize: 11 }}>⏳</span>
-    if (status === 'saved')  return <span style={{ color: 'var(--accent)', fontSize: 11 }}>✓</span>
-    if (status === 'error')  return <span style={{ color: 'var(--danger)', fontSize: 11 }}>✗</span>
+  function StatusDot({ status }: { status: EditState['status'] }) {
+    if (status === 'saving') return <span style={{ color: '#f59e0b', fontSize: 10 }}>●</span>
+    if (status === 'saved')  return <span style={{ color: '#10b981', fontSize: 10 }}>✓</span>
+    if (status === 'error')  return <span style={{ color: '#ef4444', fontSize: 10 }}>✗</span>
     return null
   }
 
+  // ── select / button styles (reutilizables) ──
+  const selStyle: React.CSSProperties = {
+    padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db',
+    background: '#fff', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer'
+  }
+  const btnGreen: React.CSSProperties = {
+    padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
+    background: hayPendientes ? '#9ca3af' : 'linear-gradient(135deg,#22c55e,#16a34a)',
+    color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'inherit'
+  }
+
   return (
-    <div style={{ padding: '24px 32px', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+    // ── Wrapper que ocupa TODA la viewport menos el sidebar ──
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', padding: '20px 24px', gap: 12, boxSizing: 'border-box' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+      {/* HEADER */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700 }}>Conteo Fisico</h1>
-          <p style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>
-            Los cambios se guardan automaticamente. Cuando termines presiona Acumular.
-          </p>
+          <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Conteo Fisico</h1>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>Los cambios se guardan automaticamente. Cuando termines presiona Acumular.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-
-          {/* Fecha */}
-          <select value={fecha} onChange={e => setFecha(e.target.value)}
-            style={{ padding: '8px 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13, fontFamily: 'inherit' }}>
-            {fechas.map(f => (
-              <option key={f} value={f}>
-                {new Date(f + 'T12:00:00').toLocaleDateString('es-CO')}
-              </option>
-            ))}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={fecha} onChange={e => setFecha(e.target.value)} style={selStyle}>
+            {fechas.map(f => <option key={f} value={f}>{new Date(f + 'T12:00:00').toLocaleDateString('es-CO')}</option>)}
           </select>
-
-          {/* Sub-categoría (tipo) */}
-          <select value={tipoSel} onChange={e => setTipoSel(e.target.value)}
-            style={{ padding: '8px 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13, fontFamily: 'inherit' }}>
+          <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} style={selStyle}>
             <option value="todos">Todos los tipos</option>
             {tipos.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-
-          {/* Exportar */}
-          <button onClick={exportar} disabled={rows.length === 0} className="btn"
-            style={{ fontSize: 12, opacity: rows.length === 0 ? 0.5 : 1 }}>
+          <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
-
-          {/* Acumular */}
-          <button onClick={acumular} disabled={acumulando || rows.length === 0 || hayPendientes}
-            style={{
-              padding: '9px 20px', borderRadius: 6, border: 'none',
-              background: hayPendientes ? 'var(--border)' : 'linear-gradient(135deg, #3fb950, #238636)',
-              color: hayPendientes ? 'var(--text2)' : '#000',
-              fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
-              opacity: rows.length === 0 ? 0.5 : 1
-            }}>
+          <button onClick={acumular} disabled={acumulando || rows.length === 0 || hayPendientes} style={btnGreen}>
             {acumulando ? 'Acumulando...' : hayPendientes ? 'Guardando...' : 'Acumular todo'}
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
-        <div className="stat-card"><div className="stat-label">Referencias</div><div className="stat-value">{rows.length}</div></div>
-        <div className="stat-card"><div className="stat-label">Con conteo</div><div className="stat-value" style={{ color: 'var(--accent)' }}>{Object.values(edits).filter(e => e.conteo !== '').length}</div></div>
-        <div className="stat-card"><div className="stat-label">Costo Bodega</div><div className="stat-value" style={{ fontSize: 14 }}>{fmt(totalBodega)}</div></div>
-        <div className="stat-card"><div className="stat-label">Costo Diferencia</div><div className="stat-value" style={{ fontSize: 14, color: totalDif < 0 ? 'var(--danger)' : 'var(--accent)' }}>{fmt(totalDif)}</div></div>
-        <div className="stat-card"><div className="stat-label">Participacion</div><div className="stat-value" style={{ color: 'var(--warn)' }}>{totalBodega !== 0 ? ((totalDif / totalBodega) * 100).toFixed(1) + '%' : '—'}</div></div>
+      {/* STATS */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, flexShrink: 0 }}>
+        {[
+          { label: 'REFERENCIAS',     value: rows.length,                               color: '#1d4ed8' },
+          { label: 'CON CONTEO',      value: Object.values(edits).filter(e=>e.conteo!=='').length, color: '#16a34a' },
+          { label: 'COSTO BODEGA',    value: fmt(totalBodega),                          color: '#1d4ed8' },
+          { label: 'COSTO DIFERENCIA',value: fmt(totalDif),                             color: totalDif < 0 ? '#ef4444' : '#16a34a' },
+          { label: 'PARTICIPACION',   value: totalBodega !== 0 ? ((totalDif/totalBodega)*100).toFixed(1)+'%' : '—', color: '#d97706' },
+        ].map(s => (
+          <div key={s.label} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 16px', borderLeft: `4px solid ${s.color}` }}>
+            <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>{s.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.value}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Tabla */}
-      <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+      {/* TABLA — flex:1 + overflow:auto para scroll independiente */}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10 }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Cargando...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Cargando...</div>
         ) : rows.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>
-            No hay datos. <a href="/cargar" style={{ color: 'var(--accent)' }}>Cargar inventario</a>
+          <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
+            No hay datos. <a href="/cargar" style={{ color: '#2563eb' }}>Cargar inventario</a>
           </div>
         ) : (
-          <table className="inv-table">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>
-                <th>Referencia</th>
-                <th>Descripcion</th>
-                <th>Loc.</th>
-                <th>U.M</th>
-                <th>Categoria</th>
-                <th>Tipo</th>
-                <th>Cant. Sistema</th>
-                <th style={{ color: 'var(--accent)' }}>Conteo Fisico</th>
-                <th>Diferencia</th>
-                <th>Costo Unit.</th>
-                <th>Costo Dif.</th>
-                <th>Costo Bodega</th>
-                <th style={{ color: 'var(--accent)' }}>Observaciones</th>
-                <th style={{ width: 24 }}></th>
+              <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
+                {['Referencia','Descripcion','Loc','UM','Tipo','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones',''].map((h,i) => (
+                  <th key={i} style={{
+                    padding: '10px 10px', textAlign: i >= 5 && i <= 10 ? 'right' : 'left',
+                    fontSize: 11, fontWeight: 700, color: '#374151', borderBottom: '2px solid #e5e7eb',
+                    whiteSpace: 'nowrap',
+                    ...(h === 'Conteo' || h === 'Observaciones' ? { color: '#16a34a' } : {})
+                  }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => {
-                const e        = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
-                const conteo   = e.conteo !== '' ? Number(e.conteo) : 0
-                const dif      = conteo - Number(r.cantidad_sistema)
-                const costoDif = dif * Number(r.costo_unitario)
+              {rows.map((r, idx) => {
+                const e = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
+                const conteo = e.conteo !== '' ? Number(e.conteo) : 0
+                const dif    = conteo - Number(r.cantidad_sistema)
+                const cDif   = dif * Number(r.costo_unitario)
+                const bg     = idx % 2 === 0 ? '#fff' : '#f9fafb'
                 return (
-                  <tr key={r.id}>
-                    <td><span className="mono" style={{ fontSize: 12 }}>{r.referencia}</span></td>
-                    <td style={{ maxWidth: 180 }}>{r.descripcion}</td>
-                    <td>{r.localizacion}</td>
-                    <td>{r.um}</td>
-                    <td style={{ fontSize: 11, color: 'var(--text2)' }}>{r.categoria}</td>
-                    <td><span style={{ background: 'var(--bg3)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>{r.tipo}</span></td>
-                    <td style={{ textAlign: 'right' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
-                    <td style={{ background: 'rgba(63,185,80,0.05)' }}>
+                  <tr key={r.id} style={{ background: bg }}>
+                    <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }}>{r.referencia}</td>
+                    <td style={{ padding: '7px 10px', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }} title={r.descripcion}>{r.descripcion}</td>
+                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{r.localizacion}</td>
+                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0' }}>{r.um}</td>
+                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0' }}>
+                      <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{r.tipo}</span>
+                    </td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
+
+                    {/* CONTEO FISICO */}
+                    <td style={{ padding: '3px 6px', background: '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 90 }}>
                       <input type="number" value={e.conteo}
                         onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
-                        placeholder="—" style={{ textAlign: 'right', width: 90 }} />
+                        placeholder="—"
+                        style={{ ...inputStyle, textAlign: 'right', minWidth: 75 }}
+                        onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
+                        onBlur={ev  => { ev.target.style.background = 'transparent' }}
+                      />
                     </td>
-                    <td style={{ textAlign: 'right' }} className={dif < 0 ? 'neg' : dif > 0 ? 'pos' : ''}>
+
+                    <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0f0f0', color: dif < 0 ? '#ef4444' : dif > 0 ? '#16a34a' : 'inherit' }}>
                       {e.conteo !== '' ? dif.toLocaleString('es-CO') : '—'}
                     </td>
-                    <td style={{ textAlign: 'right' }}>{fmt(r.costo_unitario)}</td>
-                    <td style={{ textAlign: 'right' }} className={costoDif < 0 ? 'neg' : ''}>
-                      {e.conteo !== '' ? fmt(costoDif) : '—'}
+                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{fmt(r.costo_unitario)}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', color: cDif < 0 ? '#ef4444' : 'inherit' }}>
+                      {e.conteo !== '' ? fmt(cDif) : '—'}
                     </td>
-                    <td style={{ textAlign: 'right' }}>{fmt(r.costo_bodega)}</td>
-                    <td style={{ background: 'rgba(63,185,80,0.05)', minWidth: 140 }}>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{fmt(r.costo_bodega)}</td>
+
+                    {/* OBSERVACIONES */}
+                    <td style={{ padding: '3px 6px', background: '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 160 }}>
                       <input type="text" value={e.obs}
                         onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
-                        placeholder="Observacion..." />
+                        placeholder="Observacion..."
+                        style={{ ...inputStyle, minWidth: 150 }}
+                        onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
+                        onBlur={ev  => { ev.target.style.background = 'transparent' }}
+                      />
                     </td>
-                    <td style={{ textAlign: 'center' }}><StatusIcon status={e.status} /></td>
+
+                    <td style={{ padding: '7px 6px', textAlign: 'center', borderBottom: '1px solid #f0f0f0', width: 20 }}>
+                      <StatusDot status={e.status} />
+                    </td>
                   </tr>
                 )
               })}
