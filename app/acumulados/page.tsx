@@ -163,7 +163,7 @@ export default function AcumuladosPage() {
         )}
 
         {/* Filtro bodega */}
-        {bodegasDisponibles.length > 1 && (
+        {bodegasDisponibles.length > 0 && (
           <div>
             <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Bodega</label>
             <select value={bodegaSel} onChange={e => setBodegaSel(e.target.value)}

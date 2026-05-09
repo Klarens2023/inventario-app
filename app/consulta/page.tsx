@@ -27,7 +27,6 @@ const inputStyle: React.CSSProperties = {
 export default function ConsultaPage() {
   const [fechas,     setFechas]  = useState<string[]>([])
   const [fecha,      setFecha]   = useState('')
-  const [tipos,      setTipos]   = useState<string[]>([])
   const [tipoSel,    setTipoSel] = useState('todos')
   const [bodegaSel,  setBodegaSel] = useState('todas')
   const [rows,       setRows]    = useState<Row[]>([])
@@ -44,24 +43,21 @@ export default function ConsultaPage() {
     })
   }, [])
 
-  useEffect(() => {
-    if (!fecha) return
-    fetch(`/api/inventario/tipos?fecha=${fecha}`)
-      .then(r => r.json()).then((ts: string[]) => { setTipos(ts); setTipoSel('todos') })
-  }, [fecha])
-
+  // Carga todos los rows de la fecha sin filtrar — los filtros son client-side
   useEffect(() => {
     if (!fecha) return
     setLoading(true)
-    const url = tipoSel !== 'todos'
-      ? `/api/inventario?fecha=${fecha}&tipo=${encodeURIComponent(tipoSel)}`
-      : `/api/inventario?fecha=${fecha}`
-    fetch(url).then(r => r.json()).then((data: Row[]) => {
+    setBodegaSel('todas')
+    setTipoSel('todos')
+    fetch(`/api/inventario?fecha=${fecha}`).then(r => r.json()).then((data: Row[]) => {
       const init: Record<number, EditState> = {}
       data.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
       setRows(data); setEdits(init); setLoading(false)
     })
-  }, [fecha, tipoSel])
+  }, [fecha])
+
+  // Al cambiar bodega, resetear tipo si ya no está disponible
+  useEffect(() => { setTipoSel('todos') }, [bodegaSel])
 
   const autoguardar = useCallback((id: number, conteo: string, obs: string) => {
     setEdits(prev => ({ ...prev, [id]: { ...prev[id], status: 'saving' } }))
@@ -104,7 +100,9 @@ export default function ConsultaPage() {
   }
 
   const bodegasDisponibles = Array.from(new Set(rows.map(r => r.localizacion).filter(Boolean))).sort()
-  const rowsMostradas = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
+  const rowsPorBodega = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
+  const tiposDisponibles = Array.from(new Set(rowsPorBodega.map(r => r.tipo).filter(Boolean))).sort()
+  const rowsMostradas = tipoSel !== 'todos' ? rowsPorBodega.filter(r => r.tipo === tipoSel) : rowsPorBodega
 
   const totalBodega = rowsMostradas.reduce((s, r) => s + Number(r.costo_bodega), 0)
   const totalDif    = rowsMostradas.reduce((s, r) => {
@@ -147,14 +145,12 @@ export default function ConsultaPage() {
           </select>
           <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} style={selStyle}>
             <option value="todos">Todos los tipos</option>
-            {tipos.map(t => <option key={t} value={t}>{t}</option>)}
+            {tiposDisponibles.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          {bodegasDisponibles.length > 1 && (
-            <select value={bodegaSel} onChange={e => setBodegaSel(e.target.value)} style={selStyle}>
-              <option value="todas">Todas las bodegas</option>
-              {bodegasDisponibles.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          )}
+          <select value={bodegaSel} onChange={e => setBodegaSel(e.target.value)} style={selStyle}>
+            <option value="todas">Todas las bodegas</option>
+            {bodegasDisponibles.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
           <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
