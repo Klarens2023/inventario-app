@@ -20,7 +20,7 @@ function mapearColumnas(headers: string[]) {
     if (['existencia', 'cantidad'].includes(k))                      map.cantidad       = i
     if (['u.m.', 'u.m', 'um'].includes(k))                          map.um             = i
     if (k.includes('costo prom. uni') || k.includes('costo unitario')) map.costo_unitario = i
-    if (k.includes('costo prom. total') || k.includes('costo total'))  map.costo_total    = i
+    if (k.includes('costo prom. tot') || k.includes('costo total'))    map.costo_total    = i
   })
   return map
 }
@@ -104,6 +104,8 @@ export async function POST(req: NextRequest) {
   const userId = session.user?.id ?? null
   
   // Borrar solo los registros de esa fecha Y esos tipos (no afecta otros sub-grupos)
+  // Si el archivo no tiene columna tipo, limpiar registros sin tipo para evitar duplicados
+  await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND (tipo = '' OR tipo IS NULL)`
   for (const tipo of Array.from(tiposEnArchivo)) {
     await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND tipo = ${tipo}`
   }
