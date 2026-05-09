@@ -32,6 +32,7 @@ export default function ConsultaPage() {
   const [rows,       setRows]    = useState<Row[]>([])
   const [loading,    setLoading] = useState(false)
   const [acumulando, setAcum]    = useState(false)
+  const [bloqueado,  setBloqueado] = useState(false)
   const [edits,      setEdits]   = useState<Record<number, EditState>>({})
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
@@ -49,6 +50,9 @@ export default function ConsultaPage() {
     setLoading(true)
     setBodegaSel('todas')
     setTipoSel('todos')
+    // Verificar si esta fecha ya fue acumulada
+    const yaAcumulado = localStorage.getItem(`conteo_bloqueado_${fecha}`) === 'true'
+    setBloqueado(yaAcumulado)
     fetch(`/api/inventario?fecha=${fecha}`).then(r => r.json()).then((data: Row[]) => {
       const init: Record<number, EditState> = {}
       data.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
@@ -80,14 +84,17 @@ export default function ConsultaPage() {
 
   async function acumular() {
     if (Object.values(edits).some(e => e.status === 'saving')) { alert('Hay cambios guardandose. Espera un momento.'); return }
-    if (!confirm(`Enviar ${rows.length} registros a Acumulados?`)) return
+    if (!confirm(`Enviar ${rows.length} registros a Acumulados? Una vez acumulado no podrás modificar el conteo.`)) return
     setAcum(true)
     for (const row of rows) {
       const e = edits[row.id]; if (!e) continue
       await fetch('/api/conteo', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_inventario: row.id, conteo_fisico: e.conteo !== '' ? Number(e.conteo) : null, observaciones: e.obs || null }) })
     }
-    setAcum(false); alert(`Listo! ${rows.length} registros acumulados.`)
+    setAcum(false)
+    localStorage.setItem(`conteo_bloqueado_${fecha}`, 'true')
+    setBloqueado(true)
+    alert(`Listo! ${rows.length} registros acumulados. El conteo ha sido bloqueado.`)
   }
 
   function exportar() {
@@ -104,11 +111,22 @@ export default function ConsultaPage() {
   const tiposDisponibles = Array.from(new Set(rowsPorBodega.map(r => r.tipo).filter(Boolean))).sort()
   const rowsMostradas = tipoSel !== 'todos' ? rowsPorBodega.filter(r => r.tipo === tipoSel) : rowsPorBodega
 
-  const totalBodega = rowsMostradas.reduce((s, r) => s + Number(r.costo_bodega), 0)
-  const totalDif    = rowsMostradas.reduce((s, r) => {
+  const totalCantidad = rowsMostradas.reduce((s, r) => s + Number(r.cantidad_sistema), 0)
+  const totalConteo   = rowsMostradas.reduce((s, r) => {
+    const c = edits[r.id]?.conteo
+    return s + (c !== '' && c !== undefined ? Number(c) : 0)
+  }, 0)
+  const totalBodega   = rowsMostradas.reduce((s, r) => s + Number(r.costo_bodega), 0)
+  const totalDif      = rowsMostradas.reduce((s, r) => {
     const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0
     return s + (c - Number(r.cantidad_sistema)) * Number(r.costo_unitario)
   }, 0)
+  const totalDifCantidad = rowsMostradas.reduce((s, r) => {
+    const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0
+    return s + (c - Number(r.cantidad_sistema))
+  }, 0)
+  const conConteo = rowsMostradas.filter(r => edits[r.id]?.conteo !== '' && edits[r.id]?.conteo !== undefined)
+  const hayConteo = conConteo.length > 0
   const hayPendientes = Object.values(edits).some(e => e.status === 'saving')
 
   function StatusDot({ status }: { status: EditState['status'] }) {
@@ -137,7 +155,13 @@ export default function ConsultaPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Conteo Fisico</h1>
-          <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>Los cambios se guardan automaticamente. Cuando termines presiona Acumular.</p>
+          {bloqueado ? (
+            <p style={{ fontSize: 12, margin: '2px 0 0', color: '#dc2626', fontWeight: 600 }}>
+              🔒 Este conteo ya fue acumulado y no puede modificarse.
+            </p>
+          ) : (
+            <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>Los cambios se guardan automaticamente. Cuando termines presiona Acumular.</p>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <select value={fecha} onChange={e => setFecha(e.target.value)} style={selStyle}>
@@ -154,9 +178,11 @@ export default function ConsultaPage() {
           <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
-          <button onClick={acumular} disabled={acumulando || rows.length === 0 || hayPendientes} style={btnGreen}>
-            {acumulando ? 'Acumulando...' : hayPendientes ? 'Guardando...' : 'Acumular todo'}
-          </button>
+          {!bloqueado && (
+            <button onClick={acumular} disabled={acumulando || rows.length === 0 || hayPendientes} style={btnGreen}>
+              {acumulando ? 'Acumulando...' : hayPendientes ? 'Guardando...' : 'Acumular todo'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -218,14 +244,20 @@ export default function ConsultaPage() {
                     <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
 
                     {/* CONTEO FISICO */}
-                    <td style={{ padding: '3px 6px', background: '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 90 }}>
-                      <input type="number" value={e.conteo}
-                        onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
-                        placeholder="—"
-                        style={{ ...inputStyle, textAlign: 'right', minWidth: 75 }}
-                        onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                        onBlur={ev  => { ev.target.style.background = 'transparent' }}
-                      />
+                    <td style={{ padding: '3px 6px', background: bloqueado ? '#f8fafc' : '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 90 }}>
+                      {bloqueado ? (
+                        <span style={{ display: 'block', textAlign: 'right', padding: '2px 4px', color: '#374151' }}>
+                          {e.conteo !== '' ? Number(e.conteo).toLocaleString('es-CO') : '—'}
+                        </span>
+                      ) : (
+                        <input type="number" value={e.conteo}
+                          onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
+                          placeholder="—"
+                          style={{ ...inputStyle, textAlign: 'right', minWidth: 75 }}
+                          onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
+                          onBlur={ev  => { ev.target.style.background = 'transparent' }}
+                        />
+                      )}
                     </td>
 
                     <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0f0f0', color: dif < 0 ? '#ef4444' : dif > 0 ? '#16a34a' : 'inherit' }}>
@@ -238,14 +270,20 @@ export default function ConsultaPage() {
                     <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{fmt(r.costo_bodega)}</td>
 
                     {/* OBSERVACIONES */}
-                    <td style={{ padding: '3px 6px', background: '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 160 }}>
-                      <input type="text" value={e.obs}
-                        onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
-                        placeholder="Observacion..."
-                        style={{ ...inputStyle, minWidth: 150 }}
-                        onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                        onBlur={ev  => { ev.target.style.background = 'transparent' }}
-                      />
+                    <td style={{ padding: '3px 6px', background: bloqueado ? '#f8fafc' : '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 160 }}>
+                      {bloqueado ? (
+                        <span style={{ display: 'block', padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic' }}>
+                          {e.obs || 'Sin observación'}
+                        </span>
+                      ) : (
+                        <input type="text" value={e.obs}
+                          onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
+                          placeholder="Observacion..."
+                          style={{ ...inputStyle, minWidth: 150 }}
+                          onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
+                          onBlur={ev  => { ev.target.style.background = 'transparent' }}
+                        />
+                      )}
                     </td>
 
                     <td style={{ padding: '7px 6px', textAlign: 'center', borderBottom: '1px solid #f0f0f0', width: 20 }}>
@@ -255,6 +293,29 @@ export default function ConsultaPage() {
                 )
               })}
             </tbody>
+            {/* FILA GRAN TOTAL */}
+            <tfoot>
+              <tr style={{ background: '#f1f5f9', borderTop: '2px solid #cbd5e1', fontWeight: 700 }}>
+                <td colSpan={6} style={{ padding: '10px 10px', fontSize: 13, color: '#374151' }}>Gran total</td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13 }}>
+                  {totalCantidad.toLocaleString('es-CO')}
+                </td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, color: '#16a34a' }}>
+                  {hayConteo ? totalConteo.toLocaleString('es-CO') : '—'}
+                </td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, color: totalDifCantidad < 0 ? '#ef4444' : totalDifCantidad > 0 ? '#16a34a' : 'inherit' }}>
+                  {hayConteo ? totalDifCantidad.toLocaleString('es-CO') : '—'}
+                </td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13 }}>—</td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, color: totalDif < 0 ? '#ef4444' : totalDif > 0 ? '#16a34a' : 'inherit', whiteSpace: 'nowrap' }}>
+                  {hayConteo ? fmt(totalDif) : '—'}
+                </td>
+                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>
+                  {fmt(totalBodega)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>
