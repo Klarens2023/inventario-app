@@ -20,7 +20,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.username || !credentials?.password) return null
 
         const rows = await sql`
-          SELECT id, username, password_hash, nombre
+          SELECT id, username, password_hash, nombre, rol
           FROM usuarios
           WHERE username = ${credentials.username}
             AND activo = true
@@ -33,15 +33,16 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.password_hash)
         if (!valid) return null
 
-        return { id: String(user.id), name: user.nombre, email: user.username }
+        return { id: String(user.id), name: user.nombre, email: user.username, rol: user.rol ?? 'usuario' }
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id   = user.id
+        token.id  = user.id
         token.name = user.name
+        token.rol = (user as { rol?: string }).rol ?? 'usuario'
       }
       return token
     },
@@ -49,6 +50,7 @@ export const authOptions: NextAuthOptions = {
       if (token && session.user) {
         session.user.id   = token.id as string
         session.user.name = token.name as string
+        session.user.rol  = token.rol as string
       }
       return session
     },

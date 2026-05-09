@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 
 function limpiarNum(val: string): number {
   const s = val.replace(/\$|,/g, '').trim()
@@ -136,5 +137,14 @@ export async function POST(req: NextRequest) {
   }
 
   const tiposStr = Array.from(tiposEnArchivo).join(', ')
+
+  await logAudit({
+    usuarioId: userId,
+    usuarioNombre: session.user?.name ?? 'Desconocido',
+    accion: 'CARGA_INVENTARIO',
+    descripcion: `Cargó inventario del día ${fechaStr} con ${insertados} registros`,
+    datos: { fecha: fechaStr, insertados, tipos: tiposStr, archivo: file.name },
+  })
+
   return NextResponse.json({ ok: true, insertados, fecha: fechaStr, tipos: tiposStr })
 }

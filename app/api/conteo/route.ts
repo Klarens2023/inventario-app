@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { logAudit } from '@/lib/audit'
 
 // PUT /api/conteo  → guarda conteo físico y observaciones
 export async function PUT(req: NextRequest) {
@@ -36,6 +37,14 @@ export async function PUT(req: NextRequest) {
       VALUES (${id_inventario}, ${conteo_fisico ?? null}, ${observaciones ?? null}, ${userId})
     `
   }
+
+  await logAudit({
+    usuarioId: userId,
+    usuarioNombre: session.user?.name ?? 'Desconocido',
+    accion: 'CONTEO_ACTUALIZADO',
+    descripcion: `Actualizó conteo del ítem #${id_inventario}`,
+    datos: { id_inventario, conteo_fisico: conteo_fisico ?? null, tiene_observacion: !!observaciones },
+  })
 
   return NextResponse.json({ ok: true })
 }
