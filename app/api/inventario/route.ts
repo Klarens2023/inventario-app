@@ -5,7 +5,12 @@ import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
 function limpiarNum(val: string): number {
-  const s = val.replace(/\$|,/g, '').trim()
+  // Formato colombiano: punto = separador de miles, coma = decimal
+  const s = val
+    .replace(/\$|\s/g, '')  // quitar $ y espacios
+    .replace(/\./g, '')      // quitar puntos (miles)
+    .replace(',', '.')       // coma decimal → punto decimal
+    .trim()
   return isNaN(Number(s)) ? 0 : Number(s)
 }
 
