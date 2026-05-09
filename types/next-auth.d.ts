@@ -8,6 +8,7 @@ declare module 'next-auth' {
       name: string
       email: string
       rol: string
+      debe_cambiar_password: boolean
     }
   }
 }
@@ -16,5 +17,6 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string
     rol: string
+    debe_cambiar_password: boolean
   }
 }

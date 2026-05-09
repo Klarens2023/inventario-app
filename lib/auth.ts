@@ -20,7 +20,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.username || !credentials?.password) return null
 
         const rows = await sql`
-          SELECT id, username, password_hash, nombre, rol
+          SELECT id, username, password_hash, nombre, rol, debe_cambiar_password
           FROM usuarios
           WHERE username = ${credentials.username}
             AND activo = true
@@ -33,24 +33,37 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.password_hash)
         if (!valid) return null
 
-        return { id: String(user.id), name: user.nombre, email: user.username, rol: user.rol ?? 'usuario' }
+        return {
+          id: String(user.id),
+          name: user.nombre,
+          email: user.username,
+          rol: user.rol ?? 'usuario',
+          debe_cambiar_password: user.debe_cambiar_password ?? false,
+        }
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id  = user.id
-        token.name = user.name
-        token.rol = (user as { rol?: string }).rol ?? 'usuario'
+        const u = user as { id: string; name?: string; rol?: string; debe_cambiar_password?: boolean }
+        token.id                   = u.id
+        token.name                 = u.name
+        token.rol                  = u.rol ?? 'usuario'
+        token.debe_cambiar_password = u.debe_cambiar_password ?? false
+      }
+      // Permite actualizar el token desde el cliente con useSession().update()
+      if (trigger === 'update' && session?.debe_cambiar_password !== undefined) {
+        token.debe_cambiar_password = session.debe_cambiar_password
       }
       return token
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id   = token.id as string
-        session.user.name = token.name as string
-        session.user.rol  = token.rol as string
+        session.user.id                   = token.id as string
+        session.user.name                 = token.name as string
+        session.user.rol                  = token.rol as string
+        session.user.debe_cambiar_password = token.debe_cambiar_password as boolean
       }
       return session
     },

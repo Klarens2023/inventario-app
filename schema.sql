@@ -5,13 +5,14 @@
 
 -- Usuarios del sistema
 CREATE TABLE IF NOT EXISTS usuarios (
-  id            SERIAL PRIMARY KEY,
-  username      VARCHAR(50)  UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  nombre        VARCHAR(100) NOT NULL,
-  rol           VARCHAR(20)  DEFAULT 'usuario' NOT NULL,
-  activo        BOOLEAN DEFAULT TRUE,
-  created_at    TIMESTAMP DEFAULT NOW()
+  id                    SERIAL PRIMARY KEY,
+  username              VARCHAR(50)  UNIQUE NOT NULL,
+  password_hash         VARCHAR(255) NOT NULL,
+  nombre                VARCHAR(100) NOT NULL,
+  rol                   VARCHAR(20)  DEFAULT 'usuario' NOT NULL,
+  activo                BOOLEAN DEFAULT TRUE,
+  debe_cambiar_password BOOLEAN DEFAULT FALSE,
+  created_at            TIMESTAMP DEFAULT NOW()
 );
 
 -- Datos importados del TXT de inventario
