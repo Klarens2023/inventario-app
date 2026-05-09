@@ -25,6 +25,7 @@ export default function AcumuladosPage() {
   const [desde,    setDesde]   = useState('')
   const [hasta,    setHasta]   = useState('')
   const [tipoFil,  setTipoFil] = useState('todos')
+  const [bodegaSel, setBodegaSel] = useState('todas')
   const [rows,     setRows]    = useState<Row[]>([])
   const [totales,  setTotales] = useState<Totales | null>(null)
   const [loading,  setLoading] = useState(false)
@@ -55,15 +56,22 @@ export default function AcumuladosPage() {
     setRein(false)
   }
 
-  // Tipos únicos en los resultados para el filtro
-  const tiposDisponibles = useMemo(() => 
-    Array.from(new Set(rows.map(r => r.tipo).filter(Boolean))).sort(), 
+  // Tipos y bodegas únicos en los resultados para los filtros
+  const tiposDisponibles = useMemo(() =>
+    Array.from(new Set(rows.map(r => r.tipo).filter(Boolean))).sort(),
   [rows])
 
-  // Filtrar filas por tipo seleccionado
+  const bodegasDisponibles = useMemo(() =>
+    Array.from(new Set(rows.map(r => r.localizacion).filter(Boolean))).sort(),
+  [rows])
+
+  // Filtrar filas por tipo y bodega seleccionados
   const rowsFiltradas = useMemo(() =>
-    tipoFil !== 'todos' ? rows.filter(r => r.tipo === tipoFil) : rows
-  , [rows, tipoFil])
+    rows.filter(r =>
+      (tipoFil === 'todos' || r.tipo === tipoFil) &&
+      (bodegaSel === 'todas' || r.localizacion === bodegaSel)
+    )
+  , [rows, tipoFil, bodegaSel])
 
   // Pivot: filas = referencias, columnas = fechas
   const pivotData = useMemo(() => {
@@ -142,14 +150,26 @@ export default function AcumuladosPage() {
           {loading ? 'Buscando...' : 'Buscar'}
         </button>
 
-        {/* Filtro tipo — aparece solo si hay resultados con múltiples tipos */}
+        {/* Filtro subcategoria */}
         {tiposDisponibles.length > 1 && (
           <div>
-            <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Sub-categoria</label>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Subcategoria</label>
             <select value={tipoFil} onChange={e => setTipoFil(e.target.value)}
               style={{ padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13 }}>
               <option value="todos">Todos</option>
               {tiposDisponibles.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Filtro bodega */}
+        {bodegasDisponibles.length > 1 && (
+          <div>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Bodega</label>
+            <select value={bodegaSel} onChange={e => setBodegaSel(e.target.value)}
+              style={{ padding: '8px 10px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 13 }}>
+              <option value="todas">Todas</option>
+              {bodegasDisponibles.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
         )}
@@ -196,7 +216,7 @@ export default function AcumuladosPage() {
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 100 }}>REFERENCIA</th>
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 220 }}>DESCRIPCION</th>
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 80 }}>CATEGORIA</th>
-                <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 70 }}>TIPO</th>
+                <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 70 }}>SUBCATEGORIA</th>
                 {pivotData.fechas.map(f => (
                   <th key={f} style={{ border: '1px solid var(--border)', padding: '6px 10px', minWidth: 90, textAlign: 'center', color: 'var(--accent)' }}>
                     {f}
@@ -249,7 +269,7 @@ export default function AcumuladosPage() {
                 <thead>
                   <tr>
                     <th>Referencia</th><th>Descripcion</th><th>Loc.</th><th>U.M</th>
-                    <th>Fecha</th><th>Categoria</th><th>Tipo</th>
+                    <th>Fecha</th><th>Categoria</th><th>Subcategoria</th>
                     <th>Conteo Fisico</th><th>Cant. Sistema</th><th>Diferencia</th>
                     <th>Costo Unit.</th><th>Costo Dif.</th><th>Costo Bodega</th><th>Observaciones</th>
                   </tr>

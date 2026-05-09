@@ -29,6 +29,7 @@ export default function ConsultaPage() {
   const [fecha,      setFecha]   = useState('')
   const [tipos,      setTipos]   = useState<string[]>([])
   const [tipoSel,    setTipoSel] = useState('todos')
+  const [bodegaSel,  setBodegaSel] = useState('todas')
   const [rows,       setRows]    = useState<Row[]>([])
   const [loading,    setLoading] = useState(false)
   const [acumulando, setAcum]    = useState(false)
@@ -102,8 +103,11 @@ export default function ConsultaPage() {
     exportarExcel(`Conteo_${tipoSel}_${fecha}`, cols, filas as any)
   }
 
-  const totalBodega = rows.reduce((s, r) => s + Number(r.costo_bodega), 0)
-  const totalDif    = rows.reduce((s, r) => {
+  const bodegasDisponibles = Array.from(new Set(rows.map(r => r.localizacion).filter(Boolean))).sort()
+  const rowsMostradas = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
+
+  const totalBodega = rowsMostradas.reduce((s, r) => s + Number(r.costo_bodega), 0)
+  const totalDif    = rowsMostradas.reduce((s, r) => {
     const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0
     return s + (c - Number(r.cantidad_sistema)) * Number(r.costo_unitario)
   }, 0)
@@ -145,6 +149,12 @@ export default function ConsultaPage() {
             <option value="todos">Todos los tipos</option>
             {tipos.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
+          {bodegasDisponibles.length > 1 && (
+            <select value={bodegaSel} onChange={e => setBodegaSel(e.target.value)} style={selStyle}>
+              <option value="todas">Todas las bodegas</option>
+              {bodegasDisponibles.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          )}
           <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
@@ -157,8 +167,8 @@ export default function ConsultaPage() {
       {/* STATS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, flexShrink: 0 }}>
         {[
-          { label: 'REFERENCIAS',     value: rows.length,                               color: '#1d4ed8' },
-          { label: 'CON CONTEO',      value: Object.values(edits).filter(e=>e.conteo!=='').length, color: '#16a34a' },
+          { label: 'REFERENCIAS',     value: rowsMostradas.length,                      color: '#1d4ed8' },
+          { label: 'CON CONTEO',      value: rowsMostradas.filter(r => edits[r.id]?.conteo !== '').length, color: '#16a34a' },
           { label: 'COSTO BODEGA',    value: fmt(totalBodega),                          color: '#1d4ed8' },
           { label: 'COSTO DIFERENCIA',value: fmt(totalDif),                             color: totalDif < 0 ? '#ef4444' : '#16a34a' },
           { label: 'PARTICIPACION',   value: totalBodega !== 0 ? ((totalDif/totalBodega)*100).toFixed(1)+'%' : '—', color: '#d97706' },
@@ -182,9 +192,9 @@ export default function ConsultaPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
-                {['Referencia','Descripcion','Loc','UM','Tipo','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones',''].map((h,i) => (
+                {['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones',''].map((h,i) => (
                   <th key={i} style={{
-                    padding: '10px 10px', textAlign: i >= 5 && i <= 10 ? 'right' : 'left',
+                    padding: '10px 10px', textAlign: i >= 6 && i <= 11 ? 'right' : 'left',
                     fontSize: 11, fontWeight: 700, color: '#374151', borderBottom: '2px solid #e5e7eb',
                     whiteSpace: 'nowrap',
                     ...(h === 'Conteo' || h === 'Observaciones' ? { color: '#16a34a' } : {})
@@ -193,7 +203,7 @@ export default function ConsultaPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, idx) => {
+              {rowsMostradas.map((r, idx) => {
                 const e = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
                 const conteo = e.conteo !== '' ? Number(e.conteo) : 0
                 const dif    = conteo - Number(r.cantidad_sistema)
@@ -205,8 +215,9 @@ export default function ConsultaPage() {
                     <td style={{ padding: '7px 10px', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }} title={r.descripcion}>{r.descripcion}</td>
                     <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{r.localizacion}</td>
                     <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0' }}>{r.um}</td>
+                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0', fontSize: 11, color: '#6b7280' }}>{r.categoria}</td>
                     <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0' }}>
-                      <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{r.tipo}</span>
+                      {r.tipo && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{r.tipo}</span>}
                     </td>
                     <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
 
