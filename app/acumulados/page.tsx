@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo } from 'react'
+import { useSession } from 'next-auth/react'
 import { exportarExcel } from '@/lib/exportExcel'
 
 type Row = {
@@ -22,6 +23,8 @@ function fmtFechaCorta(f: string) {
 }
 
 export default function AcumuladosPage() {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.rol === 'admin'
   const [desde,    setDesde]   = useState('')
   const [hasta,    setHasta]   = useState('')
   const [tipoFil,  setTipoFil] = useState('todos')
@@ -129,9 +132,11 @@ export default function AcumuladosPage() {
           <h1 style={{ fontSize: 20, fontWeight: 700 }}>Informe Acumulados</h1>
           <p style={{ color: 'var(--text2)', fontSize: 13, marginTop: 2 }}>Matriz de diferencias por referencia y fecha</p>
         </div>
-        <button onClick={reiniciar} disabled={reiniciando} className="btn btn-danger" style={{ fontSize: 12 }}>
-          {confirm === 1 ? 'CONFIRMAR BORRADO TOTAL' : 'Reiniciar historial'}
-        </button>
+        {isAdmin && (
+          <button onClick={reiniciar} disabled={reiniciando} className="btn btn-danger" style={{ fontSize: 12 }}>
+            {confirm === 1 ? 'CONFIRMAR BORRADO TOTAL' : 'Reiniciar historial'}
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
