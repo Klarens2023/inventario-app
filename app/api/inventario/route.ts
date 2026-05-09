@@ -5,12 +5,39 @@ import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
 function limpiarNum(val: string): number {
-  // Formato colombiano: punto = separador de miles, coma = decimal
-  const s = val
-    .replace(/\$|\s/g, '')  // quitar $ y espacios
-    .replace(/\./g, '')      // quitar puntos (miles)
-    .replace(',', '.')       // coma decimal → punto decimal
-    .trim()
+  let s = val.replace(/\$|\s/g, '').trim()
+  if (!s) return 0
+
+  const hasDot   = s.includes('.')
+  const hasComma = s.includes(',')
+
+  if (hasDot && hasComma) {
+    // Ambos separadores: el último indica el decimal
+    // "7.614,97" → coma es decimal (colombiano)
+    // "2,985.95" → punto es decimal (US)
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+      s = s.replace(/\./g, '').replace(',', '.')
+    } else {
+      s = s.replace(/,/g, '')
+    }
+  } else if (hasComma) {
+    const partes = s.split(',')
+    // "10,700" o "1,234,567" → miles  |  "9,5" → decimal
+    if (partes.length === 2 && partes[1].length <= 2) {
+      s = s.replace(',', '.')   // coma decimal
+    } else {
+      s = s.replace(/,/g, '')   // coma de miles
+    }
+  } else if (hasDot) {
+    const partes = s.split('.')
+    // "9.227" o "47.071.079" → miles  |  "9.5" → decimal
+    if (partes.length === 2 && partes[1].length <= 2) {
+      // punto decimal, se deja igual
+    } else {
+      s = s.replace(/\./g, '')  // punto de miles
+    }
+  }
+
   return isNaN(Number(s)) ? 0 : Number(s)
 }
 
