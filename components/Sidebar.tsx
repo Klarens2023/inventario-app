@@ -3,7 +3,10 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+
+const INACTIVIDAD_MS  = 20 * 60 * 1000  // 20 minutos
+const ADVERTENCIA_MS  = 18 * 60 * 1000  // aviso a los 18 min (2 min antes)
 
 const Icons = {
   Inicio:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
@@ -33,10 +36,57 @@ const navBase = [
 export default function Sidebar() {
   const pathname  = usePathname()
   const { data: session } = useSession()
-  const [open, setOpen]   = useState(true)
+  const [open, setOpen]         = useState(true)
+  const [mostrarAviso, setMostrarAviso] = useState(false)
+  const [cuenta, setCuenta]     = useState(120) // segundos restantes en el aviso
+  const timerLogout  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timerAviso   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const timerCuenta  = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isAdmin = session?.user?.rol === 'admin'
   const nav = navBase.filter(item => !item.adminOnly || isAdmin)
+
+  const cerrarAvisoYReiniciar = useCallback(() => {
+    setMostrarAviso(false)
+    setCuenta(120)
+    if (timerCuenta.current) clearInterval(timerCuenta.current)
+  }, [])
+
+  const iniciarTimers = useCallback(() => {
+    if (pathname === '/login') return
+    if (timerLogout.current) clearTimeout(timerLogout.current)
+    if (timerAviso.current)  clearTimeout(timerAviso.current)
+    cerrarAvisoYReiniciar()
+
+    timerAviso.current = setTimeout(() => {
+      setMostrarAviso(true)
+      setCuenta(120)
+      timerCuenta.current = setInterval(() => {
+        setCuenta(c => {
+          if (c <= 1) { clearInterval(timerCuenta.current!) }
+          return c - 1
+        })
+      }, 1000)
+    }, ADVERTENCIA_MS)
+
+    timerLogout.current = setTimeout(() => {
+      signOut({ callbackUrl: '/login' })
+    }, INACTIVIDAD_MS)
+  }, [pathname, cerrarAvisoYReiniciar])
+
+  useEffect(() => {
+    if (pathname === '/login' || !session) return
+    const eventos = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click']
+    const onActividad = () => iniciarTimers()
+    eventos.forEach(ev => window.addEventListener(ev, onActividad))
+    iniciarTimers()
+    return () => {
+      eventos.forEach(ev => window.removeEventListener(ev, onActividad))
+      if (timerLogout.current) clearTimeout(timerLogout.current)
+      if (timerAviso.current)  clearTimeout(timerAviso.current)
+      if (timerCuenta.current) clearInterval(timerCuenta.current)
+    }
+  }, [pathname, session, iniciarTimers])
 
   if (pathname === '/login') return null
 
@@ -113,6 +163,55 @@ export default function Sidebar() {
           )
         })}
       </nav>
+
+      {/* Modal inactividad */}
+      {mostrarAviso && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: '36px 32px', maxWidth: 380, width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)', textAlign: 'center'
+          }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>⏱️</div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', margin: '0 0 8px' }}>
+              Sesión por expirar
+            </h2>
+            <p style={{ fontSize: 14, color: '#64748b', margin: '0 0 20px' }}>
+              Por inactividad, tu sesión se cerrará en
+            </p>
+            <div style={{
+              fontSize: 48, fontWeight: 800,
+              color: cuenta <= 30 ? '#dc2626' : '#0047BA',
+              marginBottom: 24, lineHeight: 1
+            }}>
+              {String(Math.floor(cuenta / 60)).padStart(2, '0')}:{String(cuenta % 60).padStart(2, '0')}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8,
+                  border: '1px solid #e2e8f0', background: '#f8fafc',
+                  color: '#475569', fontWeight: 600, fontSize: 14, cursor: 'pointer'
+                }}
+              >
+                Cerrar sesión
+              </button>
+              <button
+                onClick={iniciarTimers}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: 'none',
+                  background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer'
+                }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Usuario */}
       <div style={{
