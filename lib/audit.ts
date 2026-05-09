@@ -1,0 +1,24 @@
+import { sql } from './db'
+
+export async function logAudit(params: {
+  usuarioId: string | null
+  usuarioNombre: string
+  accion: 'CARGA_INVENTARIO' | 'CONTEO_ACTUALIZADO' | 'HISTORIAL_REINICIADO'
+  descripcion: string
+  datos?: Record<string, unknown>
+}) {
+  try {
+    await sql`
+      INSERT INTO audit_logs (usuario_id, usuario_nombre, accion, descripcion, datos)
+      VALUES (
+        ${params.usuarioId ? parseInt(params.usuarioId) : null},
+        ${params.usuarioNombre},
+        ${params.accion},
+        ${params.descripcion},
+        ${params.datos ? JSON.stringify(params.datos) : null}
+      )
+    `
+  } catch {
+    // No interrumpir el flujo principal si falla el log
+  }
+}
