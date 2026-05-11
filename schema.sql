@@ -106,4 +106,5 @@ SELECT
   c.observaciones
 FROM inventario_datos d
 LEFT JOIN inventario_conteos c ON c.id_inventario = d.id
+WHERE d.acumulado = true
 ORDER BY d.fecha DESC, d.categoria, d.referencia;
