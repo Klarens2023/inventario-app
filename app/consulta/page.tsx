@@ -241,7 +241,7 @@ export default function ConsultaPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '7%'  }} />   {/* Referencia     */}
-              <col style={{ width: '12%' }} />   {/* Descripcion    */}
+              <col style={{ width: '13%' }} />   {/* Descripcion    */}
               <col style={{ width: '4%'  }} />   {/* Loc            */}
               <col style={{ width: '4%'  }} />   {/* UM             */}
               <col style={{ width: '7%'  }} />   {/* Categoria      */}
@@ -251,13 +251,12 @@ export default function ConsultaPage() {
               <col style={{ width: '5%'  }} />   {/* Diferencia     */}
               <col style={{ width: '8%'  }} />   {/* C. Unit.       */}
               <col style={{ width: '10%' }} />   {/* C. Dif.        */}
-              <col style={{ width: '11%' }} />   {/* C. Bodega      */}
-              <col style={{ width: '14%' }} />   {/* Observaciones  */}
-              <col style={{ width: '1%'  }} />   {/* Status dot     */}
+              <col style={{ width: '12%' }} />   {/* C. Bodega      */}
+              <col style={{ width: '13%' }} />   {/* Observaciones  */}
             </colgroup>
             <thead>
               <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
-                {['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones',''].map((h,i) => (
+                {['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones'].map((h,i) => (
                   <th key={i} style={{
                     padding: '10px 8px', textAlign: i >= 6 && i <= 11 ? 'right' : 'left',
                     fontSize: 11, fontWeight: 700, color: '#374151', borderBottom: '2px solid #e5e7eb',
@@ -317,28 +316,29 @@ export default function ConsultaPage() {
                     </td>
                     <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt(r.costo_bodega)}</td>
 
-                    {/* OBSERVACIONES */}
+                    {/* OBSERVACIONES + status dot integrado */}
                     <td style={{
                       padding: '3px 4px', borderBottom: '1px solid #f0f0f0',
                       background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
                     }}>
                       {!puedeEditar(r) ? (
-                        <span style={{ display: 'block', padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {e.obs || '—'}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <span style={{ flex: 1, padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {e.obs || '—'}
+                          </span>
+                        </div>
                       ) : (
-                        <input type="text" value={e.obs}
-                          onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
-                          placeholder="Observacion..."
-                          style={{ ...inputStyle }}
-                          onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                          onBlur={ev  => { ev.target.style.background = 'transparent' }}
-                        />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <input type="text" value={e.obs}
+                            onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
+                            placeholder="Observacion..."
+                            style={{ ...inputStyle, flex: 1, width: 'auto' }}
+                            onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
+                            onBlur={ev  => { ev.target.style.background = 'transparent' }}
+                          />
+                          <StatusDot status={e.status} />
+                        </div>
                       )}
-                    </td>
-
-                    <td style={{ padding: '7px 4px', textAlign: 'center', borderBottom: '1px solid #f0f0f0' }}>
-                      <StatusDot status={e.status} />
                     </td>
                   </tr>
                 )
@@ -364,7 +364,7 @@ export default function ConsultaPage() {
                 <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   {fmt(totalBodega)}
                 </td>
-                <td colSpan={2} />
+                <td />
               </tr>
             </tfoot>
           </table>
