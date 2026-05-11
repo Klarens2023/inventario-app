@@ -241,19 +241,19 @@ export default function ConsultaPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: '7%'  }} />   {/* Referencia     */}
-              <col style={{ width: '11%' }} />   {/* Descripcion    */}
+              <col style={{ width: '12%' }} />   {/* Descripcion    */}
               <col style={{ width: '4%'  }} />   {/* Loc            */}
-              <col style={{ width: '3%'  }} />   {/* UM             */}
+              <col style={{ width: '4%'  }} />   {/* UM             */}
               <col style={{ width: '7%'  }} />   {/* Categoria      */}
               <col style={{ width: '6%'  }} />   {/* Subcategoria   */}
-              <col style={{ width: '6%'  }} />   {/* Cant. Sis.     */}
+              <col style={{ width: '5%'  }} />   {/* Cant. Sis.     */}
               <col style={{ width: '6%'  }} />   {/* Conteo         */}
-              <col style={{ width: '6%'  }} />   {/* Diferencia     */}
-              <col style={{ width: '9%'  }} />   {/* C. Unit.       */}
+              <col style={{ width: '5%'  }} />   {/* Diferencia     */}
+              <col style={{ width: '8%'  }} />   {/* C. Unit.       */}
               <col style={{ width: '10%' }} />   {/* C. Dif.        */}
-              <col style={{ width: '10%' }} />   {/* C. Bodega      */}
-              <col style={{ width: '13%' }} />   {/* Observaciones  */}
-              <col style={{ width: '2%'  }} />   {/* Status dot     */}
+              <col style={{ width: '11%' }} />   {/* C. Bodega      */}
+              <col style={{ width: '14%' }} />   {/* Observaciones  */}
+              <col style={{ width: '1%'  }} />   {/* Status dot     */}
             </colgroup>
             <thead>
               <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
