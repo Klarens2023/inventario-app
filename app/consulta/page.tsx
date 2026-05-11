@@ -238,14 +238,30 @@ export default function ConsultaPage() {
             No hay datos. <a href="/cargar" style={{ color: '#2563eb' }}>Cargar inventario</a>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '8%'  }} />   {/* Referencia     */}
+              <col style={{ width: '14%' }} />   {/* Descripcion    */}
+              <col style={{ width: '4%'  }} />   {/* Loc            */}
+              <col style={{ width: '3%'  }} />   {/* UM             */}
+              <col style={{ width: '8%'  }} />   {/* Categoria      */}
+              <col style={{ width: '7%'  }} />   {/* Subcategoria   */}
+              <col style={{ width: '6%'  }} />   {/* Cant. Sis.     */}
+              <col style={{ width: '7%'  }} />   {/* Conteo         */}
+              <col style={{ width: '6%'  }} />   {/* Diferencia     */}
+              <col style={{ width: '7%'  }} />   {/* C. Unit.       */}
+              <col style={{ width: '7%'  }} />   {/* C. Dif.        */}
+              <col style={{ width: '7%'  }} />   {/* C. Bodega      */}
+              <col style={{ width: '14%' }} />   {/* Observaciones  */}
+              <col style={{ width: '2%'  }} />   {/* Status dot     */}
+            </colgroup>
             <thead>
               <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
                 {['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones',''].map((h,i) => (
                   <th key={i} style={{
-                    padding: '10px 10px', textAlign: i >= 6 && i <= 11 ? 'right' : 'left',
+                    padding: '10px 8px', textAlign: i >= 6 && i <= 11 ? 'right' : 'left',
                     fontSize: 11, fontWeight: 700, color: '#374151', borderBottom: '2px solid #e5e7eb',
-                    whiteSpace: 'nowrap',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     ...(h === 'Conteo' || h === 'Observaciones' ? { color: '#16a34a' } : {})
                   }}>{h}</th>
                 ))}
@@ -260,68 +276,68 @@ export default function ConsultaPage() {
                 const bg     = idx % 2 === 0 ? '#fff' : '#f9fafb'
                 return (
                   <tr key={r.id} style={{ background: bg }}>
-                    <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }}>{r.referencia}</td>
-                    <td style={{ padding: '7px 10px', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }} title={r.descripcion}>{r.descripcion}</td>
-                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{r.localizacion}</td>
-                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0' }}>{r.um}</td>
-                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0', fontSize: 11, color: '#6b7280' }}>{r.categoria}</td>
-                    <td style={{ padding: '7px 10px', borderBottom: '1px solid #f0f0f0' }}>
-                      {r.tipo && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: 4, fontSize: 11, fontWeight: 600 }}>{r.tipo}</span>}
+                    <td style={{ padding: '7px 8px', fontFamily: 'monospace', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }}>{r.referencia}</td>
+                    <td style={{ padding: '7px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }} title={r.descripcion}>{r.descripcion}</td>
+                    <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.localizacion}</td>
+                    <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.um}</td>
+                    <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.categoria}</td>
+                    <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden' }}>
+                      {r.tipo && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 5px', borderRadius: 4, fontSize: 11, fontWeight: 600, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.tipo}</span>}
                     </td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
 
                     {/* CONTEO FISICO */}
                     <td style={{
-                      padding: '3px 6px', borderBottom: '1px solid #f0f0f0', minWidth: 90,
+                      padding: '3px 4px', borderBottom: '1px solid #f0f0f0',
                       background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
                     }}
-                      title={r.acumulado ? 'Acumulado' : !puedeEditar(r) ? 'Solo puede editar quien subió este inventario' : ''}
+                      title={r.acumulado ? 'Acumulado' : !puedeEditar(r) ? 'Solo puede editar quien subio este inventario' : ''}
                     >
                       {!puedeEditar(r) ? (
-                        <span style={{ display: 'block', textAlign: 'right', padding: '2px 4px', color: r.acumulado ? '#94a3b8' : '#92400e' }}>
+                        <span style={{ display: 'block', textAlign: 'right', padding: '2px 4px', color: r.acumulado ? '#94a3b8' : '#92400e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {e.conteo !== '' ? Number(e.conteo).toLocaleString('es-CO') : '—'}
                         </span>
                       ) : (
                         <input type="number" value={e.conteo}
                           onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
                           placeholder="—"
-                          style={{ ...inputStyle, textAlign: 'right', minWidth: 75 }}
+                          style={{ ...inputStyle, textAlign: 'right' }}
                           onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
                           onBlur={ev  => { ev.target.style.background = 'transparent' }}
                         />
                       )}
                     </td>
 
-                    <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0f0f0', color: dif < 0 ? '#ef4444' : dif > 0 ? '#16a34a' : 'inherit' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', color: dif < 0 ? '#ef4444' : dif > 0 ? '#16a34a' : 'inherit' }}>
                       {e.conteo !== '' ? dif.toLocaleString('es-CO') : '—'}
                     </td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{fmt(r.costo_unitario)}</td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', color: cDif < 0 ? '#ef4444' : 'inherit' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt(r.costo_unitario)}</td>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden', color: cDif < 0 ? '#ef4444' : 'inherit' }}>
                       {e.conteo !== '' ? fmt(cDif) : '—'}
                     </td>
-                    <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{fmt(r.costo_bodega)}</td>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt(r.costo_bodega)}</td>
 
                     {/* OBSERVACIONES */}
                     <td style={{
-                      padding: '3px 6px', borderBottom: '1px solid #f0f0f0', minWidth: 160,
+                      padding: '3px 4px', borderBottom: '1px solid #f0f0f0',
                       background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
                     }}>
                       {!puedeEditar(r) ? (
-                        <span style={{ display: 'block', padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic' }}>
+                        <span style={{ display: 'block', padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {e.obs || '—'}
                         </span>
                       ) : (
                         <input type="text" value={e.obs}
                           onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
                           placeholder="Observacion..."
-                          style={{ ...inputStyle, minWidth: 150 }}
+                          style={{ ...inputStyle }}
                           onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
                           onBlur={ev  => { ev.target.style.background = 'transparent' }}
                         />
                       )}
                     </td>
 
-                    <td style={{ padding: '7px 6px', textAlign: 'center', borderBottom: '1px solid #f0f0f0', width: 20 }}>
+                    <td style={{ padding: '7px 4px', textAlign: 'center', borderBottom: '1px solid #f0f0f0' }}>
                       <StatusDot status={e.status} />
                     </td>
                   </tr>
@@ -331,21 +347,21 @@ export default function ConsultaPage() {
             {/* FILA GRAN TOTAL */}
             <tfoot>
               <tr style={{ background: '#f1f5f9', borderTop: '2px solid #cbd5e1', fontWeight: 700 }}>
-                <td colSpan={6} style={{ padding: '10px 10px', fontSize: 13, color: '#374151' }}>Gran total</td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13 }}>
+                <td colSpan={6} style={{ padding: '10px 8px', fontSize: 13, color: '#374151' }}>Gran total</td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   {totalCantidad.toLocaleString('es-CO')}
                 </td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, color: '#16a34a' }}>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, color: '#16a34a', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   {hayConteo ? totalConteo.toLocaleString('es-CO') : '—'}
                 </td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, color: totalDifCantidad < 0 ? '#ef4444' : totalDifCantidad > 0 ? '#16a34a' : 'inherit' }}>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', color: totalDifCantidad < 0 ? '#ef4444' : totalDifCantidad > 0 ? '#16a34a' : 'inherit' }}>
                   {hayConteo ? totalDifCantidad.toLocaleString('es-CO') : '—'}
                 </td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13 }}>—</td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, color: totalDif < 0 ? '#ef4444' : totalDif > 0 ? '#16a34a' : 'inherit', whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13 }}>—</td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', color: totalDif < 0 ? '#ef4444' : totalDif > 0 ? '#16a34a' : 'inherit' }}>
                   {hayConteo ? fmt(totalDif) : '—'}
                 </td>
-                <td style={{ padding: '10px 10px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>
                   {fmt(totalBodega)}
                 </td>
                 <td colSpan={2} />
