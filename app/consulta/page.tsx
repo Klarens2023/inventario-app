@@ -240,19 +240,19 @@ export default function ConsultaPage() {
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '8%'  }} />   {/* Referencia     */}
-              <col style={{ width: '14%' }} />   {/* Descripcion    */}
+              <col style={{ width: '7%'  }} />   {/* Referencia     */}
+              <col style={{ width: '11%' }} />   {/* Descripcion    */}
               <col style={{ width: '4%'  }} />   {/* Loc            */}
               <col style={{ width: '3%'  }} />   {/* UM             */}
-              <col style={{ width: '8%'  }} />   {/* Categoria      */}
-              <col style={{ width: '7%'  }} />   {/* Subcategoria   */}
+              <col style={{ width: '7%'  }} />   {/* Categoria      */}
+              <col style={{ width: '6%'  }} />   {/* Subcategoria   */}
               <col style={{ width: '6%'  }} />   {/* Cant. Sis.     */}
-              <col style={{ width: '7%'  }} />   {/* Conteo         */}
+              <col style={{ width: '6%'  }} />   {/* Conteo         */}
               <col style={{ width: '6%'  }} />   {/* Diferencia     */}
-              <col style={{ width: '7%'  }} />   {/* C. Unit.       */}
-              <col style={{ width: '7%'  }} />   {/* C. Dif.        */}
-              <col style={{ width: '7%'  }} />   {/* C. Bodega      */}
-              <col style={{ width: '14%' }} />   {/* Observaciones  */}
+              <col style={{ width: '9%'  }} />   {/* C. Unit.       */}
+              <col style={{ width: '10%' }} />   {/* C. Dif.        */}
+              <col style={{ width: '10%' }} />   {/* C. Bodega      */}
+              <col style={{ width: '13%' }} />   {/* Observaciones  */}
               <col style={{ width: '2%'  }} />   {/* Status dot     */}
             </colgroup>
             <thead>
@@ -308,11 +308,11 @@ export default function ConsultaPage() {
                       )}
                     </td>
 
-                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', color: dif < 0 ? '#ef4444' : dif > 0 ? '#16a34a' : 'inherit' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', color: e.conteo !== '' && dif < 0 ? '#ef4444' : e.conteo !== '' && dif > 0 ? '#16a34a' : 'inherit' }}>
                       {e.conteo !== '' ? dif.toLocaleString('es-CO') : '—'}
                     </td>
                     <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fmt(r.costo_unitario)}</td>
-                    <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden', color: cDif < 0 ? '#ef4444' : 'inherit' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden', color: e.conteo !== '' && cDif < 0 ? '#ef4444' : 'inherit' }}>
                       {e.conteo !== '' ? fmt(cDif) : '—'}
                     </td>
                     <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt(r.costo_bodega)}</td>
