@@ -73,21 +73,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(fechas)
   }
 
+  // Verificar si la fecha está bloqueada (acumulada)
+  const lock = await sql`
+    SELECT COUNT(*) AS total FROM inventario_datos
+    WHERE fecha = ${fecha} AND acumulado = true LIMIT 1`
+  const bloqueado = Number(lock[0]?.total ?? 0) > 0
+
   // Con fecha → devolver filas (con filtro de tipo opcional)
   let rows
   if (tipo && tipo !== 'todos') {
     rows = await sql`
-      SELECT * FROM vista_consulta 
+      SELECT * FROM vista_consulta
       WHERE fecha = ${fecha} AND tipo = ${tipo}
       ORDER BY referencia`
   } else {
     rows = await sql`
-      SELECT * FROM vista_consulta 
+      SELECT * FROM vista_consulta
       WHERE fecha = ${fecha}
       ORDER BY referencia`
   }
 
-  return NextResponse.json(rows)
+  return NextResponse.json({ rows, bloqueado })
 }
 
 // ── GET tipos disponibles para una fecha ─────────────────────────────────────

@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS inventario_datos (
   costo_total   NUMERIC(18,2),
   tipo          VARCHAR(50),
   fecha_carga   TIMESTAMP DEFAULT NOW(),
-  cargado_por   INTEGER REFERENCES usuarios(id)
+  cargado_por   INTEGER REFERENCES usuarios(id),
+  acumulado     BOOLEAN DEFAULT FALSE
 );
 
 -- Conteos físicos por referencia/fecha

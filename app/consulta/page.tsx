@@ -50,13 +50,10 @@ export default function ConsultaPage() {
     setLoading(true)
     setBodegaSel('todas')
     setTipoSel('todos')
-    // Verificar si esta fecha ya fue acumulada
-    const yaAcumulado = localStorage.getItem(`conteo_bloqueado_${fecha}`) === 'true'
-    setBloqueado(yaAcumulado)
-    fetch(`/api/inventario?fecha=${fecha}`).then(r => r.json()).then((data: Row[]) => {
+    fetch(`/api/inventario?fecha=${fecha}`).then(r => r.json()).then((data: { rows: Row[]; bloqueado: boolean }) => {
       const init: Record<number, EditState> = {}
-      data.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
-      setRows(data); setEdits(init); setLoading(false)
+      data.rows.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
+      setRows(data.rows); setEdits(init); setBloqueado(data.bloqueado); setLoading(false)
     })
   }, [fecha])
 
@@ -91,8 +88,13 @@ export default function ConsultaPage() {
       await fetch('/api/conteo', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_inventario: row.id, conteo_fisico: e.conteo !== '' ? Number(e.conteo) : null, observaciones: e.obs || null }) })
     }
+    // Bloquear la fecha en la base de datos
+    await fetch('/api/acumulaciones', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fecha }),
+    })
     setAcum(false)
-    localStorage.setItem(`conteo_bloqueado_${fecha}`, 'true')
     setBloqueado(true)
     alert(`Listo! ${rows.length} registros acumulados. El conteo ha sido bloqueado.`)
   }

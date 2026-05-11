@@ -19,7 +19,10 @@ type Usuario = { id: number; nombre: string; username: string }
 const ACCIONES: Record<string, { label: string; color: string; bg: string }> = {
   CARGA_INVENTARIO:    { label: 'Carga Inventario',    color: '#1d4ed8', bg: '#dbeafe' },
   CONTEO_ACTUALIZADO:  { label: 'Conteo Actualizado',  color: '#065f46', bg: '#d1fae5' },
+  CONTEO_ACUMULADO:    { label: 'Conteo Acumulado',    color: '#6d28d9', bg: '#ede9fe' },
   HISTORIAL_REINICIADO:{ label: 'Historial Reiniciado',color: '#991b1b', bg: '#fee2e2' },
+  USUARIO_CREADO:      { label: 'Usuario Creado',      color: '#0369a1', bg: '#e0f2fe' },
+  USUARIO_MODIFICADO:  { label: 'Usuario Modificado',  color: '#92400e', bg: '#fef3c7' },
 }
 
 export default function AuditoriaPage() {
@@ -97,7 +100,10 @@ export default function AuditoriaPage() {
             <option value="todas">Todas</option>
             <option value="CARGA_INVENTARIO">Carga Inventario</option>
             <option value="CONTEO_ACTUALIZADO">Conteo Actualizado</option>
+            <option value="CONTEO_ACUMULADO">Conteo Acumulado</option>
             <option value="HISTORIAL_REINICIADO">Historial Reiniciado</option>
+            <option value="USUARIO_CREADO">Usuario Creado</option>
+            <option value="USUARIO_MODIFICADO">Usuario Modificado</option>
           </select>
         </div>
         <div>
