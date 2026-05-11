@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit'
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
   const conteo = await sql`SELECT COUNT(*) AS total FROM inventario_datos`
   const total = conteo[0]?.total ?? 0

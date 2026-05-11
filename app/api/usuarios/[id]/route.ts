@@ -25,9 +25,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!usuario) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
   if (activo !== undefined) {
-    await sql`UPDATE usuarios SET activo = ${activo} WHERE id = ${id}`
+    await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
   }
   if (rol !== undefined) {
+    if (!['admin', 'usuario'].includes(rol)) {
+      return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
+    }
     await sql`UPDATE usuarios SET rol = ${rol} WHERE id = ${id}`
   }
 

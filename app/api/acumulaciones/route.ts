@@ -14,9 +14,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Falta la lista de IDs' }, { status: 400 })
   }
 
+  // Validar que todos los IDs sean enteros
+  const idsValidos = ids.map((id: unknown) => parseInt(String(id))).filter(id => !isNaN(id))
+  if (idsValidos.length !== ids.length) {
+    return NextResponse.json({ error: 'IDs inválidos' }, { status: 400 })
+  }
+
+  // Si no es admin, verificar que solo acumule filas que él subió
+  if (session.user?.rol !== 'admin') {
+    const userId = parseInt(session.user?.id ?? '0')
+    const filas = await sql`
+      SELECT id, cargado_por FROM inventario_datos
+      WHERE id = ANY(${idsValidos}::int[])
+    `
+    const noAutorizados = filas.filter(r => Number(r.cargado_por) !== userId)
+    if (noAutorizados.length > 0) {
+      return NextResponse.json({ error: 'No tienes permiso para acumular registros que no subiste' }, { status: 403 })
+    }
+  }
+
   await sql`
     UPDATE inventario_datos SET acumulado = true
-    WHERE id = ANY(${ids}::int[])
+    WHERE id = ANY(${idsValidos}::int[])
   `
 
   await logAudit({

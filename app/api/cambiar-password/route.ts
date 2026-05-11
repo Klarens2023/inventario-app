@@ -11,8 +11,8 @@ export async function PUT(req: NextRequest) {
 
   const { nueva_password } = await req.json()
 
-  if (!nueva_password || nueva_password.length < 6) {
-    return NextResponse.json({ error: 'La contraseña debe tener al menos 6 caracteres' }, { status: 400 })
+  if (!nueva_password || nueva_password.length < 6 || nueva_password.length > 100) {
+    return NextResponse.json({ error: 'La contraseña debe tener entre 6 y 100 caracteres' }, { status: 400 })
   }
 
   const hash = await bcrypt.hash(nueva_password, 10)
