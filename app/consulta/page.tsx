@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { exportarExcel } from '@/lib/exportExcel'
 
 type Row = {
@@ -9,6 +10,8 @@ type Row = {
   cantidad_sistema: number; costo_unitario: number; costo_bodega: number
   conteo_fisico: number; diferencia: number; costo_diferencia: number
   observaciones: string
+  acumulado: boolean
+  cargado_por: number | null
 }
 type EditState = { conteo: string; obs: string; status: 'idle' | 'saving' | 'saved' | 'error' }
 
@@ -25,6 +28,9 @@ const inputStyle: React.CSSProperties = {
 }
 
 export default function ConsultaPage() {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.rol === 'admin'
+
   const [fechas,     setFechas]  = useState<string[]>([])
   const [fecha,      setFecha]   = useState('')
   const [tipoSel,    setTipoSel] = useState('todos')
@@ -32,9 +38,15 @@ export default function ConsultaPage() {
   const [rows,       setRows]    = useState<Row[]>([])
   const [loading,    setLoading] = useState(false)
   const [acumulando, setAcum]    = useState(false)
-  const [bloqueado,  setBloqueado] = useState(false)
   const [edits,      setEdits]   = useState<Record<number, EditState>>({})
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
+
+  // Permiso por fila: editable si no está acumulado Y (es admin O fue quien lo subió)
+  const puedeEditar = useCallback((row: Row) => {
+    if (row.acumulado) return false
+    if (isAdmin) return true
+    return String(row.cargado_por) === session?.user?.id
+  }, [isAdmin, session?.user?.id])
 
   useEffect(() => {
     fetch('/api/inventario').then(r => r.json()).then((data: {fecha:string}[]) => {
@@ -53,7 +65,7 @@ export default function ConsultaPage() {
     fetch(`/api/inventario?fecha=${fecha}`).then(r => r.json()).then((data: { rows: Row[]; bloqueado: boolean }) => {
       const init: Record<number, EditState> = {}
       data.rows.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
-      setRows(data.rows); setEdits(init); setBloqueado(data.bloqueado); setLoading(false)
+      setRows(data.rows); setEdits(init); setLoading(false)
     })
   }, [fecha])
 
@@ -81,22 +93,32 @@ export default function ConsultaPage() {
 
   async function acumular() {
     if (Object.values(edits).some(e => e.status === 'saving')) { alert('Hay cambios guardandose. Espera un momento.'); return }
-    if (!confirm(`Enviar ${rows.length} registros a Acumulados? Una vez acumulado no podrás modificar el conteo.`)) return
+
+    // Solo acumula los rows visibles (filtro actual) que el usuario puede editar y no están ya acumulados
+    const pendientes = rowsMostradas.filter(r => puedeEditar(r))
+    if (pendientes.length === 0) { alert('No hay registros por acumular en el filtro actual.'); return }
+
+    const filtroDesc = tipoSel !== 'todos' ? `tipo "${tipoSel}"` : bodegaSel !== 'todas' ? `bodega "${bodegaSel}"` : 'todos los tipos'
+    if (!confirm(`Acumular ${pendientes.length} registros (${filtroDesc})?\n\nUna vez acumulados no podrán modificarse.`)) return
+
     setAcum(true)
-    for (const row of rows) {
+    for (const row of pendientes) {
       const e = edits[row.id]; if (!e) continue
       await fetch('/api/conteo', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_inventario: row.id, conteo_fisico: e.conteo !== '' ? Number(e.conteo) : null, observaciones: e.obs || null }) })
     }
-    // Bloquear la fecha en la base de datos
+
+    const ids = pendientes.map(r => r.id)
     await fetch('/api/acumulaciones', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fecha }),
+      body: JSON.stringify({ ids, fecha }),
     })
+
+    // Actualizar estado local sin recargar
+    setRows(prev => prev.map(r => ids.includes(r.id) ? { ...r, acumulado: true } : r))
     setAcum(false)
-    setBloqueado(true)
-    alert(`Listo! ${rows.length} registros acumulados. El conteo ha sido bloqueado.`)
+    alert(`Listo! ${ids.length} registros acumulados y bloqueados.`)
   }
 
   function exportar() {
@@ -129,7 +151,8 @@ export default function ConsultaPage() {
   }, 0)
   const conConteo = rowsMostradas.filter(r => edits[r.id]?.conteo !== '' && edits[r.id]?.conteo !== undefined)
   const hayConteo = conConteo.length > 0
-  const hayPendientes = Object.values(edits).some(e => e.status === 'saving')
+  const hayPendientes          = Object.values(edits).some(e => e.status === 'saving')
+  const todoAcumuladoEnFiltro  = rowsMostradas.length > 0 && rowsMostradas.every(r => !puedeEditar(r))
 
   function StatusDot({ status }: { status: EditState['status'] }) {
     if (status === 'saving') return <span style={{ color: '#f59e0b', fontSize: 10 }}>●</span>
@@ -157,12 +180,14 @@ export default function ConsultaPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Conteo Fisico</h1>
-          {bloqueado ? (
+          {todoAcumuladoEnFiltro ? (
             <p style={{ fontSize: 12, margin: '2px 0 0', color: '#dc2626', fontWeight: 600 }}>
-              🔒 Este conteo ya fue acumulado y no puede modificarse.
+              🔒 Todos los registros del filtro ya fueron acumulados.
             </p>
           ) : (
-            <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>Los cambios se guardan automaticamente. Cuando termines presiona Acumular.</p>
+            <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>
+              Los cambios se guardan automaticamente. Solo puedes editar los inventarios que tú subiste.
+            </p>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -180,7 +205,7 @@ export default function ConsultaPage() {
           <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
-          {!bloqueado && (
+          {!todoAcumuladoEnFiltro && (
             <button onClick={acumular} disabled={acumulando || rows.length === 0 || hayPendientes} style={btnGreen}>
               {acumulando ? 'Acumulando...' : hayPendientes ? 'Guardando...' : 'Acumular todo'}
             </button>
@@ -246,9 +271,14 @@ export default function ConsultaPage() {
                     <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
 
                     {/* CONTEO FISICO */}
-                    <td style={{ padding: '3px 6px', background: bloqueado ? '#f8fafc' : '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 90 }}>
-                      {bloqueado ? (
-                        <span style={{ display: 'block', textAlign: 'right', padding: '2px 4px', color: '#374151' }}>
+                    <td style={{
+                      padding: '3px 6px', borderBottom: '1px solid #f0f0f0', minWidth: 90,
+                      background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
+                    }}
+                      title={r.acumulado ? 'Acumulado' : !puedeEditar(r) ? 'Solo puede editar quien subió este inventario' : ''}
+                    >
+                      {!puedeEditar(r) ? (
+                        <span style={{ display: 'block', textAlign: 'right', padding: '2px 4px', color: r.acumulado ? '#94a3b8' : '#92400e' }}>
                           {e.conteo !== '' ? Number(e.conteo).toLocaleString('es-CO') : '—'}
                         </span>
                       ) : (
@@ -272,10 +302,13 @@ export default function ConsultaPage() {
                     <td style={{ padding: '7px 10px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' }}>{fmt(r.costo_bodega)}</td>
 
                     {/* OBSERVACIONES */}
-                    <td style={{ padding: '3px 6px', background: bloqueado ? '#f8fafc' : '#f0fdf4', borderBottom: '1px solid #f0f0f0', minWidth: 160 }}>
-                      {bloqueado ? (
+                    <td style={{
+                      padding: '3px 6px', borderBottom: '1px solid #f0f0f0', minWidth: 160,
+                      background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
+                    }}>
+                      {!puedeEditar(r) ? (
                         <span style={{ display: 'block', padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic' }}>
-                          {e.obs || 'Sin observación'}
+                          {e.obs || '—'}
                         </span>
                       ) : (
                         <input type="text" value={e.obs}
