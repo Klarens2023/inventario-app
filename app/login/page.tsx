@@ -155,10 +155,19 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: 30 }}>
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
           <span style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 500 }}>
             ¿Problemas con tu acceso? Contacta a Sistemas.
           </span>
+        </div>
+
+        {/* Firma */}
+        <div style={{ textAlign: 'center', marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(0,71,186,0.1)' }}>
+          <p style={{ fontSize: 10.5, color: '#94a3b8', margin: 0, lineHeight: 1.7 }}>
+            Desarrollado por el Área de Sistemas<br />
+            <strong style={{ color: '#64748b' }}>Luis Alberto Torres</strong> — Asistente de Sistemas<br />
+            Lácteos del Cesar SAS · Klarens
+          </p>
         </div>
       </div>
     </div>
