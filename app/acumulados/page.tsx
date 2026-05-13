@@ -116,7 +116,7 @@ export default function AcumuladosPage() {
     }
   }, [rowsFiltradas, esLotes])
 
-  function exportar() {
+  async function exportar() {
     const baseCols = esLotes
       ? ['Referencia', 'Lote', 'Descripcion', 'Categoria', 'Tipo']
       : ['Referencia', 'Descripcion', 'Categoria', 'Tipo']
@@ -136,7 +136,7 @@ export default function AcumuladosPage() {
       return [...base, ...datos]
     })
 
-    exportarExcel(`Acumulados_${modo}_${desde}_${hasta}`, cols, filas)
+    await exportarExcel(`Acumulados_${modo}_${desde}_${hasta}`, cols, filas)
   }
 
   const totalsFiltrados = {

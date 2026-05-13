@@ -12,6 +12,7 @@
     "@neondatabase/serverless": "^0.9.4",
     "bcryptjs": "^2.4.3",
     "date-fns": "^3.6.0",
+    "exceljs": "^4.4.0",
     "next": "^14.2.35",
     "next-auth": "^4.24.7",
     "react": "^18.3.1",

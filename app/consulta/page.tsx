@@ -116,7 +116,7 @@ export default function ConsultaPage() {
     alert(`Listo! ${ids.length} registros acumulados y bloqueados.`)
   }
 
-  function exportar() {
+  async function exportar() {
     const cols = modo === 'lotes'
       ? ['Referencia','Lote','Descripcion','Loc','UM','Tipo','Cant Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
       : ['Referencia','Descripcion','Loc','UM','Tipo','Cant Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
@@ -129,7 +129,7 @@ export default function ConsultaPage() {
         ? [r.referencia, r.lote || '', ...base]
         : [r.referencia, ...base]
     })
-    exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any)
+    await exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any)
   }
 
   const esLotes            = modo === 'lotes'
