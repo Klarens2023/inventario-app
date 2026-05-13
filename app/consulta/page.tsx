@@ -132,6 +132,7 @@ export default function ConsultaPage() {
     exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any)
   }
 
+  const esLotes            = modo === 'lotes'
   const bodegasDisponibles = Array.from(new Set(rows.map(r => r.localizacion).filter(Boolean))).sort()
   const rowsPorBodega      = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
   const lotesDisponibles   = esLotes ? Array.from(new Set(rowsPorBodega.map(r => r.lote).filter(Boolean))).sort() as string[] : []
@@ -173,7 +174,6 @@ export default function ConsultaPage() {
   })
 
   // Columnas y colgroup según modo
-  const esLotes    = modo === 'lotes'
   const headers    = esLotes
     ? ['Referencia','Descripcion','Lote','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones']
     : ['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones']
