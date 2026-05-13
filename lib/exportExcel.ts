@@ -199,6 +199,28 @@ export async function exportarExcel(
     }
   }
 
+  // ── Fila de firma ─────────────────────────────────────────────────────────
+  const filaFirmaIdx = 5 + filas.length + (filas.length > 0 ? 1 : 0) + 2  // 2 filas de separación
+  ws.addRow([])
+  ws.addRow([])
+  const firmaTexto = 'Desarrollado por el Área de Sistemas  ·  Luis Alberto Torres — Asistente de Sistemas  ·  Lácteos del Cesar SAS — Klarens'
+  ws.addRow([firmaTexto])
+  const firmaRowNum = ws.lastRow!.number
+  ws.mergeCells(firmaRowNum, 1, firmaRowNum, nCols)
+  const rFirma = ws.getRow(firmaRowNum)
+  rFirma.height = 18
+  Object.assign(rFirma.getCell(1), {
+    font      : { italic: true, size: 9, color: { argb: C.grisTexto } },
+    fill      : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } },
+    alignment : { horizontal: 'center', vertical: 'middle' },
+    border    : {
+      top   : { style: 'thin', color: { argb: C.azulMedio } },
+      left  : { style: 'hair', color: { argb: C.borde } },
+      bottom: { style: 'hair', color: { argb: C.borde } },
+      right : { style: 'hair', color: { argb: C.borde } },
+    },
+  })
+
   // ── Anchos de columna ─────────────────────────────────────────────────────
   ws.columns.forEach((col, i) => {
     const maxData = filas.reduce((m, f) => Math.max(m, String(f[i] ?? '').length), 0)
