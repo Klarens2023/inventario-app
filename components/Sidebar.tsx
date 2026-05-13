@@ -94,6 +94,7 @@ export default function Sidebar() {
 
   return (
     <aside style={{
+      position: 'sticky', top: 0, alignSelf: 'flex-start',
       width: W, minWidth: W, height: '100vh', flexShrink: 0,
       background: 'linear-gradient(180deg, #0047BA 0%, #002D7A 100%)',
       color: '#fff', display: 'flex', flexDirection: 'column',

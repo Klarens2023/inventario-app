@@ -26,16 +26,10 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html {
-  height: 100%;
-}
-
 body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  height: 100%;
-  overflow: hidden; /* el scroll lo maneja cada contenedor interno */
 }
 
 /* ----- SCROLLBAR ----- */

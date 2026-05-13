@@ -29,8 +29,7 @@ export default function LoginPage() {
 
   return (
     <div style={{
-      height: '100vh',
-      overflowY: 'auto',
+      minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
