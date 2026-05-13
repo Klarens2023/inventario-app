@@ -7,14 +7,9 @@ import { logAudit } from '@/lib/audit'
 function limpiarNum(val: string): number {
   let s = val.replace(/\$|\s/g, '').trim()
   if (!s) return 0
-
   const hasDot   = s.includes('.')
   const hasComma = s.includes(',')
-
   if (hasDot && hasComma) {
-    // Ambos separadores: el último indica el decimal
-    // "7.614,97" → coma es decimal (colombiano)
-    // "2,985.95" → punto es decimal (US)
     if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
       s = s.replace(/\./g, '').replace(',', '.')
     } else {
@@ -22,38 +17,29 @@ function limpiarNum(val: string): number {
     }
   } else if (hasComma) {
     const partes = s.split(',')
-    // "10,700" o "1,234,567" → miles  |  "9,5" → decimal
-    if (partes.length === 2 && partes[1].length <= 2) {
-      s = s.replace(',', '.')   // coma decimal
-    } else {
-      s = s.replace(/,/g, '')   // coma de miles
-    }
+    if (partes.length === 2 && partes[1].length <= 2) s = s.replace(',', '.')
+    else s = s.replace(/,/g, '')
   } else if (hasDot) {
     const partes = s.split('.')
-    // "9.227" o "47.071.079" → miles  |  "9.5" → decimal
-    if (partes.length === 2 && partes[1].length <= 2) {
-      // punto decimal, se deja igual
-    } else {
-      s = s.replace(/\./g, '')  // punto de miles
-    }
+    if (!(partes.length === 2 && partes[1].length <= 2)) s = s.replace(/\./g, '')
   }
-
   return isNaN(Number(s)) ? 0 : Number(s)
 }
 
 function mapearColumnas(headers: string[]) {
   const map: Record<string, number> = {}
   headers.forEach((h, i) => {
-    const k = h.replace(/^\uFEFF/, '').toLowerCase().trim()
-    if (k === 'referencia')                                          map.referencia     = i
-    if (['desc. item', 'desc item', 'descripcion'].includes(k))     map.descripcion    = i
-    if (['bodega', 'localizacion'].includes(k))                      map.localizacion   = i
-    if (k === 'categoria')                                           map.categoria      = i
-    if (['sub-grupo', 'subgrupo', 'tipo'].includes(k))               map.tipo           = i
-    if (['existencia', 'cantidad'].includes(k))                      map.cantidad       = i
-    if (['u.m.', 'u.m', 'um'].includes(k))                          map.um             = i
+    const k = h.replace(/^﻿/, '').toLowerCase().trim()
+    if (k === 'referencia')                                            map.referencia     = i
+    if (['desc. item', 'desc item', 'descripcion'].includes(k))       map.descripcion    = i
+    if (['bodega', 'localizacion'].includes(k))                        map.localizacion   = i
+    if (k === 'categoria')                                             map.categoria      = i
+    if (['sub-grupo', 'subgrupo', 'tipo'].includes(k))                 map.tipo           = i
+    if (['existencia', 'cantidad'].includes(k))                        map.cantidad       = i
+    if (['u.m.', 'u.m', 'um'].includes(k))                            map.um             = i
     if (k.includes('costo prom. uni') || k.includes('costo unitario')) map.costo_unitario = i
     if (k.includes('costo prom. tot') || k.includes('costo total'))    map.costo_total    = i
+    if (k === 'lote')                                                  map.lote           = i
   })
   return map
 }
@@ -64,41 +50,41 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const fecha    = searchParams.get('fecha')
-  const tipo     = searchParams.get('tipo')
+  const fecha = searchParams.get('fecha')
+  const tipo  = searchParams.get('tipo')
+  const modo  = searchParams.get('modo') || 'items'
 
-  // Sin fecha → devolver fechas y tipos disponibles
+  // Sin fecha → devolver fechas disponibles filtradas por modo
   if (!fecha) {
-    const fechas = await sql`SELECT DISTINCT fecha FROM inventario_datos ORDER BY fecha DESC LIMIT 30`
+    const fechas = await sql`
+      SELECT DISTINCT fecha FROM inventario_datos
+      WHERE modo = ${modo}
+      ORDER BY fecha DESC LIMIT 30`
     return NextResponse.json(fechas)
   }
 
-  // Verificar si la fecha está bloqueada (acumulada)
+  // Verificar si hay filas acumuladas en ese modo+fecha
   const lock = await sql`
     SELECT COUNT(*) AS total FROM inventario_datos
-    WHERE fecha = ${fecha} AND acumulado = true LIMIT 1`
+    WHERE fecha = ${fecha} AND modo = ${modo} AND acumulado = true LIMIT 1`
   const bloqueado = Number(lock[0]?.total ?? 0) > 0
 
-  // Con fecha → devolver filas (con filtro de tipo opcional)
+  // Filas de esa fecha y ese modo
   let rows
   if (tipo && tipo !== 'todos') {
     rows = await sql`
       SELECT * FROM vista_consulta
-      WHERE fecha = ${fecha} AND tipo = ${tipo}
+      WHERE fecha = ${fecha} AND modo = ${modo} AND tipo = ${tipo}
       ORDER BY referencia`
   } else {
     rows = await sql`
       SELECT * FROM vista_consulta
-      WHERE fecha = ${fecha}
+      WHERE fecha = ${fecha} AND modo = ${modo}
       ORDER BY referencia`
   }
 
   return NextResponse.json({ rows, bloqueado })
 }
-
-// ── GET tipos disponibles para una fecha ─────────────────────────────────────
-// Llamado como /api/inventario/tipos?fecha=YYYY-MM-DD
-// (se maneja en route separada abajo)
 
 // ── POST: cargar TXT ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -106,8 +92,9 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const formData = await req.formData()
-  const file     = formData.get('file') as File
-  const dia      = formData.get('dia')  as string
+  const file  = formData.get('file') as File
+  const dia   = formData.get('dia')  as string
+  const modo  = (formData.get('modo') as string) === 'lotes' ? 'lotes' : 'items'
 
   if (!file || !dia) return NextResponse.json({ error: 'Falta el archivo o el día' }, { status: 400 })
 
@@ -120,9 +107,8 @@ export async function POST(req: NextRequest) {
   const fechaStr = fecha.toISOString().split('T')[0]
 
   let text = await file.text()
-  text = text.replace(/^\uFEFF/, '')
+  text = text.replace(/^﻿/, '')
   const lines = text.split(/\r?\n/).filter(l => l.trim() !== '')
-
   if (lines.length < 2) return NextResponse.json({ error: 'El archivo está vacío' }, { status: 400 })
 
   const headers = lines[0].split('\t')
@@ -131,8 +117,10 @@ export async function POST(req: NextRequest) {
   if (cols.referencia === undefined)
     return NextResponse.json({ error: 'No se encontró la columna Referencia en el TXT' }, { status: 400 })
 
-  // ── Detectar los TIPOS presentes en este archivo ──────────────────────────
-  // Así solo borramos registros del mismo tipo, no los de otro sub-grupo
+  if (modo === 'lotes' && cols.lote === undefined)
+    return NextResponse.json({ error: 'El archivo no tiene columna Lote. ¿Es realmente un inventario por lotes?' }, { status: 400 })
+
+  // Detectar tipos presentes en el archivo
   const tiposEnArchivo = new Set<string>()
   for (let i = 1; i < lines.length; i++) {
     const fields = lines[i].split('\t')
@@ -141,12 +129,11 @@ export async function POST(req: NextRequest) {
   }
 
   const userId = session.user?.id ?? null
-  
-  // Borrar solo los registros de esa fecha Y esos tipos (no afecta otros sub-grupos)
-  // Si el archivo no tiene columna tipo, limpiar registros sin tipo para evitar duplicados
-  await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND (tipo = '' OR tipo IS NULL)`
+
+  // Borrar solo registros del mismo modo + tipo para esa fecha (no afecta el otro modo)
+  await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND modo = ${modo} AND (tipo = '' OR tipo IS NULL)`
   for (const tipo of Array.from(tiposEnArchivo)) {
-    await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND tipo = ${tipo}`
+    await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND modo = ${modo} AND tipo = ${tipo}`
   }
 
   let insertados = 0
@@ -154,10 +141,12 @@ export async function POST(req: NextRequest) {
     const fields = lines[i].split('\t')
     if (!fields[cols.referencia]?.trim()) continue
 
+    const loteVal = modo === 'lotes' ? (fields[cols.lote]?.trim() ?? null) : null
+
     await sql`
       INSERT INTO inventario_datos
         (fecha, categoria, referencia, descripcion, localizacion,
-         cantidad, um, costo_unitario, costo_total, tipo, cargado_por)
+         cantidad, um, costo_unitario, costo_total, tipo, lote, modo, cargado_por)
       VALUES (
         ${fechaStr},
         ${fields[cols.categoria]?.trim() ?? ''},
@@ -169,6 +158,8 @@ export async function POST(req: NextRequest) {
         ${limpiarNum(fields[cols.costo_unitario] ?? '0')},
         ${limpiarNum(fields[cols.costo_total] ?? '0')},
         ${fields[cols.tipo]?.trim() ?? ''},
+        ${loteVal},
+        ${modo},
         ${userId}
       )`
     insertados++
@@ -180,9 +171,9 @@ export async function POST(req: NextRequest) {
     usuarioId: userId,
     usuarioNombre: session.user?.name ?? 'Desconocido',
     accion: 'CARGA_INVENTARIO',
-    descripcion: `Cargó inventario del día ${fechaStr} con ${insertados} registros`,
-    datos: { fecha: fechaStr, insertados, tipos: tiposStr, archivo: file.name },
+    descripcion: `Cargó inventario ${modo} del día ${fechaStr} con ${insertados} registros`,
+    datos: { fecha: fechaStr, insertados, tipos: tiposStr, modo, archivo: file.name },
   })
 
-  return NextResponse.json({ ok: true, insertados, fecha: fechaStr, tipos: tiposStr })
+  return NextResponse.json({ ok: true, insertados, fecha: fechaStr, tipos: tiposStr, modo })
 }

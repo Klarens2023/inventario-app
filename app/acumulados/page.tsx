@@ -3,12 +3,15 @@ import { useState, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { exportarExcel } from '@/lib/exportExcel'
 
+type Modo = 'items' | 'lotes'
+
 type Row = {
   fecha: string; categoria: string; tipo: string; referencia: string
   descripcion: string; localizacion: string; um: string
   cantidad_sistema: number; costo_unitario: number
   conteo_fisico: number; diferencia: number
-  costo_diferencia: number; costo_bodega_total: number; observaciones: string
+  costo_diferencia: number; costo_bodega_total: number
+  observaciones: string; lote: string | null; modo: string
 }
 type Totales = { costo_bodega: number; costo_diferencia: number }
 
@@ -25,17 +28,18 @@ function fmtFechaCorta(f: string) {
 export default function AcumuladosPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.rol === 'admin'
-  const [desde,    setDesde]   = useState('')
-  const [hasta,    setHasta]   = useState('')
-  const [tipoFil,  setTipoFil] = useState('todos')
+  const [modo,      setModo]     = useState<Modo>('items')
+  const [desde,     setDesde]    = useState('')
+  const [hasta,     setHasta]    = useState('')
+  const [tipoFil,   setTipoFil]  = useState('todos')
   const [bodegaSel, setBodegaSel] = useState('todas')
-  const [rows,     setRows]    = useState<Row[]>([])
-  const [totales,  setTotales] = useState<Totales | null>(null)
-  const [loading,  setLoading] = useState(false)
-  const [error,    setError]   = useState('')
-  const [reiniciando, setRein] = useState(false)
-  const [confirm,  setConfirm] = useState(0)
-  const [detalle,  setDetalle] = useState<Row | null>(null)
+  const [rows,      setRows]     = useState<Row[]>([])
+  const [totales,   setTotales]  = useState<Totales | null>(null)
+  const [loading,   setLoading]  = useState(false)
+  const [error,     setError]    = useState('')
+  const [reiniciando, setRein]   = useState(false)
+  const [confirm,   setConfirm]  = useState(0)
+  const [detalle,   setDetalle]  = useState<Row | null>(null)
 
   async function buscar() {
     setLoading(true); setError(''); setDetalle(null)
@@ -43,6 +47,7 @@ export default function AcumuladosPage() {
       const params = new URLSearchParams()
       if (desde) params.set('desde', desde)
       if (hasta) params.set('hasta', hasta)
+      params.set('modo', modo)
       const res  = await fetch(`/api/acumulados?${params}`)
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? `Error ${res.status}`); setRows([]); setTotales(null) }
@@ -76,43 +81,62 @@ export default function AcumuladosPage() {
     )
   , [rows, tipoFil, bodegaSel])
 
-  // Pivot: filas = referencias, columnas = fechas
+  const esLotes = modo === 'lotes'
+
+  // Pivot: filas = referencias (+ lote en modo lotes), columnas = fechas
   const pivotData = useMemo(() => {
     const fechasSet = new Set<string>()
-    const mapItems: Record<string, { referencia: string; descripcion: string; categoria: string; tipo: string; datosPorFecha: Record<string, Row> }> = {}
+    const mapItems: Record<string, {
+      referencia: string; descripcion: string; categoria: string
+      tipo: string; lote: string | null; datosPorFecha: Record<string, Row>
+    }> = {}
     rowsFiltradas.forEach(r => {
-      const f = fmtFechaCorta(r.fecha)
+      const f   = fmtFechaCorta(r.fecha)
+      const key = esLotes ? `${r.referencia}|${r.lote ?? ''}` : r.referencia
       fechasSet.add(f)
-      if (!mapItems[r.referencia]) {
-        mapItems[r.referencia] = { referencia: r.referencia, descripcion: r.descripcion, categoria: r.categoria, tipo: r.tipo, datosPorFecha: {} }
+      if (!mapItems[key]) {
+        mapItems[key] = {
+          referencia: r.referencia,
+          descripcion: r.descripcion,
+          categoria: r.categoria,
+          tipo: r.tipo,
+          lote: r.lote ?? null,
+          datosPorFecha: {}
+        }
       }
-      mapItems[r.referencia].datosPorFecha[f] = r
+      mapItems[key].datosPorFecha[f] = r
     })
     return {
       fechas: Array.from(fechasSet).sort(),
-      items:  Object.values(mapItems).sort((a, b) => a.referencia.localeCompare(b.referencia))
+      items:  Object.values(mapItems).sort((a, b) => {
+        const c = a.referencia.localeCompare(b.referencia)
+        if (c !== 0) return c
+        return (a.lote ?? '').localeCompare(b.lote ?? '')
+      })
     }
-  }, [rowsFiltradas])
+  }, [rowsFiltradas, esLotes])
 
   function exportar() {
-    const cols = ['Referencia', 'Descripcion', 'Categoria', 'Tipo', ...pivotData.fechas.flatMap(f => [`Dif ${f}`, `Costo Dif ${f}`])]
-    
-    // Le decimos a TypeScript que filas será un Array de Arrays que contienen textos o números
+    const baseCols = esLotes
+      ? ['Referencia', 'Lote', 'Descripcion', 'Categoria', 'Tipo']
+      : ['Referencia', 'Descripcion', 'Categoria', 'Tipo']
+
+    const cols = [...baseCols, ...pivotData.fechas.flatMap(f => [`Dif ${f}`, `Costo Dif ${f}`])]
+
     const filas: (string | number)[][] = pivotData.items.map(item => {
-      
-      const base: (string | number)[] = [item.referencia, item.descripcion, item.categoria, item.tipo]
-      
+      const base: (string | number)[] = esLotes
+        ? [item.referencia, item.lote ?? '', item.descripcion, item.categoria, item.tipo]
+        : [item.referencia, item.descripcion, item.categoria, item.tipo]
+
       const datos: (string | number)[] = pivotData.fechas.flatMap(f => {
         const d = item.datosPorFecha[f]
-        // Declaramos explícitamente el tipo de retorno
         const valores: (string | number)[] = d ? [Number(d.diferencia), Number(d.costo_diferencia)] : ['', '']
         return valores
       })
-      
       return [...base, ...datos]
     })
-    
-    exportarExcel(`Acumulados_${desde}_${hasta}`, cols, filas)
+
+    exportarExcel(`Acumulados_${modo}_${desde}_${hasta}`, cols, filas)
   }
 
   const totalsFiltrados = {
@@ -122,6 +146,15 @@ export default function AcumuladosPage() {
   const part = totalsFiltrados.costo_bodega !== 0
     ? ((totalsFiltrados.costo_diferencia / totalsFiltrados.costo_bodega) * 100).toFixed(1) + '%'
     : '—'
+
+  const modoStyle = (m: Modo): React.CSSProperties => ({
+    padding: '7px 16px', borderRadius: 6,
+    border: `2px solid ${modo === m ? '#0047BA' : 'var(--border)'}`,
+    background: modo === m ? '#0047BA' : 'transparent',
+    color: modo === m ? '#fff' : 'var(--text)',
+    fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+    transition: 'all 0.15s'
+  })
 
   return (
     <div style={{ padding: '24px 32px', height: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -141,6 +174,16 @@ export default function AcumuladosPage() {
 
       {/* Filtros */}
       <div className="card" style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
+
+        {/* Selector de modo */}
+        <div>
+          <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Tipo</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" onClick={() => { setModo('items'); setRows([]); setTotales(null) }} style={modoStyle('items')}>📦 Items</button>
+            <button type="button" onClick={() => { setModo('lotes'); setRows([]); setTotales(null) }} style={modoStyle('lotes')}>🏷️ Lotes</button>
+          </div>
+        </div>
+
         <div>
           <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 5, textTransform: 'uppercase' }}>Desde</label>
           <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
@@ -196,7 +239,7 @@ export default function AcumuladosPage() {
       {/* Totales */}
       {totales && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-          <div className="stat-card"><div className="stat-label">Referencias</div><div className="stat-value">{pivotData.items.length}</div></div>
+          <div className="stat-card"><div className="stat-label">{esLotes ? 'Registros (lote)' : 'Referencias'}</div><div className="stat-value">{pivotData.items.length}</div></div>
           <div className="stat-card"><div className="stat-label">Costo Bodega</div><div className="stat-value" style={{ fontSize: 14 }}>{fmt(totalsFiltrados.costo_bodega)}</div></div>
           <div className="stat-card">
             <div className="stat-label">Costo Diferencia</div>
@@ -219,6 +262,9 @@ export default function AcumuladosPage() {
             <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg3)' }}>
               <tr>
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 100 }}>REFERENCIA</th>
+                {esLotes && (
+                  <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 110 }}>LOTE</th>
+                )}
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'left', minWidth: 220 }}>DESCRIPCION</th>
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 80 }}>CATEGORIA</th>
                 <th style={{ border: '1px solid var(--border)', padding: '6px 10px', textAlign: 'center', minWidth: 70 }}>SUBCATEGORIA</th>
@@ -230,32 +276,40 @@ export default function AcumuladosPage() {
               </tr>
             </thead>
             <tbody>
-              {pivotData.items.map((item, idx) => (
-                <tr key={item.referencia} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
-                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', fontWeight: 600, fontFamily: 'monospace' }}>{item.referencia}</td>
-                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>{item.descripcion}</td>
-                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'center', fontSize: 11, color: 'var(--text2)' }}>{item.categoria}</td>
-                  <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'center' }}>
-                    <span style={{ background: 'var(--bg3)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>{item.tipo}</span>
-                  </td>
-                  {pivotData.fechas.map(f => {
-                    const d   = item.datosPorFecha[f]
-                    const dif = d ? Number(d.diferencia) : null
-                    return (
-                      <td key={f}
-                        onClick={() => d && setDetalle(d)}
-                        style={{
-                          border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'right',
-                          cursor: d ? 'pointer' : 'default',
-                          color: dif && dif < 0 ? 'var(--danger)' : dif && dif > 0 ? 'var(--accent)' : 'inherit'
-                        }}
-                        title={d ? 'Clic para ver detalles' : ''}>
-                        {dif !== null && dif !== 0 ? dif.toLocaleString('es-CO') : (dif === 0 ? '0' : '')}
+              {pivotData.items.map((item, idx) => {
+                const rowKey = esLotes ? `${item.referencia}|${item.lote ?? ''}` : item.referencia
+                return (
+                  <tr key={rowKey} style={{ background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                    <td style={{ border: '1px solid var(--border)', padding: '4px 10px', fontWeight: 600, fontFamily: 'monospace' }}>{item.referencia}</td>
+                    {esLotes && (
+                      <td style={{ border: '1px solid var(--border)', padding: '4px 10px', fontFamily: 'monospace', fontSize: 11, color: 'var(--text2)' }}>
+                        {item.lote ?? '—'}
                       </td>
-                    )
-                  })}
-                </tr>
-              ))}
+                    )}
+                    <td style={{ border: '1px solid var(--border)', padding: '4px 10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280 }}>{item.descripcion}</td>
+                    <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'center', fontSize: 11, color: 'var(--text2)' }}>{item.categoria}</td>
+                    <td style={{ border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'center' }}>
+                      <span style={{ background: 'var(--bg3)', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>{item.tipo}</span>
+                    </td>
+                    {pivotData.fechas.map(f => {
+                      const d   = item.datosPorFecha[f]
+                      const dif = d ? Number(d.diferencia) : null
+                      return (
+                        <td key={f}
+                          onClick={() => d && setDetalle(d)}
+                          style={{
+                            border: '1px solid var(--border)', padding: '4px 10px', textAlign: 'right',
+                            cursor: d ? 'pointer' : 'default',
+                            color: dif && dif < 0 ? 'var(--danger)' : dif && dif > 0 ? 'var(--accent)' : 'inherit'
+                          }}
+                          title={d ? 'Clic para ver detalles' : ''}>
+                          {dif !== null && dif !== 0 ? dif.toLocaleString('es-CO') : (dif === 0 ? '0' : '')}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
@@ -264,16 +318,22 @@ export default function AcumuladosPage() {
       {/* Modal detalle */}
       {detalle && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-          <div style={{ background: 'var(--bg)', width: '95%', maxWidth: 900, borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
+          <div style={{ background: 'var(--bg)', width: '95%', maxWidth: 960, borderRadius: 8, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
             <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg2)' }}>
-              <h2 style={{ fontSize: 14, margin: 0 }}>{detalle.descripcion} — {fmtFechaCorta(detalle.fecha)}</h2>
+              <h2 style={{ fontSize: 14, margin: 0 }}>
+                {detalle.descripcion}
+                {esLotes && detalle.lote ? <span style={{ color: 'var(--text2)', marginLeft: 8 }}>| Lote: {detalle.lote}</span> : null}
+                {' — '}{fmtFechaCorta(detalle.fecha)}
+              </h2>
               <button onClick={() => setDetalle(null)} style={{ background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text)' }}>x</button>
             </div>
             <div style={{ padding: 20, overflowX: 'auto' }}>
               <table className="inv-table" style={{ fontSize: 12 }}>
                 <thead>
                   <tr>
-                    <th>Referencia</th><th>Descripcion</th><th>Loc.</th><th>U.M</th>
+                    <th>Referencia</th>
+                    {esLotes && <th>Lote</th>}
+                    <th>Descripcion</th><th>Loc.</th><th>U.M</th>
                     <th>Fecha</th><th>Categoria</th><th>Subcategoria</th>
                     <th>Conteo Fisico</th><th>Cant. Sistema</th><th>Diferencia</th>
                     <th>Costo Unit.</th><th>Costo Dif.</th><th>Costo Bodega</th><th>Observaciones</th>
@@ -282,6 +342,7 @@ export default function AcumuladosPage() {
                 <tbody>
                   <tr>
                     <td className="mono">{detalle.referencia}</td>
+                    {esLotes && <td className="mono">{detalle.lote ?? '—'}</td>}
                     <td>{detalle.descripcion}</td>
                     <td>{detalle.localizacion}</td>
                     <td>{detalle.um}</td>

@@ -3,15 +3,16 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { exportarExcel } from '@/lib/exportExcel'
 
+type Modo = 'items' | 'lotes'
+
 type Row = {
   id: number; conteo_id: number | null
   fecha: string; referencia: string; descripcion: string
   localizacion: string; um: string; categoria: string; tipo: string
   cantidad_sistema: number; costo_unitario: number; costo_bodega: number
   conteo_fisico: number; diferencia: number; costo_diferencia: number
-  observaciones: string
-  acumulado: boolean
-  cargado_por: number | null
+  observaciones: string; acumulado: boolean; cargado_por: number | null
+  lote: string | null; modo: string
 }
 type EditState = { conteo: string; obs: string; status: 'idle' | 'saving' | 'saved' | 'error' }
 
@@ -31,45 +32,48 @@ export default function ConsultaPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.rol === 'admin'
 
-  const [fechas,     setFechas]  = useState<string[]>([])
-  const [fecha,      setFecha]   = useState('')
-  const [tipoSel,    setTipoSel] = useState('todos')
-  const [bodegaSel,  setBodegaSel] = useState('todas')
-  const [rows,       setRows]    = useState<Row[]>([])
-  const [loading,    setLoading] = useState(false)
-  const [acumulando, setAcum]    = useState(false)
-  const [edits,      setEdits]   = useState<Record<number, EditState>>({})
+  const [modo,      setModo]      = useState<Modo>('items')
+  const [fechas,    setFechas]    = useState<string[]>([])
+  const [fecha,     setFecha]     = useState('')
+  const [tipoSel,   setTipoSel]   = useState('todos')
+  const [bodegaSel, setBodegaSel] = useState('todas')
+  const [rows,      setRows]      = useState<Row[]>([])
+  const [loading,   setLoading]   = useState(false)
+  const [acumulando,setAcum]      = useState(false)
+  const [edits,     setEdits]     = useState<Record<number, EditState>>({})
   const timers = useRef<Record<number, ReturnType<typeof setTimeout>>>({})
 
-  // Permiso por fila: editable si no está acumulado Y (es admin O fue quien lo subió)
   const puedeEditar = useCallback((row: Row) => {
     if (row.acumulado) return false
     if (isAdmin) return true
     return String(row.cargado_por) === session?.user?.id
   }, [isAdmin, session?.user?.id])
 
+  // Cargar fechas disponibles al cambiar de modo
   useEffect(() => {
-    fetch('/api/inventario').then(r => r.json()).then((data: {fecha:string}[]) => {
-      const fs = data.map(d => String(d.fecha).substring(0, 10))
-      setFechas(fs)
-      if (fs.length > 0) setFecha(fs[0])
-    })
-  }, [])
+    setFecha(''); setRows([]); setEdits({})
+    fetch(`/api/inventario?modo=${modo}`)
+      .then(r => r.json())
+      .then((data: { fecha: string }[]) => {
+        const fs = data.map(d => String(d.fecha).substring(0, 10))
+        setFechas(fs)
+        if (fs.length > 0) setFecha(fs[0])
+      })
+  }, [modo])
 
-  // Carga todos los rows de la fecha sin filtrar — los filtros son client-side
+  // Cargar filas al cambiar fecha
   useEffect(() => {
     if (!fecha) return
-    setLoading(true)
-    setBodegaSel('todas')
-    setTipoSel('todos')
-    fetch(`/api/inventario?fecha=${fecha}`).then(r => r.json()).then((data: { rows: Row[]; bloqueado: boolean }) => {
-      const init: Record<number, EditState> = {}
-      data.rows.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
-      setRows(data.rows); setEdits(init); setLoading(false)
-    })
-  }, [fecha])
+    setLoading(true); setBodegaSel('todas'); setTipoSel('todos')
+    fetch(`/api/inventario?fecha=${fecha}&modo=${modo}`)
+      .then(r => r.json())
+      .then((data: { rows: Row[] }) => {
+        const init: Record<number, EditState> = {}
+        data.rows.forEach(r => { init[r.id] = { conteo: r.conteo_fisico > 0 ? String(r.conteo_fisico) : '', obs: r.observaciones || '', status: 'idle' } })
+        setRows(data.rows); setEdits(init); setLoading(false)
+      })
+  }, [fecha, modo])
 
-  // Al cambiar bodega, resetear tipo si ya no está disponible
   useEffect(() => { setTipoSel('todos') }, [bodegaSel])
 
   const autoguardar = useCallback((id: number, conteo: string, obs: string) => {
@@ -93,66 +97,53 @@ export default function ConsultaPage() {
 
   async function acumular() {
     if (Object.values(edits).some(e => e.status === 'saving')) { alert('Hay cambios guardandose. Espera un momento.'); return }
-
-    // Solo acumula los rows visibles (filtro actual) que el usuario puede editar y no están ya acumulados
     const pendientes = rowsMostradas.filter(r => puedeEditar(r))
     if (pendientes.length === 0) { alert('No hay registros por acumular en el filtro actual.'); return }
-
-    const filtroDesc = tipoSel !== 'todos' ? `tipo "${tipoSel}"` : bodegaSel !== 'todas' ? `bodega "${bodegaSel}"` : 'todos los tipos'
+    const filtroDesc = tipoSel !== 'todos' ? `tipo "${tipoSel}"` : bodegaSel !== 'todas' ? `bodega "${bodegaSel}"` : 'todos'
     if (!confirm(`Acumular ${pendientes.length} registros (${filtroDesc})?\n\nUna vez acumulados no podrán modificarse.`)) return
-
     setAcum(true)
     for (const row of pendientes) {
       const e = edits[row.id]; if (!e) continue
       await fetch('/api/conteo', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id_inventario: row.id, conteo_fisico: e.conteo !== '' ? Number(e.conteo) : null, observaciones: e.obs || null }) })
     }
-
     const ids = pendientes.map(r => r.id)
-    await fetch('/api/acumulaciones', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids, fecha }),
-    })
-
-    // Actualizar estado local sin recargar
+    await fetch('/api/acumulaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids, fecha }) })
     setRows(prev => prev.map(r => ids.includes(r.id) ? { ...r, acumulado: true } : r))
     setAcum(false)
     alert(`Listo! ${ids.length} registros acumulados y bloqueados.`)
   }
 
   function exportar() {
-    const cols = ['Referencia','Descripcion','Loc','UM','Tipo','Cant Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
+    const cols = modo === 'lotes'
+      ? ['Referencia','Lote','Descripcion','Loc','UM','Tipo','Cant Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
+      : ['Referencia','Descripcion','Loc','UM','Tipo','Cant Sistema','Conteo Fisico','Diferencia','Costo Unitario','Costo Diferencia','Costo Bodega','Observaciones']
     const filas = rows.map(r => {
-      const e = edits[r.id]; const conteo = e?.conteo !== '' ? Number(e?.conteo) : 0; const dif = conteo - Number(r.cantidad_sistema)
-      return [r.referencia, r.descripcion, r.localizacion, r.um, r.tipo, Number(r.cantidad_sistema), conteo || '', dif || '', Number(r.costo_unitario), dif * Number(r.costo_unitario) || '', Number(r.costo_bodega), e?.obs || '']
+      const e = edits[r.id]
+      const conteo = e?.conteo !== '' ? Number(e?.conteo) : 0
+      const dif    = conteo - Number(r.cantidad_sistema)
+      const base = [r.descripcion, r.localizacion, r.um, r.tipo, Number(r.cantidad_sistema), conteo || '', dif || '', Number(r.costo_unitario), dif * Number(r.costo_unitario) || '', Number(r.costo_bodega), e?.obs || '']
+      return modo === 'lotes'
+        ? [r.referencia, r.lote || '', ...base]
+        : [r.referencia, ...base]
     })
-    exportarExcel(`Conteo_${tipoSel}_${fecha}`, cols, filas as any)
+    exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any)
   }
 
   const bodegasDisponibles = Array.from(new Set(rows.map(r => r.localizacion).filter(Boolean))).sort()
-  const rowsPorBodega = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
-  const tiposDisponibles = Array.from(new Set(rowsPorBodega.map(r => r.tipo).filter(Boolean))).sort()
-  const rowsMostradas = tipoSel !== 'todos' ? rowsPorBodega.filter(r => r.tipo === tipoSel) : rowsPorBodega
+  const rowsPorBodega      = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
+  const tiposDisponibles   = Array.from(new Set(rowsPorBodega.map(r => r.tipo).filter(Boolean))).sort()
+  const rowsMostradas      = tipoSel !== 'todos' ? rowsPorBodega.filter(r => r.tipo === tipoSel) : rowsPorBodega
 
-  const totalCantidad = rowsMostradas.reduce((s, r) => s + Number(r.cantidad_sistema), 0)
-  const totalConteo   = rowsMostradas.reduce((s, r) => {
-    const c = edits[r.id]?.conteo
-    return s + (c !== '' && c !== undefined ? Number(c) : 0)
-  }, 0)
-  const totalBodega   = rowsMostradas.reduce((s, r) => s + Number(r.costo_bodega), 0)
-  const totalDif      = rowsMostradas.reduce((s, r) => {
-    const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0
-    return s + (c - Number(r.cantidad_sistema)) * Number(r.costo_unitario)
-  }, 0)
-  const totalDifCantidad = rowsMostradas.reduce((s, r) => {
-    const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0
-    return s + (c - Number(r.cantidad_sistema))
-  }, 0)
-  const conConteo = rowsMostradas.filter(r => edits[r.id]?.conteo !== '' && edits[r.id]?.conteo !== undefined)
-  const hayConteo = conConteo.length > 0
-  const hayPendientes          = Object.values(edits).some(e => e.status === 'saving')
-  const todoAcumuladoEnFiltro  = rowsMostradas.length > 0 && rowsMostradas.every(r => !puedeEditar(r))
+  const totalCantidad    = rowsMostradas.reduce((s, r) => s + Number(r.cantidad_sistema), 0)
+  const totalConteo      = rowsMostradas.reduce((s, r) => { const c = edits[r.id]?.conteo; return s + (c !== '' && c !== undefined ? Number(c) : 0) }, 0)
+  const totalBodega      = rowsMostradas.reduce((s, r) => s + Number(r.costo_bodega), 0)
+  const totalDif         = rowsMostradas.reduce((s, r) => { const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0; return s + (c - Number(r.cantidad_sistema)) * Number(r.costo_unitario) }, 0)
+  const totalDifCantidad = rowsMostradas.reduce((s, r) => { const c = edits[r.id]?.conteo !== '' ? Number(edits[r.id]?.conteo ?? 0) : 0; return s + (c - Number(r.cantidad_sistema)) }, 0)
+  const hayConteo        = rowsMostradas.some(r => edits[r.id]?.conteo !== '' && edits[r.id]?.conteo !== undefined)
+  const hayPendientes    = Object.values(edits).some(e => e.status === 'saving')
+  const todoAcumulado    = rowsMostradas.length > 0 && rowsMostradas.every(r => !puedeEditar(r))
 
   function StatusDot({ status }: { status: EditState['status'] }) {
     if (status === 'saving') return <span style={{ color: '#f59e0b', fontSize: 10 }}>●</span>
@@ -161,7 +152,6 @@ export default function ConsultaPage() {
     return null
   }
 
-  // ── select / button styles (reutilizables) ──
   const selStyle: React.CSSProperties = {
     padding: '7px 10px', borderRadius: 6, border: '1px solid #d1d5db',
     background: '#fff', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer'
@@ -171,27 +161,43 @@ export default function ConsultaPage() {
     background: hayPendientes ? '#9ca3af' : 'linear-gradient(135deg,#22c55e,#16a34a)',
     color: '#fff', fontWeight: 700, fontSize: 13, fontFamily: 'inherit'
   }
+  const modoBtn = (m: Modo): React.CSSProperties => ({
+    padding: '7px 16px', borderRadius: 6,
+    border: `2px solid ${modo === m ? '#0047BA' : '#d1d5db'}`,
+    background: modo === m ? '#0047BA' : '#fff',
+    color: modo === m ? '#fff' : '#374151',
+    fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit'
+  })
+
+  // Columnas y colgroup según modo
+  const esLotes    = modo === 'lotes'
+  const headers    = esLotes
+    ? ['Referencia','Descripcion','Lote','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones']
+    : ['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones']
+  const numCols    = esLotes ? [7,8,9,10,11,12] : [6,7,8,9,10,11]
+  const colspanGT  = esLotes ? 7 : 6
 
   return (
-    // ── Wrapper que ocupa TODA la viewport menos el sidebar ──
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', padding: '20px 24px', gap: 12, boxSizing: 'border-box' }}>
 
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, flexShrink: 0 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Conteo Fisico</h1>
-          {todoAcumuladoEnFiltro ? (
-            <p style={{ fontSize: 12, margin: '2px 0 0', color: '#dc2626', fontWeight: 600 }}>
-              🔒 Todos los registros del filtro ya fueron acumulados.
-            </p>
+          {todoAcumulado ? (
+            <p style={{ fontSize: 12, margin: '2px 0 0', color: '#dc2626', fontWeight: 600 }}>🔒 Todos los registros del filtro ya fueron acumulados.</p>
           ) : (
-            <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>
-              Los cambios se guardan automaticamente. Solo puedes editar los inventarios que tú subiste.
-            </p>
+            <p style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 0' }}>Los cambios se guardan automaticamente.</p>
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Selector de modo */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={() => setModo('items')} style={modoBtn('items')}>📦 Items</button>
+            <button onClick={() => setModo('lotes')} style={modoBtn('lotes')}>🏷️ Lotes</button>
+          </div>
           <select value={fecha} onChange={e => setFecha(e.target.value)} style={selStyle}>
+            {fechas.length === 0 && <option value="">Sin datos</option>}
             {fechas.map(f => <option key={f} value={f}>{new Date(f + 'T12:00:00').toLocaleDateString('es-CO')}</option>)}
           </select>
           <select value={tipoSel} onChange={e => setTipoSel(e.target.value)} style={selStyle}>
@@ -205,7 +211,7 @@ export default function ConsultaPage() {
           <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
-          {!todoAcumuladoEnFiltro && (
+          {!todoAcumulado && (
             <button onClick={acumular} disabled={acumulando || rows.length === 0 || hayPendientes} style={btnGreen}>
               {acumulando ? 'Acumulando...' : hayPendientes ? 'Guardando...' : 'Acumular todo'}
             </button>
@@ -216,11 +222,11 @@ export default function ConsultaPage() {
       {/* STATS */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, flexShrink: 0 }}>
         {[
-          { label: 'REFERENCIAS',     value: rowsMostradas.length,                      color: '#1d4ed8' },
-          { label: 'CON CONTEO',      value: rowsMostradas.filter(r => edits[r.id]?.conteo !== '').length, color: '#16a34a' },
-          { label: 'COSTO BODEGA',    value: fmt(totalBodega),                          color: '#1d4ed8' },
-          { label: 'COSTO DIFERENCIA',value: fmt(totalDif),                             color: totalDif < 0 ? '#ef4444' : '#16a34a' },
-          { label: 'PARTICIPACION',   value: totalBodega !== 0 ? ((totalDif/totalBodega)*100).toFixed(1)+'%' : '—', color: '#d97706' },
+          { label: 'REFERENCIAS',      value: rowsMostradas.length,                                                   color: '#1d4ed8' },
+          { label: 'CON CONTEO',       value: rowsMostradas.filter(r => edits[r.id]?.conteo !== '').length,            color: '#16a34a' },
+          { label: 'COSTO BODEGA',     value: fmt(totalBodega),                                                       color: '#1d4ed8' },
+          { label: 'COSTO DIFERENCIA', value: fmt(totalDif),                                                          color: totalDif < 0 ? '#ef4444' : '#16a34a' },
+          { label: 'PARTICIPACION',    value: totalBodega !== 0 ? ((totalDif/totalBodega)*100).toFixed(1)+'%' : '—',  color: '#d97706' },
         ].map(s => (
           <div key={s.label} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: '12px 16px', borderLeft: `4px solid ${s.color}` }}>
             <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, letterSpacing: '0.05em' }}>{s.label}</div>
@@ -229,54 +235,85 @@ export default function ConsultaPage() {
         ))}
       </div>
 
-      {/* TABLA — flex:1 + overflow:auto para scroll independiente */}
+      {/* TABLA */}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10 }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Cargando...</div>
         ) : rows.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>
-            No hay datos. <a href="/cargar" style={{ color: '#2563eb' }}>Cargar inventario</a>
+            No hay datos para este modo y fecha. <a href="/cargar" style={{ color: '#2563eb' }}>Cargar inventario</a>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '7%'  }} />   {/* Referencia     */}
-              <col style={{ width: '13%' }} />   {/* Descripcion    */}
-              <col style={{ width: '4%'  }} />   {/* Loc            */}
-              <col style={{ width: '4%'  }} />   {/* UM             */}
-              <col style={{ width: '7%'  }} />   {/* Categoria      */}
-              <col style={{ width: '6%'  }} />   {/* Subcategoria   */}
-              <col style={{ width: '5%'  }} />   {/* Cant. Sis.     */}
-              <col style={{ width: '6%'  }} />   {/* Conteo         */}
-              <col style={{ width: '5%'  }} />   {/* Diferencia     */}
-              <col style={{ width: '8%'  }} />   {/* C. Unit.       */}
-              <col style={{ width: '10%' }} />   {/* C. Dif.        */}
-              <col style={{ width: '12%' }} />   {/* C. Bodega      */}
-              <col style={{ width: '13%' }} />   {/* Observaciones  */}
+              {esLotes ? (
+                <>
+                  <col style={{ width: '7%'  }} />{/* Referencia    */}
+                  <col style={{ width: '10%' }} />{/* Descripcion   */}
+                  <col style={{ width: '8%'  }} />{/* Lote          */}
+                  <col style={{ width: '4%'  }} />{/* Loc           */}
+                  <col style={{ width: '4%'  }} />{/* UM            */}
+                  <col style={{ width: '6%'  }} />{/* Categoria     */}
+                  <col style={{ width: '5%'  }} />{/* Subcategoria  */}
+                  <col style={{ width: '5%'  }} />{/* Cant. Sis.    */}
+                  <col style={{ width: '6%'  }} />{/* Conteo        */}
+                  <col style={{ width: '5%'  }} />{/* Diferencia    */}
+                  <col style={{ width: '7%'  }} />{/* C. Unit.      */}
+                  <col style={{ width: '9%'  }} />{/* C. Dif.       */}
+                  <col style={{ width: '10%' }} />{/* C. Bodega     */}
+                  <col style={{ width: '14%' }} />{/* Observaciones */}
+                </>
+              ) : (
+                <>
+                  <col style={{ width: '7%'  }} />{/* Referencia    */}
+                  <col style={{ width: '13%' }} />{/* Descripcion   */}
+                  <col style={{ width: '4%'  }} />{/* Loc           */}
+                  <col style={{ width: '4%'  }} />{/* UM            */}
+                  <col style={{ width: '7%'  }} />{/* Categoria     */}
+                  <col style={{ width: '6%'  }} />{/* Subcategoria  */}
+                  <col style={{ width: '5%'  }} />{/* Cant. Sis.    */}
+                  <col style={{ width: '6%'  }} />{/* Conteo        */}
+                  <col style={{ width: '5%'  }} />{/* Diferencia    */}
+                  <col style={{ width: '8%'  }} />{/* C. Unit.      */}
+                  <col style={{ width: '10%' }} />{/* C. Dif.       */}
+                  <col style={{ width: '12%' }} />{/* C. Bodega     */}
+                  <col style={{ width: '13%' }} />{/* Observaciones */}
+                </>
+              )}
             </colgroup>
             <thead>
               <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
-                {['Referencia','Descripcion','Loc','UM','Categoria','Subcategoria','Cant. Sis.','Conteo','Diferencia','C. Unit.','C. Dif.','C. Bodega','Observaciones'].map((h,i) => (
+                {headers.map((h, i) => (
                   <th key={i} style={{
-                    padding: '10px 8px', textAlign: i >= 6 && i <= 11 ? 'right' : 'left',
-                    fontSize: 11, fontWeight: 700, color: '#374151', borderBottom: '2px solid #e5e7eb',
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    ...(h === 'Conteo' || h === 'Observaciones' ? { color: '#16a34a' } : {})
+                    padding: '10px 8px',
+                    textAlign: numCols.includes(i) ? 'right' : 'left',
+                    fontSize: 11, fontWeight: 700,
+                    color: h === 'Conteo' || h === 'Observaciones' ? '#16a34a' : '#374151',
+                    borderBottom: '2px solid #e5e7eb',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                   }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rowsMostradas.map((r, idx) => {
-                const e = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
-                const conteo = e.conteo !== '' ? Number(e.conteo) : 0
-                const dif    = conteo - Number(r.cantidad_sistema)
-                const cDif   = dif * Number(r.costo_unitario)
-                const bg     = idx % 2 === 0 ? '#fff' : '#f9fafb'
+                const e        = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
+                const conteo   = e.conteo !== '' ? Number(e.conteo) : 0
+                const dif      = conteo - Number(r.cantidad_sistema)
+                const cDif     = dif * Number(r.costo_unitario)
+                const bg       = idx % 2 === 0 ? '#fff' : '#f9fafb'
+                const editable = puedeEditar(r)
+                const bgEdit   = r.acumulado ? '#f1f5f9' : !editable ? '#fffbeb' : '#f0fdf4'
+                const titleEdit = r.acumulado ? 'Acumulado' : !editable ? 'Solo puede editar quien subio este inventario' : ''
                 return (
                   <tr key={r.id} style={{ background: bg }}>
                     <td style={{ padding: '7px 8px', fontFamily: 'monospace', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }}>{r.referencia}</td>
                     <td style={{ padding: '7px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0' }} title={r.descripcion}>{r.descripcion}</td>
+                    {esLotes && (
+                      <td style={{ padding: '7px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderBottom: '1px solid #f0f0f0', fontFamily: 'monospace', fontSize: 11, color: '#6b7280' }} title={r.lote ?? ''}>
+                        {r.lote || '—'}
+                      </td>
+                    )}
                     <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.localizacion}</td>
                     <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.um}</td>
                     <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.categoria}</td>
@@ -285,25 +322,17 @@ export default function ConsultaPage() {
                     </td>
                     <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
 
-                    {/* CONTEO FISICO */}
-                    <td style={{
-                      padding: '3px 4px', borderBottom: '1px solid #f0f0f0',
-                      background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
-                    }}
-                      title={r.acumulado ? 'Acumulado' : !puedeEditar(r) ? 'Solo puede editar quien subio este inventario' : ''}
-                    >
-                      {!puedeEditar(r) ? (
+                    {/* CONTEO */}
+                    <td style={{ padding: '3px 4px', borderBottom: '1px solid #f0f0f0', background: bgEdit }} title={titleEdit}>
+                      {!editable ? (
                         <span style={{ display: 'block', textAlign: 'right', padding: '2px 4px', color: r.acumulado ? '#94a3b8' : '#92400e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {e.conteo !== '' ? Number(e.conteo).toLocaleString('es-CO') : '—'}
                         </span>
                       ) : (
-                        <input type="number" value={e.conteo}
-                          onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
-                          placeholder="—"
-                          style={{ ...inputStyle, textAlign: 'right' }}
+                        <input type="number" value={e.conteo} onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
+                          placeholder="—" style={{ ...inputStyle, textAlign: 'right' }}
                           onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                          onBlur={ev  => { ev.target.style.background = 'transparent' }}
-                        />
+                          onBlur={ev  => { ev.target.style.background = 'transparent' }} />
                       )}
                     </td>
 
@@ -316,12 +345,9 @@ export default function ConsultaPage() {
                     </td>
                     <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt(r.costo_bodega)}</td>
 
-                    {/* OBSERVACIONES + status dot integrado */}
-                    <td style={{
-                      padding: '3px 4px', borderBottom: '1px solid #f0f0f0',
-                      background: r.acumulado ? '#f1f5f9' : !puedeEditar(r) ? '#fffbeb' : '#f0fdf4'
-                    }}>
-                      {!puedeEditar(r) ? (
+                    {/* OBSERVACIONES */}
+                    <td style={{ padding: '3px 4px', borderBottom: '1px solid #f0f0f0', background: bgEdit }}>
+                      {!editable ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           <span style={{ flex: 1, padding: '2px 4px', color: '#6b7280', fontStyle: e.obs ? 'normal' : 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {e.obs || '—'}
@@ -329,13 +355,10 @@ export default function ConsultaPage() {
                         </div>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <input type="text" value={e.obs}
-                            onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
-                            placeholder="Observacion..."
-                            style={{ ...inputStyle, flex: 1, width: 'auto' }}
+                          <input type="text" value={e.obs} onChange={ev => handleChange(r.id, 'obs', ev.target.value)}
+                            placeholder="Observacion..." style={{ ...inputStyle, flex: 1, width: 'auto' }}
                             onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                            onBlur={ev  => { ev.target.style.background = 'transparent' }}
-                          />
+                            onBlur={ev  => { ev.target.style.background = 'transparent' }} />
                           <StatusDot status={e.status} />
                         </div>
                       )}
@@ -344,26 +367,16 @@ export default function ConsultaPage() {
                 )
               })}
             </tbody>
-            {/* FILA GRAN TOTAL */}
+            {/* GRAN TOTAL */}
             <tfoot>
               <tr style={{ background: '#f1f5f9', borderTop: '2px solid #cbd5e1', fontWeight: 700 }}>
-                <td colSpan={6} style={{ padding: '10px 8px', fontSize: 13, color: '#374151' }}>Gran total</td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                  {totalCantidad.toLocaleString('es-CO')}
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, color: '#16a34a', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                  {hayConteo ? totalConteo.toLocaleString('es-CO') : '—'}
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', color: totalDifCantidad < 0 ? '#ef4444' : totalDifCantidad > 0 ? '#16a34a' : 'inherit' }}>
-                  {hayConteo ? totalDifCantidad.toLocaleString('es-CO') : '—'}
-                </td>
+                <td colSpan={colspanGT} style={{ padding: '10px 8px', fontSize: 13, color: '#374151' }}>Gran total</td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>{totalCantidad.toLocaleString('es-CO')}</td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, color: '#16a34a', whiteSpace: 'nowrap', overflow: 'hidden' }}>{hayConteo ? totalConteo.toLocaleString('es-CO') : '—'}</td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', color: totalDifCantidad < 0 ? '#ef4444' : totalDifCantidad > 0 ? '#16a34a' : 'inherit' }}>{hayConteo ? totalDifCantidad.toLocaleString('es-CO') : '—'}</td>
                 <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13 }}>—</td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', color: totalDif < 0 ? '#ef4444' : totalDif > 0 ? '#16a34a' : 'inherit' }}>
-                  {hayConteo ? fmt(totalDif) : '—'}
-                </td>
-                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                  {fmt(totalBodega)}
-                </td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', color: totalDif < 0 ? '#ef4444' : totalDif > 0 ? '#16a34a' : 'inherit' }}>{hayConteo ? fmt(totalDif) : '—'}</td>
+                <td style={{ padding: '10px 8px', textAlign: 'right', fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden' }}>{fmt(totalBodega)}</td>
                 <td />
               </tr>
             </tfoot>
