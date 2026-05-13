@@ -28,12 +28,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      background: 'var(--bg)', /* El azul clarito de tu CSS */
+    <div style={{
+      height: '100vh',
+      overflowY: 'auto',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg)',
       padding: '20px',
       position: 'relative'
     }}>
