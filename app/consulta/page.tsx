@@ -37,6 +37,7 @@ export default function ConsultaPage() {
   const [fecha,     setFecha]     = useState('')
   const [tipoSel,   setTipoSel]   = useState('todos')
   const [bodegaSel, setBodegaSel] = useState('todas')
+  const [loteSel,   setLoteSel]   = useState('todos')
   const [rows,      setRows]      = useState<Row[]>([])
   const [loading,   setLoading]   = useState(false)
   const [acumulando,setAcum]      = useState(false)
@@ -64,7 +65,7 @@ export default function ConsultaPage() {
   // Cargar filas al cambiar fecha
   useEffect(() => {
     if (!fecha) return
-    setLoading(true); setBodegaSel('todas'); setTipoSel('todos')
+    setLoading(true); setBodegaSel('todas'); setTipoSel('todos'); setLoteSel('todos')
     fetch(`/api/inventario?fecha=${fecha}&modo=${modo}`)
       .then(r => r.json())
       .then((data: { rows: Row[] }) => {
@@ -133,8 +134,10 @@ export default function ConsultaPage() {
 
   const bodegasDisponibles = Array.from(new Set(rows.map(r => r.localizacion).filter(Boolean))).sort()
   const rowsPorBodega      = bodegaSel !== 'todas' ? rows.filter(r => r.localizacion === bodegaSel) : rows
-  const tiposDisponibles   = Array.from(new Set(rowsPorBodega.map(r => r.tipo).filter(Boolean))).sort()
-  const rowsMostradas      = tipoSel !== 'todos' ? rowsPorBodega.filter(r => r.tipo === tipoSel) : rowsPorBodega
+  const lotesDisponibles   = esLotes ? Array.from(new Set(rowsPorBodega.map(r => r.lote).filter(Boolean))).sort() as string[] : []
+  const rowsPorLote        = esLotes && loteSel !== 'todos' ? rowsPorBodega.filter(r => r.lote === loteSel) : rowsPorBodega
+  const tiposDisponibles   = Array.from(new Set(rowsPorLote.map(r => r.tipo).filter(Boolean))).sort()
+  const rowsMostradas      = tipoSel !== 'todos' ? rowsPorLote.filter(r => r.tipo === tipoSel) : rowsPorLote
 
   const totalCantidad    = rowsMostradas.reduce((s, r) => s + Number(r.cantidad_sistema), 0)
   const totalConteo      = rowsMostradas.reduce((s, r) => { const c = edits[r.id]?.conteo; return s + (c !== '' && c !== undefined ? Number(c) : 0) }, 0)
@@ -208,6 +211,12 @@ export default function ConsultaPage() {
             <option value="todas">Todas las bodegas</option>
             {bodegasDisponibles.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
+          {esLotes && (
+            <select value={loteSel} onChange={e => setLoteSel(e.target.value)} style={{ ...selStyle, maxWidth: 160 }}>
+              <option value="todos">Todos los lotes</option>
+              {lotesDisponibles.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          )}
           <button onClick={exportar} disabled={rows.length === 0} style={{ ...selStyle, background: '#f3f4f6', fontWeight: 600 }}>
             Exportar Excel
           </button>
