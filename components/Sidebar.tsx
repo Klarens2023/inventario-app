@@ -213,6 +213,22 @@ export default function Sidebar() {
         </div>
       )}
 
+      {/* Firma desarrollador */}
+      {open && (
+        <div style={{
+          padding: '10px 16px',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
+            Desarrollado por el Área de Sistemas<br />
+            <span style={{ color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Luis Alberto Torres</span>
+            {' — '}Asistente de Sistemas<br />
+            Lácteos del Cesar SAS · Klarens
+          </div>
+        </div>
+      )}
+
       {/* Usuario */}
       <div style={{
         padding: open ? '16px' : '12px 8px',

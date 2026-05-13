@@ -136,7 +136,7 @@ export default function AcumuladosPage() {
       return [...base, ...datos]
     })
 
-    await exportarExcel(`Acumulados_${modo}_${desde}_${hasta}`, cols, filas)
+    await exportarExcel(`Acumulados_${modo}_${desde}_${hasta}`, cols, filas, session?.user?.name ?? undefined)
   }
 
   const totalsFiltrados = {

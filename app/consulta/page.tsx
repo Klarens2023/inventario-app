@@ -129,7 +129,7 @@ export default function ConsultaPage() {
         ? [r.referencia, r.lote || '', ...base]
         : [r.referencia, ...base]
     })
-    await exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any)
+    await exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any, session?.user?.name ?? undefined)
   }
 
   const esLotes            = modo === 'lotes'

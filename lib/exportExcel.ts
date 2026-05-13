@@ -44,9 +44,10 @@ function bordeFino(color = C.borde): Partial<ExcelJS.Borders> {
 
 // ── Exportar ───────────────────────────────────────────────────────────────
 export async function exportarExcel(
-  nombre   : string,
-  columnas : string[],
-  filas    : Valor[][]
+  nombre      : string,
+  columnas    : string[],
+  filas       : Valor[][],
+  exportadoPor?: string
 ) {
   const wb = new ExcelJS.Workbook()
   wb.creator  = 'Klarens Inventario'
@@ -203,7 +204,9 @@ export async function exportarExcel(
   const filaFirmaIdx = 5 + filas.length + (filas.length > 0 ? 1 : 0) + 2  // 2 filas de separación
   ws.addRow([])
   ws.addRow([])
-  const firmaTexto = 'Desarrollado por el Área de Sistemas  ·  Luis Alberto Torres — Asistente de Sistemas  ·  Lácteos del Cesar SAS — Klarens'
+  const firmaTexto = exportadoPor
+    ? `Exportado por: ${exportadoPor}  ·  Lácteos del Cesar SAS — Klarens`
+    : 'Lácteos del Cesar SAS — Klarens'
   ws.addRow([firmaTexto])
   const firmaRowNum = ws.lastRow!.number
   ws.mergeCells(firmaRowNum, 1, firmaRowNum, nCols)
