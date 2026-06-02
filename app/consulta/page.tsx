@@ -93,7 +93,37 @@ export default function ConsultaPage() {
   function handleChange(id: number, field: 'conteo' | 'obs', value: string) {
     const current = edits[id]
     setEdits(prev => ({ ...prev, [id]: { ...current, [field]: value, status: 'saving' } }))
-    autoguardar(id, field === 'conteo' ? value : current.conteo, field === 'obs' ? value : current.obs)
+    // Para conteo solo autoguarda si NO tiene operadores (mientras escribe la expresión no guarda)
+    if (field === 'obs' || !/[+\-]/.test(value)) {
+      autoguardar(id, field === 'conteo' ? value : current.conteo, field === 'obs' ? value : current.obs)
+    }
+  }
+
+  // Evalúa expresiones como "4+6+97" → "107"
+  function evaluarConteo(expr: string): string {
+    const clean = expr.replace(/\s/g, '')
+    if (!clean) return ''
+    if (!/[+\-]/.test(clean)) return clean
+    // Solo permite dígitos, puntos, + y -
+    if (!/^[\d.+\-]+$/.test(clean)) return clean
+    try {
+      const partes = clean.split('+').map(p => p.trim()).filter(p => p !== '')
+      const total = partes.reduce((sum, p) => {
+        const subPartes = p.split('-').map(Number)
+        return sum + subPartes.reduce((s, n, i) => i === 0 ? s + n : s - n, 0)
+      }, 0)
+      if (isNaN(total)) return clean
+      return total % 1 === 0 ? String(total) : String(Math.round(total * 100) / 100)
+    } catch { return clean }
+  }
+
+  function resolverConteo(id: number) {
+    const e = edits[id]
+    if (!e || !e.conteo) return
+    const resultado = evaluarConteo(e.conteo)
+    if (resultado === e.conteo) return
+    setEdits(prev => ({ ...prev, [id]: { ...prev[id], conteo: resultado } }))
+    autoguardar(id, resultado, e.obs)
   }
 
   async function acumular() {
@@ -338,10 +368,21 @@ export default function ConsultaPage() {
                           {e.conteo !== '' ? Number(e.conteo).toLocaleString('es-CO') : '—'}
                         </span>
                       ) : (
-                        <input type="number" value={e.conteo} onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
-                          placeholder="—" style={{ ...inputStyle, textAlign: 'right' }}
+                        <input
+                          type="text" inputMode="decimal"
+                          value={e.conteo}
+                          onChange={ev => handleChange(r.id, 'conteo', ev.target.value)}
+                          onBlur={ev => { resolverConteo(r.id); ev.target.style.background = 'transparent' }}
+                          onKeyDown={ev => { if (ev.key === 'Enter') { resolverConteo(r.id); (ev.target as HTMLInputElement).blur() } }}
+                          placeholder="—"
+                          style={{
+                            ...inputStyle, textAlign: 'right',
+                            color: /[+\-]/.test(e.conteo) ? '#0047BA' : 'inherit',
+                            fontWeight: /[+\-]/.test(e.conteo) ? 600 : 'normal',
+                          }}
                           onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                          onBlur={ev  => { ev.target.style.background = 'transparent' }} />
+                          title="Puedes escribir sumas: ej. 4+6+97"
+                        />
                       )}
                     </td>
 
