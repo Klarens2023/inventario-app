@@ -3,7 +3,7 @@ import { sql } from './db'
 export async function logAudit(params: {
   usuarioId: string | null
   usuarioNombre: string
-  accion: 'CARGA_INVENTARIO' | 'CONTEO_ACTUALIZADO' | 'CONTEO_ACUMULADO' | 'HISTORIAL_REINICIADO' | 'USUARIO_CREADO' | 'USUARIO_MODIFICADO'
+  accion: 'CARGA_INVENTARIO' | 'CONTEO_ACTUALIZADO' | 'CONTEO_ACUMULADO' | 'HISTORIAL_REINICIADO' | 'USUARIO_CREADO' | 'USUARIO_MODIFICADO' | 'EQUIPO_CREADO' | 'EQUIPO_ACTUALIZADO' | 'EQUIPO_ELIMINADO'
   descripcion: string
   datos?: Record<string, unknown>
 }) {
