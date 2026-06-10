@@ -5,14 +5,15 @@ import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const INACTIVIDAD_MS  = 20 * 60 * 1000  // 20 minutos
-const ADVERTENCIA_MS  = 18 * 60 * 1000  // aviso a los 18 min (2 min antes)
+const INACTIVIDAD_MS  = 20 * 60 * 1000
+const ADVERTENCIA_MS  = 18 * 60 * 1000
 
 const Icons = {
   Inicio:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
   Cargar:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>,
   Conteo:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14l2 2 4-4"/></svg>,
   Acumulados: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  Equipos:    () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
   Auditoria:  () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
   Usuarios:   () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Collapse:   ({ open }: { open: boolean }) => (
@@ -24,27 +25,51 @@ const Icons = {
   Logout: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
 }
 
-const navBase = [
-  { href: '/dashboard',       icon: <Icons.Inicio />,     label: 'Inicio',            adminOnly: false },
-  { href: '/cargar',          icon: <Icons.Cargar />,     label: 'Cargar Inventario', adminOnly: false },
-  { href: '/consulta',        icon: <Icons.Conteo />,     label: 'Conteo Fisico',     adminOnly: false },
-  { href: '/acumulados',      icon: <Icons.Acumulados />, label: 'Acumulados',        adminOnly: false },
-  { href: '/admin/usuarios',  icon: <Icons.Usuarios />,   label: 'Usuarios',          adminOnly: true  },
-  { href: '/auditoria',       icon: <Icons.Auditoria />,  label: 'Auditoria',         adminOnly: true  },
+type NavItem = {
+  href: string
+  icon: React.ReactNode
+  label: string
+  areas: string[]
+  minRol?: 'lider' | 'admin'
+}
+
+const navBase: NavItem[] = [
+  { href: '/dashboard',        icon: <Icons.Inicio />,     label: 'Inicio',            areas: ['logistica', 'sistemas', 'general'] },
+  { href: '/cargar',           icon: <Icons.Cargar />,     label: 'Cargar Inventario', areas: ['logistica', 'general'] },
+  { href: '/consulta',         icon: <Icons.Conteo />,     label: 'Conteo Físico',     areas: ['logistica', 'general'] },
+  { href: '/acumulados',       icon: <Icons.Acumulados />, label: 'Acumulados',        areas: ['logistica', 'general'] },
+  { href: '/sistemas/equipos', icon: <Icons.Equipos />,    label: 'Equipos TI',        areas: ['sistemas', 'general'] },
+  { href: '/admin/usuarios',   icon: <Icons.Usuarios />,   label: 'Usuarios',          areas: ['logistica', 'sistemas', 'general'], minRol: 'lider' },
+  { href: '/auditoria',        icon: <Icons.Auditoria />,  label: 'Auditoría',         areas: ['general'], minRol: 'admin' },
 ]
+
+const AREA_LABELS: Record<string, string> = {
+  logistica: 'Logística',
+  sistemas:  'Sistemas',
+  general:   'Administración',
+}
 
 export default function Sidebar() {
   const pathname  = usePathname()
   const { data: session } = useSession()
   const [open, setOpen]         = useState(true)
   const [mostrarAviso, setMostrarAviso] = useState(false)
-  const [cuenta, setCuenta]     = useState(120) // segundos restantes en el aviso
+  const [cuenta, setCuenta]     = useState(120)
   const timerLogout  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const timerAviso   = useRef<ReturnType<typeof setTimeout> | null>(null)
   const timerCuenta  = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const isAdmin = session?.user?.rol === 'admin'
-  const nav = navBase.filter(item => !item.adminOnly || isAdmin)
+  const rol  = session?.user?.rol ?? 'usuario'
+  const area = session?.user?.area ?? (rol === 'admin' ? 'general' : 'logistica')
+  const isAdmin = rol === 'admin'
+  const isLider = rol === 'lider' || isAdmin
+
+  const nav = navBase.filter(item => {
+    if (!item.areas.includes(area)) return false
+    if (item.minRol === 'admin') return isAdmin
+    if (item.minRol === 'lider') return isLider
+    return true
+  })
 
   const cerrarAvisoYReiniciar = useCallback(() => {
     setMostrarAviso(false)
@@ -135,10 +160,23 @@ export default function Sidebar() {
         </button>
       </div>
 
+      {/* Área badge */}
+      {open && (
+        <div style={{ padding: '8px 16px 0', textAlign: 'center' }}>
+          <span style={{
+            display: 'inline-block', fontSize: 10, fontWeight: 700,
+            background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)',
+            padding: '3px 10px', borderRadius: 20, letterSpacing: '0.06em', textTransform: 'uppercase'
+          }}>
+            {AREA_LABELS[area] ?? area}
+          </span>
+        </div>
+      )}
+
       {/* Nav */}
       <nav style={{ flex: 1, padding: open ? '12px 12px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {nav.map(item => {
-          const active = pathname === item.href
+          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
           return (
             <Link key={item.href} href={item.href}
               title={!open ? item.label : ''}
