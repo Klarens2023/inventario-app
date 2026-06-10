@@ -110,7 +110,7 @@ export default function GestionUsuariosPage() {
   if (status === 'loading' || !esLider) return null
 
   const usuariosFiltrados = filtroArea === 'todos' ? usuarios : usuarios.filter(u => u.area === filtroArea)
-  const areasDisponibles  = [...new Set(usuarios.map(u => u.area))].sort()
+  const areasDisponibles  = Array.from(new Set(usuarios.map(u => u.area))).sort()
 
   return (
     <div style={{ padding: '32px 28px', background: '#f8fafc', minHeight: '100vh' }}>
