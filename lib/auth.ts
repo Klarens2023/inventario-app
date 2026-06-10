@@ -34,12 +34,14 @@ export const authOptions: NextAuthOptions = {
         if (!valid) return null
 
         const rol = user.rol ?? 'usuario'
+        // Admin siempre va a área 'general', sin importar lo que tenga en BD
+        const area = rol === 'admin' ? 'general' : (user.area ?? 'logistica')
         return {
           id: String(user.id),
           name: user.nombre,
           email: user.username,
           rol,
-          area: user.area ?? (rol === 'admin' ? 'general' : 'logistica'),
+          area,
           debe_cambiar_password: user.debe_cambiar_password ?? false,
         }
       },
@@ -52,7 +54,7 @@ export const authOptions: NextAuthOptions = {
         token.id                    = u.id
         token.name                  = u.name
         token.rol                   = u.rol ?? 'usuario'
-        token.area                  = u.area ?? (u.rol === 'admin' ? 'general' : 'logistica')
+        token.area                  = u.rol === 'admin' ? 'general' : (u.area ?? 'logistica')
         token.debe_cambiar_password = u.debe_cambiar_password ?? false
       }
       // Permite actualizar el token desde el cliente con useSession().update()
