@@ -186,7 +186,7 @@ export default function Sidebar() {
       )}
 
       {/* Nav */}
-      <nav style={{ flex: 1, padding: open ? '12px 12px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: open ? '12px 12px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {nav.map(item => {
           const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
           return (
