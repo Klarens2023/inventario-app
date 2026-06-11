@@ -8,6 +8,10 @@ function canView(rol: string, area: string) {
   return rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area))
 }
 
+function hoyBogota(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+}
+
 const SELECT_SQL = `
   SELECT r.id, r.fecha, r.turno, r.usuario_nombre, r.observaciones, r.created_at,
          r.punto_venta_id, r.punto_venta_nombre,
@@ -90,7 +94,12 @@ export async function POST(req: NextRequest) {
   const items = (detalle ?? []).filter(d => d.cantidad > 0)
   if (items.length === 0) return NextResponse.json({ error: 'Registra al menos un producto vendido' }, { status: 400 })
 
-  const fechaFinal = fecha ?? new Date().toISOString().split('T')[0]
+  const hoy = hoyBogota()
+  // pvn solo puede registrar el día en curso (hora Colombia)
+  if (rol === 'pvn' && fecha && fecha !== hoy) {
+    return NextResponse.json({ error: `Solo puedes registrar ventas del día de hoy (${hoy})` }, { status: 400 })
+  }
+  const fechaFinal = rol === 'pvn' ? hoy : (fecha ?? hoy)
 
   const dup = await sql`
     SELECT id FROM pvn_registros

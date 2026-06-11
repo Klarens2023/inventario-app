@@ -8,6 +8,10 @@ type Producto   = { id: number; nombre: string; componentes: Componente[] }
 
 const TURNOS = ['Mañana', 'Tarde', 'Noche', 'Cierre']
 
+function hoyBogota(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+}
+
 function limpiarNombre(n: string) {
   return n.replace(/ \(IVA\)$/, '').replace(/ IVA$/, '')
 }
@@ -34,7 +38,7 @@ export default function RegistrarVentasPage() {
   const [productos, setProductos] = useState<Producto[]>([])
   const [cantidades, setCantidades] = useState<Record<number, number>>({})
   const [turno, setTurno]           = useState('Cierre')
-  const [fecha, setFecha]           = useState(new Date().toISOString().split('T')[0])
+  const [fecha]                     = useState(hoyBogota)
   const [obs, setObs]               = useState('')
   const [guardando, setGuardando]   = useState(false)
   const [error, setError]           = useState('')
@@ -128,7 +132,11 @@ export default function RegistrarVentasPage() {
       <div style={{ background: '#fff', borderRadius: 12, padding: '20px 24px', marginBottom: 20, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 150 }}>
           <label style={lbl}>Fecha</label>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inp} />
+          <div style={{ ...inp, background: '#f1f5f9', color: '#475569', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>📅</span>
+            <span>{fecha}</span>
+            <span style={{ marginLeft: 6, fontSize: 11, color: '#94a3b8', fontStyle: 'italic' }}>(hoy · Colombia)</span>
+          </div>
         </div>
         <div style={{ flex: 1, minWidth: 150 }}>
           <label style={lbl}>Turno</label>
