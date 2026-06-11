@@ -20,7 +20,7 @@ const TURNO_STYLE: Record<string, { color: string; bg: string }> = {
 }
 
 function fmtFecha(dateStr: string) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(dateStr.slice(0, 10) + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 function limpiar(n: string) { return n.replace(/ \(IVA\)$/, '').replace(/ IVA$/, '') }
 

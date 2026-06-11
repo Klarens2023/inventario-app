@@ -13,7 +13,7 @@ function hoyBogota(): string {
 }
 
 const SELECT_SQL = `
-  SELECT r.id, r.fecha, r.turno, r.usuario_nombre, r.observaciones, r.created_at,
+  SELECT r.id, r.fecha::text AS fecha, r.turno, r.usuario_nombre, r.observaciones, r.created_at,
          r.punto_venta_id, r.punto_venta_nombre,
          COALESCE(SUM(d.cantidad), 0)::int AS total_unidades,
          COUNT(d.id)::int AS total_productos,
