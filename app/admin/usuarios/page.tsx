@@ -44,6 +44,15 @@ export default function GestionUsuariosPage() {
   const [rol, setRol]           = useState('usuario')
   const [area, setArea]         = useState('logistica')
 
+  const [editModalOpen, setEditModalOpen]   = useState(false)
+  const [editando, setEditando]             = useState(false)
+  const [editUsuario, setEditUsuario]       = useState<Usuario | null>(null)
+  const [editNombre, setEditNombre]         = useState('')
+  const [editUsername, setEditUsername]     = useState('')
+  const [editRol, setEditRol]               = useState('usuario')
+  const [editArea, setEditArea]             = useState('logistica')
+  const [editError, setEditError]           = useState('')
+
   const sesionRol  = session?.user?.rol ?? ''
   const sesionArea = session?.user?.area ?? 'logistica'
   const esAdmin    = sesionRol === 'admin'
@@ -95,6 +104,46 @@ export default function GestionUsuariosPage() {
       cargarUsuarios()
     } finally {
       setGuardando(false)
+    }
+  }
+
+  function abrirEdicion(u: Usuario) {
+    setEditUsuario(u)
+    setEditNombre(u.nombre)
+    setEditUsername(u.username)
+    setEditRol(u.rol)
+    setEditArea(u.area)
+    setEditError('')
+    setEditModalOpen(true)
+  }
+
+  async function guardarEdicion() {
+    if (!editUsuario) return
+    if (!editNombre.trim() || !editUsername.trim()) {
+      setEditError('Nombre y usuario son obligatorios')
+      return
+    }
+    setEditando(true)
+    setEditError('')
+    try {
+      const body: Record<string, unknown> = {
+        nombre: editNombre,
+        username: editUsername,
+        rol: editRol,
+      }
+      if (esAdmin) body.area = editArea
+      const res = await fetch(`/api/usuarios/${editUsuario.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) { setEditError(data.error ?? 'Error al guardar'); return }
+      setExito(`Usuario "${editNombre}" actualizado correctamente`)
+      setEditModalOpen(false)
+      cargarUsuarios()
+    } finally {
+      setEditando(false)
     }
   }
 
@@ -186,14 +235,24 @@ export default function GestionUsuariosPage() {
                       {format(new Date(u.created_at), 'dd/MM/yyyy')}
                     </td>
                     <td style={{ padding: '12px 16px' }}>
-                      {String(u.id) !== session?.user?.id && u.rol !== 'admin' && (
-                        <button
-                          onClick={() => toggleActivo(u)}
-                          style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid #e2e8f0', background: u.activo ? '#fff5f5' : '#f0fdf4', color: u.activo ? '#dc2626' : '#16a34a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                        >
-                          {u.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {String(u.id) !== session?.user?.id && u.rol !== 'admin' && (
+                          <button
+                            onClick={() => abrirEdicion(u)}
+                            style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            Editar
+                          </button>
+                        )}
+                        {String(u.id) !== session?.user?.id && u.rol !== 'admin' && (
+                          <button
+                            onClick={() => toggleActivo(u)}
+                            style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: u.activo ? '#fff5f5' : '#f0fdf4', color: u.activo ? '#dc2626' : '#16a34a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            {u.activo ? 'Desactivar' : 'Activar'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -205,6 +264,51 @@ export default function GestionUsuariosPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal editar usuario */}
+      {editModalOpen && editUsuario && (
+        <div onClick={() => setEditModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '32px', maxWidth: 440, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: 4 }}>Editar Usuario</h2>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>Modifica los datos de <strong>{editUsuario.nombre}</strong>.</p>
+            {editError && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#991b1b', fontSize: 13 }}>{editError}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Nombre completo</label>
+                <input value={editNombre} onChange={e => setEditNombre(e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Nombre de usuario</label>
+                <input value={editUsername} onChange={e => setEditUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} style={inputStyle} />
+              </div>
+              {esAdmin && (
+                <div>
+                  <label style={labelStyle}>Área</label>
+                  <select value={editArea} onChange={e => setEditArea(e.target.value)} style={inputStyle}>
+                    <option value="logistica">Logística</option>
+                    <option value="sistemas">Sistemas</option>
+                    <option value="general">Administración (General)</option>
+                  </select>
+                </div>
+              )}
+              <div>
+                <label style={labelStyle}>Rol</label>
+                <select value={editRol} onChange={e => setEditRol(e.target.value)} style={inputStyle}>
+                  <option value="usuario">Usuario</option>
+                  <option value="lider">Líder de Área</option>
+                  {esAdmin && <option value="admin">Administrador</option>}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
+              <button onClick={() => setEditModalOpen(false)} style={btnSecondaryStyle}>Cancelar</button>
+              <button onClick={guardarEdicion} disabled={editando} style={{ ...btnPrimaryStyle, flex: 1, opacity: editando ? 0.7 : 1 }}>
+                {editando ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal crear usuario */}
       {modalOpen && (

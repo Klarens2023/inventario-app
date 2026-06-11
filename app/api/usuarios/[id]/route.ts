@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const body = await req.json()
-  const { activo, rol } = body
+  const { activo, rol, nombre, username, area } = body
 
   if (activo !== undefined) {
     await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
@@ -46,6 +46,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
     }
     await sql`UPDATE usuarios SET rol = ${rol} WHERE id = ${id}`
+  }
+  if (nombre !== undefined && typeof nombre === 'string' && nombre.trim()) {
+    await sql`UPDATE usuarios SET nombre = ${nombre.trim()} WHERE id = ${id}`
+  }
+  if (username !== undefined && typeof username === 'string' && username.trim()) {
+    const existing = await sql`SELECT id FROM usuarios WHERE username = ${username.trim()} AND id != ${id} LIMIT 1`
+    if (existing.length > 0) {
+      return NextResponse.json({ error: 'Ese nombre de usuario ya está en uso' }, { status: 400 })
+    }
+    await sql`UPDATE usuarios SET username = ${username.trim()} WHERE id = ${id}`
+  }
+  if (area !== undefined && sesionRol === 'admin') {
+    const areasValidas = ['logistica', 'sistemas', 'general']
+    if (!areasValidas.includes(area)) {
+      return NextResponse.json({ error: 'Área inválida' }, { status: 400 })
+    }
+    await sql`UPDATE usuarios SET area = ${area} WHERE id = ${id}`
   }
 
   await logAudit({
