@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const rol = session.user?.rol
   if (!['admin', 'lider'].includes(rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
-  const { username, nombre, rol: rolNuevo, area: areaNueva } = await req.json()
+  const { username, nombre, rol: rolNuevo, area: areaNueva, punto_venta_id: pvId } = await req.json()
 
   if (!username?.trim() || !nombre?.trim()) {
     return NextResponse.json({ error: 'Usuario y nombre son obligatorios' }, { status: 400 })
@@ -64,9 +64,11 @@ export async function POST(req: NextRequest) {
 
   const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
 
+  const puntoVentaId = (rolFinal === 'pvn' && pvId) ? parseInt(pvId) : null
+
   const [nuevo] = await sql`
-    INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password)
-    VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true)
+    INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password, punto_venta_id)
+    VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true, ${puntoVentaId})
     RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
   `
 

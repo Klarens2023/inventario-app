@@ -13,7 +13,11 @@ type Usuario = {
   activo: boolean
   debe_cambiar_password: boolean
   created_at: string
+  punto_venta_id?: number | null
+  punto_venta_nombre?: string | null
 }
+
+type PuntoVenta = { id: number; nombre: string; activo: boolean }
 
 const ROL_LABELS: Record<string, { label: string; color: string; bg: string }> = {
   admin:   { label: 'Admin',   color: '#1d4ed8', bg: '#dbeafe' },
@@ -54,6 +58,10 @@ export default function GestionUsuariosPage() {
   const [editArea, setEditArea]             = useState('logistica')
   const [editError, setEditError]           = useState('')
 
+  const [puntosVenta, setPuntosVenta]       = useState<PuntoVenta[]>([])
+  const [puntoVenta, setPuntoVenta]         = useState<string>('')
+  const [editPuntoVenta, setEditPuntoVenta] = useState<string>('')
+
   const sesionRol  = session?.user?.rol ?? ''
   const sesionArea = session?.user?.area ?? 'logistica'
   const esAdmin    = sesionRol === 'admin'
@@ -81,7 +89,10 @@ export default function GestionUsuariosPage() {
   }, [])
 
   useEffect(() => {
-    if (status === 'authenticated' && esLider) cargarUsuarios()
+    if (status === 'authenticated' && esLider) {
+      cargarUsuarios()
+      fetch('/api/pvn/puntos-venta').then(r => r.json()).then(setPuntosVenta).catch(() => {})
+    }
   }, [status, esLider, cargarUsuarios])
 
   async function crearUsuario() {
@@ -92,16 +103,18 @@ export default function GestionUsuariosPage() {
     }
     setGuardando(true)
     try {
+      const body: Record<string, unknown> = { nombre, username, rol, area: esAdmin ? area : sesionArea }
+      if (rol === 'pvn' && puntoVenta) body.punto_venta_id = parseInt(puntoVenta)
       const res = await fetch('/api/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, username, rol, area: esAdmin ? area : sesionArea }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al crear usuario'); return }
       setExito(`Usuario "${nombre}" creado. Contraseña inicial: 123456`)
       setModalOpen(false)
-      setNombre(''); setUsername(''); setRol('usuario'); setArea(esAdmin ? 'logistica' : sesionArea)
+      setNombre(''); setUsername(''); setRol('usuario'); setArea(esAdmin ? 'logistica' : sesionArea); setPuntoVenta('')
       cargarUsuarios()
     } finally {
       setGuardando(false)
@@ -114,6 +127,7 @@ export default function GestionUsuariosPage() {
     setEditUsername(u.username)
     setEditRol(u.rol)
     setEditArea(u.area)
+    setEditPuntoVenta(u.punto_venta_id ? String(u.punto_venta_id) : '')
     setEditError('')
     setEditModalOpen(true)
   }
@@ -133,6 +147,7 @@ export default function GestionUsuariosPage() {
         rol: editRol,
       }
       if (esAdmin) body.area = editArea
+      if (editRol === 'pvn') body.punto_venta_id = editPuntoVenta ? parseInt(editPuntoVenta) : null
       const res = await fetch(`/api/usuarios/${editUsuario.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -301,6 +316,17 @@ export default function GestionUsuariosPage() {
                   {esAdmin && <option value="admin">Administrador</option>}
                 </select>
               </div>
+              {editRol === 'pvn' && puntosVenta.length > 0 && (
+                <div>
+                  <label style={labelStyle}>Punto de Venta</label>
+                  <select value={editPuntoVenta} onChange={e => setEditPuntoVenta(e.target.value)} style={inputStyle}>
+                    <option value="">— Sin asignar —</option>
+                    {puntosVenta.filter(pv => pv.activo).map(pv => (
+                      <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
               <button onClick={() => setEditModalOpen(false)} style={btnSecondaryStyle}>Cancelar</button>
@@ -349,6 +375,17 @@ export default function GestionUsuariosPage() {
                   {esAdmin && <option value="admin">Administrador</option>}
                 </select>
               </div>
+              {rol === 'pvn' && puntosVenta.length > 0 && (
+                <div>
+                  <label style={labelStyle}>Punto de Venta</label>
+                  <select value={puntoVenta} onChange={e => setPuntoVenta(e.target.value)} style={inputStyle}>
+                    <option value="">— Sin asignar —</option>
+                    {puntosVenta.filter(pv => pv.activo).map(pv => (
+                      <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
               <button onClick={() => setModalOpen(false)} style={btnSecondaryStyle}>Cancelar</button>

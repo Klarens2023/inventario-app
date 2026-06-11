@@ -3,38 +3,35 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 
-type Summary    = { total_registros: number; total_unidades: number; total_productos_distintos: number }
-type Producto   = { producto_id: number; producto_nombre: string; total_vendido: number }
-type Ingrediente = { componente_id: number; componente_nombre: string; unidad: string; total_consumido: number }
-type Tendencia  = { fecha: string; total_unidades: number }
+type Summary     = { total_registros: number; total_unidades: number; total_productos_distintos: number }
+type Producto    = { producto_id: number; producto_nombre: string; total_vendido: number }
+type Ingrediente = { componente_nombre: string; unidad: string; total_consumido: number }
+type Tendencia   = { fecha: string; total_unidades: number }
+type PuntoVenta  = { id: number; nombre: string; activo: boolean }
 
-type Data = {
-  summary:      Summary
-  productos:    Producto[]
-  ingredientes: Ingrediente[]
-  tendencia:    Tendencia[]
-}
+type Data = { summary: Summary; productos: Producto[]; ingredientes: Ingrediente[]; tendencia: Tendencia[] }
 
 function limpiar(n: string) { return n.replace(/ \(IVA\)$/, '').replace(/ IVA$/, '') }
 
-function fmtConsumo(v: number, unidad: string) {
-  if (unidad === 'KG')  return v.toFixed(3) + ' KG'
-  if (unidad === 'GRM') return v.toFixed(1) + ' g'
-  return Math.round(v) + ' ' + unidad
+function fmtNum(v: number, unidad: string) {
+  if (unidad === 'KG')  return v.toFixed(3)
+  if (unidad === 'GRM') return v.toFixed(1)
+  return Math.round(v).toString()
 }
 
 function fmtFechaCort(s: string) {
-  const d = new Date(s + 'T12:00:00')
-  return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+  return new Date(s + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
 }
 
 export default function AnalisisPVNPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [data, setData]   = useState<Data | null>(null)
+  const [data, setData]       = useState<Data | null>(null)
+  const [puntos, setPuntos]   = useState<PuntoVenta[]>([])
   const [loading, setLoading] = useState(false)
-  const [desde, setDesde] = useState(() => {
+  const [pvFiltro, setPvFiltro] = useState('todos')
+  const [desde, setDesde]     = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
   })
   const [hasta, setHasta] = useState(new Date().toISOString().split('T')[0])
@@ -46,16 +43,23 @@ export default function AnalisisPVNPage() {
     if (status === 'authenticated' && !canView) router.replace('/dashboard')
   }, [status, canView, router])
 
+  useEffect(() => {
+    if (status === 'authenticated' && canView) {
+      fetch('/api/pvn/puntos-venta').then(r => r.json()).then(setPuntos)
+    }
+  }, [status, canView])
+
   const cargar = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/pvn/analisis?desde=${desde}&hasta=${hasta}`)
-      const d = await res.json()
-      setData(d)
+      const params = new URLSearchParams({ desde, hasta })
+      if (pvFiltro !== 'todos') params.set('punto_venta_id', pvFiltro)
+      const res = await fetch(`/api/pvn/analisis?${params}`)
+      setData(await res.json())
     } finally {
       setLoading(false)
     }
-  }, [desde, hasta])
+  }, [desde, hasta, pvFiltro])
 
   useEffect(() => {
     if (status === 'authenticated' && canView) cargar()
@@ -63,9 +67,9 @@ export default function AnalisisPVNPage() {
 
   if (status === 'loading' || !canView) return null
 
-  const totalVendido = data?.productos?.reduce((s, p) => s + Number(p.total_vendido), 0) ?? 0
-  const maxVendido   = Math.max(...(data?.productos?.map(p => Number(p.total_vendido)) ?? [1]), 1)
-  const maxTendencia = Math.max(...(data?.tendencia?.map(t => Number(t.total_unidades)) ?? [1]), 1)
+  const totalVendido   = data?.productos?.reduce((s, p) => s + Number(p.total_vendido), 0) ?? 0
+  const maxVendido     = Math.max(...(data?.productos?.map(p => Number(p.total_vendido)) ?? [1]), 1)
+  const maxTendencia   = Math.max(...(data?.tendencia?.map(t => Number(t.total_unidades)) ?? [1]), 1)
 
   return (
     <div style={{ padding: '32px 28px', background: '#f8fafc', minHeight: '100vh' }}>
@@ -77,6 +81,15 @@ export default function AnalisisPVNPage() {
           <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Ventas y consumo de ingredientes por período</p>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          {puntos.length > 0 && (
+            <div>
+              <label style={lbl}>Punto de Venta</label>
+              <select value={pvFiltro} onChange={e => setPvFiltro(e.target.value)} style={inp}>
+                <option value="todos">Todos los puntos</option>
+                {puntos.map(pv => <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>)}
+              </select>
+            </div>
+          )}
           <div><label style={lbl}>Desde</label><input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={inp} /></div>
           <div><label style={lbl}>Hasta</label><input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={inp} /></div>
           <button onClick={cargar} style={btnPrimary}>Filtrar</button>
@@ -87,11 +100,11 @@ export default function AnalisisPVNPage() {
 
       {!loading && data && (
         <>
-          {/* Tarjetas resumen */}
+          {/* Tarjetas */}
           <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap' }}>
             {[
-              { label: 'Registros en el período', value: data.summary.total_registros, color: '#0047BA' },
-              { label: 'Unidades vendidas',        value: data.summary.total_unidades,  color: '#065f46' },
+              { label: 'Registros en el período', value: data.summary.total_registros,          color: '#0047BA' },
+              { label: 'Unidades vendidas',        value: data.summary.total_unidades,           color: '#065f46' },
               { label: 'Productos distintos',      value: data.summary.total_productos_distintos, color: '#7c3aed' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ background: '#fff', borderRadius: 12, padding: '18px 22px', boxShadow: '0 1px 4px rgba(0,0,0,0.07)', flex: 1, minWidth: 140 }}>
@@ -105,20 +118,20 @@ export default function AnalisisPVNPage() {
 
             {/* Ranking productos */}
             <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: 15 }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: 14 }}>
                 Ventas por Producto
               </div>
               {data.productos.length === 0 && (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Sin datos</div>
               )}
               {data.productos.map((p, i) => {
-                const pct = totalVendido > 0 ? Math.round((Number(p.total_vendido) / totalVendido) * 100) : 0
+                const pct  = totalVendido > 0 ? Math.round((Number(p.total_vendido) / totalVendido) * 100) : 0
                 const barW = Math.round((Number(p.total_vendido) / maxVendido) * 100)
                 return (
-                  <div key={p.producto_id} style={{ padding: '10px 20px', borderBottom: '1px solid #f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                  <div key={p.producto_id} style={{ padding: '9px 20px', borderBottom: '1px solid #f8fafc' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <span style={{ fontSize: 13, color: '#1e293b', fontWeight: i < 3 ? 700 : 400 }}>
-                        {i < 3 && <span style={{ marginRight: 6, fontSize: 11 }}>{['🥇','🥈','🥉'][i]}</span>}
+                        {i < 3 && <span style={{ marginRight: 5, fontSize: 11 }}>{['🥇','🥈','🥉'][i]}</span>}
                         {limpiar(p.producto_nombre)}
                       </span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#0047BA', marginLeft: 8, whiteSpace: 'nowrap' }}>
@@ -126,7 +139,7 @@ export default function AnalisisPVNPage() {
                       </span>
                     </div>
                     <div style={{ height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${barW}%`, background: '#0047BA', borderRadius: 3, transition: 'width 0.4s' }} />
+                      <div style={{ height: '100%', width: `${barW}%`, background: '#0047BA', borderRadius: 3 }} />
                     </div>
                   </div>
                 )
@@ -135,13 +148,13 @@ export default function AnalisisPVNPage() {
 
             {/* Tendencia diaria */}
             <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: 15 }}>
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: 14 }}>
                 Tendencia Diaria
               </div>
               {data.tendencia.length === 0 && (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Sin datos</div>
               )}
-              <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto' }}>
+              <div style={{ padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 370, overflowY: 'auto' }}>
                 {data.tendencia.map(t => {
                   const barW = Math.round((Number(t.total_unidades) / maxTendencia) * 100)
                   return (
@@ -160,7 +173,7 @@ export default function AnalisisPVNPage() {
 
           {/* Consumo de ingredientes */}
           <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: 15 }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid #f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: 14 }}>
               Consumo de Ingredientes
               <span style={{ fontSize: 12, fontWeight: 400, color: '#64748b', marginLeft: 8 }}>calculado según ventas registradas</span>
             </div>
@@ -178,11 +191,9 @@ export default function AnalisisPVNPage() {
                 </thead>
                 <tbody>
                   {data.ingredientes.map((ing, i) => (
-                    <tr key={ing.componente_id} style={{ borderBottom: '1px solid #f8fafc', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
+                    <tr key={ing.componente_nombre} style={{ borderBottom: '1px solid #f8fafc', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                       <td style={{ padding: '10px 16px', color: '#1e293b', fontWeight: 500 }}>{ing.componente_nombre}</td>
-                      <td style={{ padding: '10px 16px', fontWeight: 700, color: '#0047BA' }}>
-                        {fmtConsumo(Number(ing.total_consumido), ing.unidad).replace(/ KG$/, '').replace(/ g$/, '').replace(/ UND$/, '')}
-                      </td>
+                      <td style={{ padding: '10px 16px', fontWeight: 700, color: '#0047BA' }}>{fmtNum(Number(ing.total_consumido), ing.unidad)}</td>
                       <td style={{ padding: '10px 16px', color: '#64748b' }}>{ing.unidad}</td>
                     </tr>
                   ))}
@@ -196,6 +207,6 @@ export default function AnalisisPVNPage() {
   )
 }
 
-const lbl: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }
-const inp: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14, color: '#1e293b', outline: 'none' }
+const lbl: React.CSSProperties        = { display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }
+const inp: React.CSSProperties        = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14, color: '#1e293b', outline: 'none' }
 const btnPrimary: React.CSSProperties = { padding: '9px 20px', borderRadius: 8, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }

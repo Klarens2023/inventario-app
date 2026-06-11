@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const body = await req.json()
-  const { activo, rol, nombre, username, area } = body
+  const { activo, rol, nombre, username, area, punto_venta_id } = body
 
   if (activo !== undefined) {
     await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
@@ -63,6 +63,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ error: 'Área inválida' }, { status: 400 })
     }
     await sql`UPDATE usuarios SET area = ${area} WHERE id = ${id}`
+  }
+  if (punto_venta_id !== undefined) {
+    const pvId = punto_venta_id === null ? null : parseInt(punto_venta_id)
+    await sql`UPDATE usuarios SET punto_venta_id = ${pvId} WHERE id = ${id}`
   }
 
   await logAudit({
