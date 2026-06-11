@@ -48,9 +48,13 @@ export default function CatalogoPVNPage() {
 
   const cargarProductos = useCallback(async () => {
     setLoading(true)
-    const res = await fetch('/api/pvn/productos?all=1')
-    setProductos(await res.json())
-    setLoading(false)
+    try {
+      const res = await fetch('/api/pvn/productos?all=1')
+      const data = await res.json()
+      setProductos(Array.isArray(data) ? data : [])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   const cargarPuntos = useCallback(async () => {

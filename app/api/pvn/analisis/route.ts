@@ -18,49 +18,56 @@ export async function GET(req: NextRequest) {
   const desde  = searchParams.get('desde') ?? hace30
   const hasta  = searchParams.get('hasta') ?? hoy
   const pvnId  = searchParams.get('punto_venta_id')
+  const pvnIdVal = pvnId ? parseInt(pvnId) : null
 
-  const pvFilter = pvnId ? sql`AND r.punto_venta_id = ${parseInt(pvnId)}` : sql``
+  const [summary] = await sql(
+    `SELECT
+       COUNT(DISTINCT r.id)::int          AS total_registros,
+       COALESCE(SUM(d.cantidad), 0)::int  AS total_unidades,
+       COUNT(DISTINCT d.producto_id)::int AS total_productos_distintos
+     FROM pvn_registros r
+     LEFT JOIN pvn_registros_detalle d ON d.registro_id = r.id
+     WHERE r.fecha BETWEEN $1::date AND $2::date
+       AND ($3::int IS NULL OR r.punto_venta_id = $3::int)`,
+    [desde, hasta, pvnIdVal]
+  )
 
-  const [summary] = await sql`
-    SELECT
-      COUNT(DISTINCT r.id)::int          AS total_registros,
-      COALESCE(SUM(d.cantidad), 0)::int  AS total_unidades,
-      COUNT(DISTINCT d.producto_id)::int AS total_productos_distintos
-    FROM pvn_registros r
-    LEFT JOIN pvn_registros_detalle d ON d.registro_id = r.id
-    WHERE r.fecha BETWEEN ${desde}::date AND ${hasta}::date ${pvFilter}
-  `
+  const productos = await sql(
+    `SELECT d.producto_id, d.producto_nombre, SUM(d.cantidad)::int AS total_vendido
+     FROM pvn_registros_detalle d
+     JOIN pvn_registros r ON r.id = d.registro_id
+     WHERE r.fecha BETWEEN $1::date AND $2::date
+       AND ($3::int IS NULL OR r.punto_venta_id = $3::int)
+     GROUP BY d.producto_id, d.producto_nombre
+     ORDER BY total_vendido DESC`,
+    [desde, hasta, pvnIdVal]
+  )
 
-  const productos = await sql`
-    SELECT d.producto_id, d.producto_nombre, SUM(d.cantidad)::int AS total_vendido
-    FROM pvn_registros_detalle d
-    JOIN pvn_registros r ON r.id = d.registro_id
-    WHERE r.fecha BETWEEN ${desde}::date AND ${hasta}::date ${pvFilter}
-    GROUP BY d.producto_id, d.producto_nombre
-    ORDER BY total_vendido DESC
-  `
+  const ingredientes = await sql(
+    `SELECT
+       c.componente_nombre,
+       c.unidad,
+       SUM(d.cantidad * c.cantidad) AS total_consumido
+     FROM pvn_registros_detalle d
+     JOIN pvn_registros r ON r.id = d.registro_id
+     JOIN pvn_componentes c ON c.producto_id = d.producto_id
+     WHERE r.fecha BETWEEN $1::date AND $2::date
+       AND ($3::int IS NULL OR r.punto_venta_id = $3::int)
+     GROUP BY c.componente_nombre, c.unidad
+     ORDER BY c.componente_nombre`,
+    [desde, hasta, pvnIdVal]
+  )
 
-  const ingredientes = await sql`
-    SELECT
-      c.componente_nombre,
-      c.unidad,
-      SUM(d.cantidad * c.cantidad) AS total_consumido
-    FROM pvn_registros_detalle d
-    JOIN pvn_registros r ON r.id = d.registro_id
-    JOIN pvn_componentes c ON c.producto_id = d.producto_id
-    WHERE r.fecha BETWEEN ${desde}::date AND ${hasta}::date ${pvFilter}
-    GROUP BY c.componente_nombre, c.unidad
-    ORDER BY c.componente_nombre
-  `
-
-  const tendencia = await sql`
-    SELECT r.fecha::text, SUM(d.cantidad)::int AS total_unidades
-    FROM pvn_registros r
-    LEFT JOIN pvn_registros_detalle d ON d.registro_id = r.id
-    WHERE r.fecha BETWEEN ${desde}::date AND ${hasta}::date ${pvFilter}
-    GROUP BY r.fecha
-    ORDER BY r.fecha ASC
-  `
+  const tendencia = await sql(
+    `SELECT r.fecha::text, SUM(d.cantidad)::int AS total_unidades
+     FROM pvn_registros r
+     LEFT JOIN pvn_registros_detalle d ON d.registro_id = r.id
+     WHERE r.fecha BETWEEN $1::date AND $2::date
+       AND ($3::int IS NULL OR r.punto_venta_id = $3::int)
+     GROUP BY r.fecha
+     ORDER BY r.fecha ASC`,
+    [desde, hasta, pvnIdVal]
+  )
 
   return NextResponse.json({ summary, productos, ingredientes, tendencia })
 }
