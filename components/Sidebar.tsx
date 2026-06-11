@@ -16,6 +16,9 @@ const Icons = {
   Equipos:    () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
   Auditoria:  () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
   Usuarios:   () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  PVNReg:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/><line x1="9" y1="10" x2="15" y2="10"/></svg>,
+  PVNHist:    () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  PVNAnal:    () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><polyline points="6 14 12 8 18 10"/></svg>,
   Collapse:   ({ open }: { open: boolean }) => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       style={{ transition: 'transform 0.3s', transform: open ? 'rotate(0deg)' : 'rotate(180deg)' }}>
@@ -31,16 +34,21 @@ type NavItem = {
   label: string
   areas: string[]
   minRol?: 'lider' | 'admin'
+  onlyRoles?: string[]
+  excludeRoles?: string[]
 }
 
 const navBase: NavItem[] = [
   { href: '/dashboard',        icon: <Icons.Inicio />,     label: 'Inicio',            areas: ['logistica', 'sistemas', 'general'] },
-  { href: '/cargar',           icon: <Icons.Cargar />,     label: 'Cargar Inventario', areas: ['logistica', 'general'] },
-  { href: '/consulta',         icon: <Icons.Conteo />,     label: 'Conteo Físico',     areas: ['logistica', 'general'] },
-  { href: '/acumulados',       icon: <Icons.Acumulados />, label: 'Acumulados',        areas: ['logistica', 'general'] },
+  { href: '/cargar',           icon: <Icons.Cargar />,     label: 'Cargar Inventario', areas: ['logistica', 'general'],             excludeRoles: ['pvn'] },
+  { href: '/consulta',         icon: <Icons.Conteo />,     label: 'Conteo Físico',     areas: ['logistica', 'general'],             excludeRoles: ['pvn'] },
+  { href: '/acumulados',       icon: <Icons.Acumulados />, label: 'Acumulados',        areas: ['logistica', 'general'],             excludeRoles: ['pvn'] },
+  { href: '/pvn/registrar',    icon: <Icons.PVNReg />,     label: 'Registrar Ventas',  areas: ['logistica'],                        onlyRoles: ['pvn'] },
+  { href: '/pvn/historial',    icon: <Icons.PVNHist />,    label: 'Historial PVN',     areas: ['logistica', 'general'],             minRol: 'lider' },
+  { href: '/pvn/analisis',     icon: <Icons.PVNAnal />,    label: 'Análisis PVN',      areas: ['logistica', 'general'],             minRol: 'lider' },
   { href: '/sistemas/equipos', icon: <Icons.Equipos />,    label: 'Equipos TI',        areas: ['sistemas', 'general'] },
   { href: '/admin/usuarios',   icon: <Icons.Usuarios />,   label: 'Usuarios',          areas: ['logistica', 'sistemas', 'general'], minRol: 'lider' },
-  { href: '/auditoria',        icon: <Icons.Auditoria />,  label: 'Auditoría',         areas: ['general'], minRol: 'admin' },
+  { href: '/auditoria',        icon: <Icons.Auditoria />,  label: 'Auditoría',         areas: ['general'],                          minRol: 'admin' },
 ]
 
 const AREA_LABELS: Record<string, string> = {
@@ -66,6 +74,8 @@ export default function Sidebar() {
 
   const nav = navBase.filter(item => {
     if (!item.areas.includes(area)) return false
+    if (item.onlyRoles && !item.onlyRoles.includes(rol)) return false
+    if (item.excludeRoles && item.excludeRoles.includes(rol)) return false
     if (item.minRol === 'admin') return isAdmin
     if (item.minRol === 'lider') return isLider
     return true

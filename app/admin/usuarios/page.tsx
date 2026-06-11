@@ -19,6 +19,7 @@ const ROL_LABELS: Record<string, { label: string; color: string; bg: string }> =
   admin:   { label: 'Admin',   color: '#1d4ed8', bg: '#dbeafe' },
   lider:   { label: 'Líder',   color: '#7c3aed', bg: '#ede9fe' },
   usuario: { label: 'Usuario', color: '#374151', bg: '#f3f4f6' },
+  pvn:     { label: 'PVN',     color: '#065f46', bg: '#d1fae5' },
 }
 
 const AREA_LABELS: Record<string, { label: string; color: string; bg: string }> = {
@@ -295,6 +296,7 @@ export default function GestionUsuariosPage() {
                 <label style={labelStyle}>Rol</label>
                 <select value={editRol} onChange={e => setEditRol(e.target.value)} style={inputStyle}>
                   <option value="usuario">Usuario</option>
+                  <option value="pvn">PVN (Punto de Venta)</option>
                   <option value="lider">Líder de Área</option>
                   {esAdmin && <option value="admin">Administrador</option>}
                 </select>
@@ -342,6 +344,7 @@ export default function GestionUsuariosPage() {
                 <label style={labelStyle}>Rol</label>
                 <select value={rol} onChange={e => setRol(e.target.value)} style={inputStyle}>
                   <option value="usuario">Usuario</option>
+                  <option value="pvn">PVN (Punto de Venta)</option>
                   <option value="lider">Líder de Área</option>
                   {esAdmin && <option value="admin">Administrador</option>}
                 </select>

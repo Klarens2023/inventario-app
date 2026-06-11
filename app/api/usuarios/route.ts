@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   const areaFinal = rol === 'admin' ? (areaNueva ?? 'logistica') : (session.user?.area ?? 'logistica')
-  const rolFinal  = ['admin', 'lider', 'usuario'].includes(rolNuevo) ? rolNuevo : 'usuario'
+  const rolFinal  = ['admin', 'lider', 'usuario', 'pvn'].includes(rolNuevo) ? rolNuevo : 'usuario'
 
   const existe = await sql`SELECT id FROM usuarios WHERE username = ${username.trim()} LIMIT 1`
   if (existe.length > 0) {

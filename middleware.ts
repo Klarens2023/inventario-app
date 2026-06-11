@@ -16,6 +16,14 @@ export async function middleware(req: NextRequest) {
   const rol  = token.rol as string
   const area = (token.area as string) ?? (rol === 'admin' ? 'general' : 'logistica')
 
+  // Bloquear al rol pvn fuera de sus rutas permitidas
+  if (rol === 'pvn') {
+    const permitidas = ['/pvn/registrar', '/dashboard', '/cambiar-password']
+    if (!permitidas.some(r => pathname.startsWith(r))) {
+      return NextResponse.redirect(new URL('/pvn/registrar', req.url))
+    }
+  }
+
   // Auditoría: solo admin
   if (pathname.startsWith('/auditoria') && rol !== 'admin') {
     return NextResponse.redirect(new URL('/dashboard', req.url))
@@ -31,6 +39,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
+  // Módulo PVN historial/análisis: solo lider y admin
+  if ((pathname.startsWith('/pvn/historial') || pathname.startsWith('/pvn/analisis')) &&
+      !['admin', 'lider'].includes(rol)) {
+    return NextResponse.redirect(new URL('/pvn/registrar', req.url))
+  }
+
   return NextResponse.next()
 }
 
@@ -43,6 +57,7 @@ export const config = {
     '/auditoria/:path*',
     '/admin/:path*',
     '/sistemas/:path*',
+    '/pvn/:path*',
     '/cambiar-password',
   ],
 }
