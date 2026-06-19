@@ -72,7 +72,7 @@ export default function LoginPage() {
             />
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', letterSpacing: '-0.02em' }}>
-            Control de Inventario
+            Gestión de Operaciones
           </h1>
           <p style={{ fontSize: 14, color: 'var(--text2)', marginTop: 4, fontWeight: 600 }}>
             Planta Valledupar
