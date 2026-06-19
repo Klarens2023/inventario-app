@@ -57,6 +57,7 @@ export default function GestionUsuariosPage() {
   const [editUsername, setEditUsername]     = useState('')
   const [editRol, setEditRol]               = useState('usuario')
   const [editArea, setEditArea]             = useState('logistica')
+  const [editResetPassword, setEditResetPassword] = useState(false)
   const [editError, setEditError]           = useState('')
 
   const [puntosVenta, setPuntosVenta]       = useState<PuntoVenta[]>([])
@@ -129,6 +130,7 @@ export default function GestionUsuariosPage() {
     setEditRol(u.rol)
     setEditArea(u.area)
     setEditPuntoVenta(u.punto_venta_id ? String(u.punto_venta_id) : '')
+    setEditResetPassword(false)
     setEditError('')
     setEditModalOpen(true)
   }
@@ -149,6 +151,7 @@ export default function GestionUsuariosPage() {
       }
       if (esAdmin) body.area = editArea
       if (editRol === 'pvn') body.punto_venta_id = editPuntoVenta ? parseInt(editPuntoVenta) : null
+      if (editResetPassword) body.resetPassword = true
       const res = await fetch(`/api/usuarios/${editUsuario.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -156,7 +159,9 @@ export default function GestionUsuariosPage() {
       })
       const data = await res.json()
       if (!res.ok) { setEditError(data.error ?? 'Error al guardar'); return }
-      setExito(`Usuario "${editNombre}" actualizado correctamente`)
+      setExito(editResetPassword
+        ? `Usuario "${editNombre}" actualizado — contraseña restablecida a 123456`
+        : `Usuario "${editNombre}" actualizado correctamente`)
       setEditModalOpen(false)
       cargarUsuarios()
     } finally {
@@ -329,6 +334,30 @@ export default function GestionUsuariosPage() {
                   </select>
                 </div>
               )}
+              <div
+                onClick={() => setEditResetPassword(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: 8,
+                  border: `1px solid ${editResetPassword ? '#fca5a5' : '#e2e8f0'}`,
+                  background: editResetPassword ? '#fee2e2' : '#f8fafc',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={editResetPassword}
+                  onChange={e => setEditResetPassword(e.target.checked)}
+                  style={{ marginTop: 2, cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: editResetPassword ? '#991b1b' : '#1e293b' }}>
+                    Restablecer contraseña
+                  </div>
+                  <div style={{ fontSize: 12, color: editResetPassword ? '#b91c1c' : '#64748b', marginTop: 2 }}>
+                    Pone la contraseña genérica <strong>123456</strong> y el usuario deberá cambiarla al iniciar sesión.
+                  </div>
+                </div>
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
               <button onClick={() => setEditModalOpen(false)} style={btnSecondaryStyle}>Cancelar</button>

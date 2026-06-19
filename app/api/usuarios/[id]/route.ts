@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import bcrypt from 'bcryptjs'
+
+const PASSWORD_GENERICA = '123456'
 
 // PUT /api/usuarios/[id] — activar/desactivar, cambiar rol o área
 // admin → puede modificar cualquier usuario
@@ -35,7 +38,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const body = await req.json()
-  const { activo, rol, nombre, username, area, punto_venta_id } = body
+  const { activo, rol, nombre, username, area, punto_venta_id, resetPassword } = body
 
   if (activo !== undefined) {
     await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
@@ -68,13 +71,19 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const pvId = punto_venta_id === null ? null : parseInt(punto_venta_id)
     await sql`UPDATE usuarios SET punto_venta_id = ${pvId} WHERE id = ${id}`
   }
+  if (resetPassword === true) {
+    const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
+    await sql`UPDATE usuarios SET password_hash = ${hash}, debe_cambiar_password = true WHERE id = ${id}`
+  }
 
   await logAudit({
     usuarioId: session.user?.id ?? null,
     usuarioNombre: session.user?.name ?? 'Desconocido',
     accion: 'USUARIO_MODIFICADO',
-    descripcion: `Modificó usuario "${usuario.nombre}" (${usuario.username})`,
-    datos: { id, cambios: body },
+    descripcion: resetPassword === true
+      ? `Restableció la contraseña de "${usuario.nombre}" (${usuario.username})`
+      : `Modificó usuario "${usuario.nombre}" (${usuario.username})`,
+    datos: { id, cambios: { ...body, resetPassword: resetPassword === true ? true : undefined } },
   })
 
   const [actualizado] = await sql`
