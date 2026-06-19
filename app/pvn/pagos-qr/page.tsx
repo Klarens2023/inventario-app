@@ -2,6 +2,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
+import { exportarExcel } from '@/lib/exportExcel'
 
 type Pago = {
   id: number
@@ -66,6 +67,24 @@ export default function PagosQRPage() {
     if (status === 'authenticated' && canView) cargar()
   }, [status, canView, cargar])
 
+  function exportar() {
+    const columnas = ['Fecha', 'Hora', 'Punto de Venta', 'Tipo', 'Usuario', 'Valor', 'Comprobante']
+    const filas = pagos.map(p => {
+      const pv = puntos.find(x => x.id === p.punto_venta_id)
+      const fechaObj = new Date(p.created_at)
+      return [
+        p.fecha,
+        fechaObj.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+        p.punto_venta_nombre ?? '',
+        pv?.tipo === 'principal' ? 'PVV' : pv?.tipo === 'nacional' ? 'PVN' : '',
+        p.usuario_nombre,
+        Number(p.valor),
+        p.foto_url,
+      ]
+    })
+    exportarExcel(`pagos_qr_${desde}_a_${hasta}`, columnas, filas, session?.user?.name ?? undefined)
+  }
+
   if (status === 'loading' || !canView) return null
 
   const totalValor = pagos.reduce((s, p) => s + Number(p.valor), 0)
@@ -102,6 +121,9 @@ export default function PagosQRPage() {
           <div><label style={lbl}>Desde</label><input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={inp} /></div>
           <div><label style={lbl}>Hasta</label><input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={inp} /></div>
           <button onClick={cargar} style={btnPrimary}>Filtrar</button>
+          <button onClick={exportar} disabled={pagos.length === 0} style={{ ...btnSecondary, opacity: pagos.length === 0 ? 0.5 : 1, cursor: pagos.length === 0 ? 'not-allowed' : 'pointer' }}>
+            📥 Exportar Excel
+          </button>
         </div>
       </div>
 
@@ -169,3 +191,4 @@ export default function PagosQRPage() {
 const lbl: React.CSSProperties      = { display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }
 const inp: React.CSSProperties      = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14, color: '#1e293b', outline: 'none' }
 const btnPrimary: React.CSSProperties = { padding: '9px 20px', borderRadius: 8, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
+const btnSecondary: React.CSSProperties = { padding: '9px 20px', borderRadius: 8, border: '1px solid #0047BA', background: '#fff', color: '#0047BA', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
