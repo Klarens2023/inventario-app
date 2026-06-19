@@ -88,6 +88,27 @@ FROM inventario_datos d
 LEFT JOIN inventario_conteos c ON c.id_inventario = d.id
 ORDER BY d.fecha DESC, d.referencia;
 
+-- ─── PVN / PVV — Pagos QR ─────────────────────────────────────────────
+-- Requiere que pvn_puntos_venta ya exista (creada en una migración previa
+-- del módulo PVN). Distingue puntos "nacionales" (PVN) de "principales" (PVV).
+ALTER TABLE pvn_puntos_venta
+  ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) NOT NULL DEFAULT 'nacional';
+
+CREATE TABLE IF NOT EXISTS pvn_pagos_qr (
+  id                  SERIAL PRIMARY KEY,
+  usuario_id          INTEGER NOT NULL REFERENCES usuarios(id),
+  usuario_nombre      VARCHAR(100) NOT NULL,
+  punto_venta_id      INTEGER REFERENCES pvn_puntos_venta(id),
+  punto_venta_nombre  VARCHAR(100),
+  fecha               DATE NOT NULL,
+  valor               NUMERIC(14,2) NOT NULL,
+  foto_url            TEXT NOT NULL,
+  created_at          TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pagos_qr_fecha  ON pvn_pagos_qr(fecha);
+CREATE INDEX IF NOT EXISTS idx_pagos_qr_punto  ON pvn_pagos_qr(punto_venta_id);
+CREATE INDEX IF NOT EXISTS idx_pagos_qr_usuario ON pvn_pagos_qr(usuario_id);
+
 -- ─── VISTA ACUMULADOS (equivalente a hoja "INFORME ACUMULADOS") ──────────
 CREATE OR REPLACE VIEW vista_acumulados AS
 SELECT
