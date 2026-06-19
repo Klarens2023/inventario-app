@@ -47,7 +47,8 @@ export async function exportarExcel(
   nombre      : string,
   columnas    : string[],
   filas       : Valor[][],
-  exportadoPor?: string
+  exportadoPor?: string,
+  encabezado  : string = 'KLARENS  —  Sistema de Inventarios'
 ) {
   const wb = new ExcelJS.Workbook()
   wb.creator  = 'Klarens Inventario'
@@ -63,7 +64,7 @@ export async function exportarExcel(
   })
 
   // ── Fila 1: Empresa ───────────────────────────────────────────────────────
-  ws.addRow(['KLARENS  —  Sistema de Inventarios'])
+  ws.addRow([encabezado])
   ws.mergeCells(1, 1, 1, nCols)
   const r1 = ws.getRow(1)
   r1.height = 30

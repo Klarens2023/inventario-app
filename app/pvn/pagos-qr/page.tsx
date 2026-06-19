@@ -82,7 +82,7 @@ export default function PagosQRPage() {
         p.foto_url,
       ]
     })
-    exportarExcel(`pagos_qr_${desde}_a_${hasta}`, columnas, filas, session?.user?.name ?? undefined)
+    exportarExcel(`pagos_qr_${desde}_a_${hasta}`, columnas, filas, session?.user?.name ?? undefined, 'KLARENS  —  Consolidado de Pagos QR')
   }
 
   if (status === 'loading' || !canView) return null
