@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { tieneModulo } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!tieneModulo(session.user?.rol ?? '', session.user?.modulos, 'acumulados')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const { searchParams } = new URL(req.url)
   const desde = searchParams.get('desde') || null

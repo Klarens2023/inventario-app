@@ -3,11 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { tieneModulo } from '@/lib/permissions'
 
-function canAccess(session: { user?: { rol?: string; area?: string } } | null) {
+function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
   if (!session?.user) return false
-  const { rol, area } = session.user
-  return rol === 'admin' || area === 'sistemas' || area === 'general'
+  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'equipos')
 }
 
 async function generarId(): Promise<string> {

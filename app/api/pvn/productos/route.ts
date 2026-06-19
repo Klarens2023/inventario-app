@@ -3,10 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
-
-function canManage(rol: string, area: string) {
-  return rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area))
-}
+import { tieneModulo } from '@/lib/permissions'
 
 const SELECT_PROD = `
   SELECT
@@ -46,8 +43,10 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { rol, area } = session.user as { rol: string; area: string }
-  if (!canManage(rol, area)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const { rol, modulos } = session.user
+  if (!tieneModulo(rol, modulos, 'pvn_catalogo')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const { nombre, componentes } = await req.json() as {
     nombre: string

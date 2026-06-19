@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { tieneModulo } from '@/lib/permissions'
 
-function canAccess(session: { user?: { rol?: string; area?: string } } | null) {
+function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
   if (!session?.user) return false
-  const { rol, area } = session.user
-  return rol === 'admin' || area === 'sistemas' || area === 'general'
+  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'equipos')
 }
 
 // POST /api/sistemas/equipos/[id]/historial

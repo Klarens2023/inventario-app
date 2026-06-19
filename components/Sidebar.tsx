@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { GRUPOS_MODULOS, type Modulo } from '@/lib/permissions'
 
 const INACTIVIDAD_MS  = 20 * 60 * 1000
 const ADVERTENCIA_MS  = 18 * 60 * 1000
@@ -30,35 +31,17 @@ const Icons = {
   Logout: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
 }
 
-type NavItem = {
-  href: string
-  icon: React.ReactNode
-  label: string
-  areas: string[]
-  minRol?: 'lider' | 'admin'
-  onlyRoles?: string[]
-  excludeRoles?: string[]
-}
+type NavItem = { href: string; icon: React.ReactNode; label: string }
 
-const navBase: NavItem[] = [
-  { href: '/dashboard',        icon: <Icons.Inicio />,     label: 'Inicio',            areas: ['logistica', 'sistemas', 'general'] },
-  { href: '/cargar',           icon: <Icons.Cargar />,     label: 'Cargar Inventario', areas: ['logistica', 'general'],             excludeRoles: ['pvn', 'pvv'] },
-  { href: '/consulta',         icon: <Icons.Conteo />,     label: 'Conteo Físico',     areas: ['logistica', 'general'],             excludeRoles: ['pvn', 'pvv'] },
-  { href: '/acumulados',       icon: <Icons.Acumulados />, label: 'Acumulados',        areas: ['logistica', 'general'],             excludeRoles: ['pvn', 'pvv'] },
-  { href: '/pvn/registrar',    icon: <Icons.PVNReg />,     label: 'Registrar Ventas',  areas: ['logistica'],                        onlyRoles: ['pvn'] },
-  { href: '/pvn/historial',    icon: <Icons.PVNHist />,    label: 'Historial PVN',     areas: ['logistica', 'general'],             minRol: 'lider' },
-  { href: '/pvn/analisis',     icon: <Icons.PVNAnal />,    label: 'Análisis PVN',      areas: ['logistica', 'general'],             minRol: 'lider' },
-  { href: '/pvn/catalogo',     icon: <Icons.PVNCat />,     label: 'Catálogo PVN',      areas: ['logistica', 'general'],             minRol: 'lider' },
-  { href: '/pvn/pagos-qr',     icon: <Icons.PVNPagosQR />, label: 'Pagos QR',          areas: ['logistica', 'general'],             minRol: 'lider' },
-  { href: '/sistemas/equipos', icon: <Icons.Equipos />,    label: 'Equipos TI',        areas: ['sistemas', 'general'] },
-  { href: '/admin/usuarios',   icon: <Icons.Usuarios />,   label: 'Usuarios',          areas: ['logistica', 'sistemas', 'general'], minRol: 'lider' },
-  { href: '/auditoria',        icon: <Icons.Auditoria />,  label: 'Auditoría',         areas: ['general'],                          minRol: 'admin' },
-]
-
-const AREA_LABELS: Record<string, string> = {
-  logistica: 'Logística',
-  sistemas:  'Sistemas',
-  general:   'Administración',
+const MODULO_ITEM: Record<Modulo, NavItem> = {
+  cargar:        { href: '/cargar',           icon: <Icons.Cargar />,     label: 'Cargar Inventario' },
+  consulta:      { href: '/consulta',         icon: <Icons.Conteo />,     label: 'Conteo Físico' },
+  acumulados:    { href: '/acumulados',       icon: <Icons.Acumulados />, label: 'Acumulados' },
+  pvn_historial: { href: '/pvn/historial',    icon: <Icons.PVNHist />,    label: 'Historial PVN' },
+  pvn_analisis:  { href: '/pvn/analisis',     icon: <Icons.PVNAnal />,    label: 'Análisis PVN' },
+  pvn_catalogo:  { href: '/pvn/catalogo',     icon: <Icons.PVNCat />,     label: 'Catálogo PVN' },
+  pvn_pagos_qr:  { href: '/pvn/pagos-qr',     icon: <Icons.PVNPagosQR />, label: 'Pagos QR' },
+  equipos:       { href: '/sistemas/equipos', icon: <Icons.Equipos />,    label: 'Equipos TI' },
 }
 
 export default function Sidebar() {
@@ -72,18 +55,22 @@ export default function Sidebar() {
   const timerCuenta  = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const rol  = session?.user?.rol ?? 'usuario'
-  const area = session?.user?.area ?? (rol === 'admin' ? 'general' : 'logistica')
+  const modulos = session?.user?.modulos ?? []
   const isAdmin = rol === 'admin'
   const isLider = rol === 'lider' || isAdmin
+  const esPvnPvv = rol === 'pvn' || rol === 'pvv'
 
-  const nav = navBase.filter(item => {
-    if (!item.areas.includes(area)) return false
-    if (item.onlyRoles && !item.onlyRoles.includes(rol)) return false
-    if (item.excludeRoles && item.excludeRoles.includes(rol)) return false
-    if (item.minRol === 'admin') return isAdmin
-    if (item.minRol === 'lider') return isLider
-    return true
-  })
+  const [colapsados, setColapsados] = useState<Record<string, boolean>>({})
+  function toggleGrupo(key: string) {
+    setColapsados(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  // pvn/pvv tienen su propia navegación mínima, no usan el sistema de módulos
+  const navPvnPvv: NavItem[] = rol === 'pvn' ? [{ href: '/pvn/registrar', icon: <Icons.PVNReg />, label: 'Registrar Ventas' }] : []
+
+  const gruposVisibles = GRUPOS_MODULOS
+    .map(g => ({ ...g, items: g.modulos.filter(m => isAdmin || modulos.includes(m)).map(m => MODULO_ITEM[m]) }))
+    .filter(g => g.items.length > 0)
 
   const cerrarAvisoYReiniciar = useCallback(() => {
     setMostrarAviso(false)
@@ -174,47 +161,48 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Área badge */}
-      {open && (
-        <div style={{ padding: '8px 16px 0', textAlign: 'center' }}>
-          <span style={{
-            display: 'inline-block', fontSize: 10, fontWeight: 700,
-            background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)',
-            padding: '3px 10px', borderRadius: 20, letterSpacing: '0.06em', textTransform: 'uppercase'
-          }}>
-            {AREA_LABELS[area] ?? area}
-          </span>
-        </div>
-      )}
-
       {/* Nav */}
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: open ? '12px 12px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {nav.map(item => {
-          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-          return (
-            <Link key={item.href} href={item.href}
-              title={!open ? item.label : ''}
-              style={{
-                display: 'flex', alignItems: 'center',
-                gap: open ? 12 : 0,
-                justifyContent: open ? 'flex-start' : 'center',
-                padding: open ? '12px 16px' : '12px',
-                borderRadius: 10, textDecoration: 'none',
-                fontSize: 14, fontWeight: active ? 700 : 500,
-                color: active ? '#0047BA' : '#D1E3FF',
-                background: active ? '#fff' : 'transparent',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap', overflow: 'hidden',
-                boxShadow: active ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
-              }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
-            >
-              <span style={{ flexShrink: 0, display: 'flex' }}>{item.icon}</span>
-              {open && <span style={{ opacity: 1, transition: 'opacity 0.2s' }}>{item.label}</span>}
-            </Link>
-          )
-        })}
+        <NavLink item={{ href: '/dashboard', icon: <Icons.Inicio />, label: 'Inicio' }} pathname={pathname} open={open} />
+
+        {esPvnPvv ? (
+          navPvnPvv.map(item => <NavLink key={item.href} item={item} pathname={pathname} open={open} />)
+        ) : (
+          <>
+            {gruposVisibles.map(grupo => (
+              <div key={grupo.key} style={{ marginTop: 6 }}>
+                {open ? (
+                  <button
+                    onClick={() => toggleGrupo(grupo.key)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px',
+                      color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.06em',
+                    }}
+                  >
+                    {grupo.label}
+                    <span style={{ transition: 'transform 0.2s', transform: colapsados[grupo.key] ? 'rotate(-90deg)' : 'none' }}>▾</span>
+                  </button>
+                ) : (
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '8px 4px' }} />
+                )}
+                {!colapsados[grupo.key] && grupo.items.map(item => (
+                  <NavLink key={item.href} item={item} pathname={pathname} open={open} />
+                ))}
+              </div>
+            ))}
+
+            {isLider && (
+              <div style={{ marginTop: 6 }}>
+                <NavLink item={{ href: '/admin/usuarios', icon: <Icons.Usuarios />, label: 'Usuarios' }} pathname={pathname} open={open} />
+              </div>
+            )}
+            {isAdmin && (
+              <NavLink item={{ href: '/auditoria', icon: <Icons.Auditoria />, label: 'Auditoría' }} pathname={pathname} open={open} />
+            )}
+          </>
+        )}
       </nav>
 
       {/* Modal inactividad */}
@@ -313,5 +301,32 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+  )
+}
+
+function NavLink({ item, pathname, open }: { item: NavItem; pathname: string; open: boolean }) {
+  const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+  return (
+    <Link href={item.href}
+      title={!open ? item.label : ''}
+      style={{
+        display: 'flex', alignItems: 'center',
+        gap: open ? 12 : 0,
+        justifyContent: open ? 'flex-start' : 'center',
+        padding: open ? '12px 16px' : '12px',
+        borderRadius: 10, textDecoration: 'none',
+        fontSize: 14, fontWeight: active ? 700 : 500,
+        color: active ? '#0047BA' : '#D1E3FF',
+        background: active ? '#fff' : 'transparent',
+        transition: 'all 0.2s',
+        whiteSpace: 'nowrap', overflow: 'hidden',
+        boxShadow: active ? '0 4px 12px rgba(0,0,0,0.15)' : 'none'
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}
+    >
+      <span style={{ flexShrink: 0, display: 'flex' }}>{item.icon}</span>
+      {open && <span style={{ opacity: 1, transition: 'opacity 0.2s' }}>{item.label}</span>}
+    </Link>
   )
 }

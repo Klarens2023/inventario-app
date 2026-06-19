@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-
-function canView(rol: string, area: string) {
-  return rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area))
-}
+import { tieneModulo } from '@/lib/permissions'
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -34,7 +31,7 @@ export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { rol, area } = user
+  const { rol, modulos } = user
   const { searchParams } = req.nextUrl
   const desde = searchParams.get('desde')
   const hasta  = searchParams.get('hasta')
@@ -52,7 +49,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(rows)
   }
 
-  if (!canView(rol, area)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  if (!tieneModulo(rol, modulos, 'pvn_historial')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const desdeVal    = desde ?? null
   const hastaVal    = hasta ?? null

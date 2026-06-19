@@ -38,7 +38,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const body = await req.json()
-  const { activo, rol, nombre, username, area, punto_venta_id, resetPassword } = body
+  const { activo, rol, nombre, username, area, punto_venta_id, resetPassword, modulos } = body
 
   if (activo !== undefined) {
     await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
@@ -74,6 +74,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (resetPassword === true) {
     const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
     await sql`UPDATE usuarios SET password_hash = ${hash}, debe_cambiar_password = true WHERE id = ${id}`
+  }
+  if (Array.isArray(modulos)) {
+    await sql`DELETE FROM usuario_modulos WHERE usuario_id = ${id}`
+    for (const m of modulos) {
+      await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${id}, ${m}) ON CONFLICT DO NOTHING`
+    }
   }
 
   await logAudit({
