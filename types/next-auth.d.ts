@@ -10,6 +10,7 @@ declare module 'next-auth' {
       rol: string
       area: string
       debe_cambiar_password: boolean
+      punto_venta_id: number | null
     }
   }
 }
@@ -20,5 +21,6 @@ declare module 'next-auth/jwt' {
     rol: string
     area: string
     debe_cambiar_password: boolean
+    punto_venta_id: number | null
   }
 }

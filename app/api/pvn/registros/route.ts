@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
@@ -32,10 +31,10 @@ const SELECT_SQL = `
 `
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { rol, area } = session.user as { rol: string; area: string }
+  const { rol, area } = user
   const { searchParams } = req.nextUrl
   const desde = searchParams.get('desde')
   const hasta  = searchParams.get('hasta')
@@ -48,7 +47,7 @@ export async function GET(req: NextRequest) {
        GROUP BY r.id
        ORDER BY r.fecha DESC, r.created_at DESC
        LIMIT 30`,
-      [parseInt(session.user.id)]
+      [parseInt(user.id)]
     )
     return NextResponse.json(rows)
   }
@@ -74,10 +73,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { rol } = session.user as { rol: string }
+  const { rol } = user
   if (!['pvn', 'admin', 'lider'].includes(rol)) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
@@ -103,7 +102,7 @@ export async function POST(req: NextRequest) {
 
   const dup = await sql`
     SELECT id FROM pvn_registros
-    WHERE usuario_id = ${parseInt(session.user.id)}
+    WHERE usuario_id = ${parseInt(user.id)}
       AND fecha = ${fechaFinal}::date AND turno = ${turno}
     LIMIT 1
   `
@@ -115,15 +114,15 @@ export async function POST(req: NextRequest) {
     SELECT u.punto_venta_id, pv.nombre AS punto_venta_nombre
     FROM usuarios u
     LEFT JOIN pvn_puntos_venta pv ON pv.id = u.punto_venta_id
-    WHERE u.id = ${parseInt(session.user.id)}
+    WHERE u.id = ${parseInt(user.id)}
     LIMIT 1
   `
 
   const [registro] = await sql`
     INSERT INTO pvn_registros (usuario_id, usuario_nombre, fecha, turno, observaciones, punto_venta_id, punto_venta_nombre)
     VALUES (
-      ${parseInt(session.user.id)},
-      ${session.user.name ?? session.user.email ?? 'PVN'},
+      ${parseInt(user.id)},
+      ${user.name ?? 'PVN'},
       ${fechaFinal}::date,
       ${turno},
       ${observaciones ?? null},
@@ -141,8 +140,8 @@ export async function POST(req: NextRequest) {
   }
 
   await logAudit({
-    usuarioId: session.user.id ?? null,
-    usuarioNombre: session.user.name ?? 'PVN',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'PVN',
     accion: 'PVN_REGISTRO_CREADO',
     descripcion: `Registró ventas del ${fechaFinal} (${turno}) — ${items.length} productos, ${items.reduce((s, d) => s + d.cantidad, 0)} unidades`,
     datos: { fecha: fechaFinal, turno, productos: items.length, punto_venta: userInfo?.punto_venta_nombre },

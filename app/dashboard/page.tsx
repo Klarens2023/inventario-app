@@ -15,6 +15,7 @@ const CARDS_LOGISTICA_LIDER: Card[] = [
   { href: '/pvn/historial', icon: '🕐', title: 'Historial PVN',  desc: 'Consulta los registros de ventas de todos los puntos' },
   { href: '/pvn/analisis',  icon: '📈', title: 'Análisis PVN',   desc: 'Consumo de ingredientes y tendencias de venta' },
   { href: '/pvn/catalogo',  icon: '📚', title: 'Catálogo PVN',   desc: 'Gestiona productos y puntos de venta nacionales' },
+  { href: '/pvn/pagos-qr',  icon: '🧾', title: 'Pagos QR',       desc: 'Revisa los comprobantes de pago QR subidos desde la app móvil' },
 ]
 
 const CARDS_SISTEMAS: Card[] = [
@@ -32,6 +33,7 @@ const CARDS_ADMIN: Card[] = [
   { href: '/pvn/historial',    icon: '🕐', title: 'Historial PVN',     desc: 'Consulta los registros de ventas de todos los puntos' },
   { href: '/pvn/analisis',     icon: '📈', title: 'Análisis PVN',      desc: 'Consumo de ingredientes y tendencias de venta' },
   { href: '/pvn/catalogo',     icon: '📚', title: 'Catálogo PVN',      desc: 'Gestiona productos y puntos de venta nacionales' },
+  { href: '/pvn/pagos-qr',     icon: '🧾', title: 'Pagos QR',          desc: 'Revisa los comprobantes de pago QR subidos desde la app móvil' },
   { href: '/sistemas/equipos', icon: '🖥️', title: 'Equipos TI',       desc: 'Administra el inventario de equipos tecnológicos' },
   { href: '/admin/usuarios',   icon: '👥', title: 'Usuarios',          desc: 'Gestiona cuentas, roles y áreas de acceso' },
   { href: '/auditoria',        icon: '📄', title: 'Auditoría',         desc: 'Registro completo de acciones en el sistema' },
@@ -39,6 +41,7 @@ const CARDS_ADMIN: Card[] = [
 
 const SUBTITLES: Record<string, string> = {
   pvn:     'Registra las ventas de tu punto — ¿qué deseas hacer?',
+  pvv:     'Usa la app móvil para registrar tus pagos QR',
   admin:   'Panel de administración — ¿qué deseas gestionar?',
   lider:   'Panel del líder — ¿qué deseas revisar?',
   usuario: 'Sistema de control de inventario — ¿qué deseas hacer hoy?',
@@ -46,6 +49,7 @@ const SUBTITLES: Record<string, string> = {
 
 function getCards(rol: string, area: string): Card[] {
   if (rol === 'pvn') return CARDS_PVN
+  if (rol === 'pvv') return []
   if (rol === 'admin') return CARDS_ADMIN
   if (area === 'sistemas') return rol === 'lider' ? [...CARDS_SISTEMAS, { href: '/admin/usuarios', icon: '👥', title: 'Usuarios', desc: 'Gestiona cuentas y roles de tu área' }] : CARDS_SISTEMAS
   if (area === 'logistica' || area === 'general') {
@@ -70,6 +74,15 @@ export default function DashboardPage() {
           {SUBTITLES[rol] ?? SUBTITLES.usuario}
         </p>
       </div>
+      {rol === 'pvv' && (
+        <div className="card" style={{ maxWidth: 360, padding: 24 }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>📱</div>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Usa la app móvil</h2>
+          <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
+            Tu rol solo registra pagos QR desde la aplicación móvil. Descárgala e inicia sesión con tu mismo usuario.
+          </p>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
         {cards.map(c => (
           <Link key={c.href} href={c.href} style={{ textDecoration: 'none' }}>

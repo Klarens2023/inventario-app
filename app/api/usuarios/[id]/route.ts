@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
   }
   if (rol !== undefined) {
-    const rolesValidos = sesionRol === 'admin' ? ['admin', 'lider', 'usuario', 'pvn'] : ['lider', 'usuario', 'pvn']
+    const rolesValidos = sesionRol === 'admin' ? ['admin', 'lider', 'usuario', 'pvn', 'pvv'] : ['lider', 'usuario', 'pvn', 'pvv']
     if (!rolesValidos.includes(rol)) {
       return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
     }

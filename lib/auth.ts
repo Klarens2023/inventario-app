@@ -20,7 +20,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.username || !credentials?.password) return null
 
         const rows = await sql`
-          SELECT id, username, password_hash, nombre, rol, area, debe_cambiar_password
+          SELECT id, username, password_hash, nombre, rol, area, debe_cambiar_password, punto_venta_id
           FROM usuarios
           WHERE username = ${credentials.username}
             AND activo = true
@@ -43,6 +43,7 @@ export const authOptions: NextAuthOptions = {
           rol,
           area,
           debe_cambiar_password: user.debe_cambiar_password ?? false,
+          punto_venta_id: user.punto_venta_id ?? null,
         }
       },
     }),
@@ -50,12 +51,13 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        const u = user as { id: string; name?: string; rol?: string; area?: string; debe_cambiar_password?: boolean }
+        const u = user as { id: string; name?: string; rol?: string; area?: string; debe_cambiar_password?: boolean; punto_venta_id?: number | null }
         token.id                    = u.id
         token.name                  = u.name
         token.rol                   = u.rol ?? 'usuario'
         token.area                  = u.rol === 'admin' ? 'general' : (u.area ?? 'logistica')
         token.debe_cambiar_password = u.debe_cambiar_password ?? false
+        token.punto_venta_id        = u.punto_venta_id ?? null
       }
       // Permite actualizar el token desde el cliente con useSession().update()
       if (trigger === 'update' && session?.debe_cambiar_password !== undefined) {
@@ -70,6 +72,7 @@ export const authOptions: NextAuthOptions = {
         session.user.rol                   = token.rol as string
         session.user.area                  = (token.area as string) ?? (token.rol === 'admin' ? 'general' : 'logistica')
         session.user.debe_cambiar_password = token.debe_cambiar_password as boolean
+        session.user.punto_venta_id        = (token.punto_venta_id as number | null) ?? null
       }
       return session
     },

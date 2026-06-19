@@ -24,6 +24,14 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // pvv es un rol exclusivo de la app móvil — sin acceso a la web
+  if (rol === 'pvv') {
+    const permitidas = ['/dashboard', '/cambiar-password']
+    if (!permitidas.some(r => pathname.startsWith(r))) {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  }
+
   // Auditoría: solo admin
   if (pathname.startsWith('/auditoria') && rol !== 'admin') {
     return NextResponse.redirect(new URL('/dashboard', req.url))
@@ -39,8 +47,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
-  // Módulo PVN historial/análisis: solo lider y admin
-  if ((pathname.startsWith('/pvn/historial') || pathname.startsWith('/pvn/analisis')) &&
+  // Módulo PVN historial/análisis/pagos QR: solo lider y admin
+  if ((pathname.startsWith('/pvn/historial') || pathname.startsWith('/pvn/analisis') || pathname.startsWith('/pvn/pagos-qr')) &&
       !['admin', 'lider'].includes(rol)) {
     return NextResponse.redirect(new URL('/pvn/registrar', req.url))
   }

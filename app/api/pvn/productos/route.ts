@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 
 function canManage(rol: string, area: string) {
@@ -28,8 +29,8 @@ const SELECT_PROD = `
 `
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const all = req.nextUrl.searchParams.get('all') === '1'
 
