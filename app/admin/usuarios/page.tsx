@@ -159,12 +159,13 @@ export default function GestionUsuariosPage() {
     setEditando(true)
     setEditError('')
     try {
+      const editandoYoMismo = String(editUsuario.id) === session?.user?.id
       const body: Record<string, unknown> = {
         nombre: editNombre,
         username: editUsername,
-        rol: editRol,
       }
-      if (esAdmin) body.area = editArea
+      if (!editandoYoMismo) body.rol = editRol
+      if (esAdmin && !editandoYoMismo) body.area = editArea
       if (editRol === 'pvn') body.punto_venta_id = editPuntoVenta ? parseInt(editPuntoVenta) : null
       if (!['pvn', 'pvv'].includes(editRol)) body.modulos = editModulos
       if (editResetPassword) body.resetPassword = true
@@ -249,6 +250,9 @@ export default function GestionUsuariosPage() {
               {!loading && usuariosFiltrados.map((u, i) => {
                 const rolInfo  = ROL_LABELS[u.rol]  ?? ROL_LABELS.usuario
                 const areaInfo = AREA_LABELS[u.area] ?? { label: u.area, color: '#374151', bg: '#f3f4f6' }
+                const esEsteUsuarioYo = String(u.id) === session?.user?.id
+                const puedeEditar     = esAdmin || (u.rol !== 'admin' && !esEsteUsuarioYo)
+                const puedeDesactivar = !esEsteUsuarioYo && (esAdmin || u.rol !== 'admin')
                 return (
                   <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                     <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e293b' }}>{u.nombre}</td>
@@ -274,7 +278,7 @@ export default function GestionUsuariosPage() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        {String(u.id) !== session?.user?.id && u.rol !== 'admin' && (
+                        {puedeEditar && (
                           <button
                             onClick={() => abrirEdicion(u)}
                             style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
@@ -282,7 +286,7 @@ export default function GestionUsuariosPage() {
                             Editar
                           </button>
                         )}
-                        {String(u.id) !== session?.user?.id && u.rol !== 'admin' && (
+                        {puedeDesactivar && (
                           <button
                             onClick={() => toggleActivo(u)}
                             style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: u.activo ? '#fff5f5' : '#f0fdf4', color: u.activo ? '#dc2626' : '#16a34a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
@@ -304,11 +308,16 @@ export default function GestionUsuariosPage() {
       </div>
 
       {/* Modal editar usuario */}
-      {editModalOpen && editUsuario && (
+      {editModalOpen && editUsuario && (() => {
+        const editandoYoMismo = String(editUsuario.id) === session?.user?.id
+        return (
         <div onClick={() => setEditModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '32px', maxWidth: 440, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: 4 }}>Editar Usuario</h2>
-            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>Modifica los datos de <strong>{editUsuario.nombre}</strong>.</p>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
+              Modifica los datos de <strong>{editUsuario.nombre}</strong>.
+              {editandoYoMismo && ' Es tu propia cuenta — no puedes cambiar tu rol ni área aquí.'}
+            </p>
             {editError && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#991b1b', fontSize: 13 }}>{editError}</div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
@@ -319,7 +328,7 @@ export default function GestionUsuariosPage() {
                 <label style={labelStyle}>Nombre de usuario</label>
                 <input value={editUsername} onChange={e => setEditUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} style={inputStyle} />
               </div>
-              {esAdmin && (
+              {esAdmin && !editandoYoMismo && (
                 <div>
                   <label style={labelStyle}>Área</label>
                   <select value={editArea} onChange={e => setEditArea(e.target.value)} style={inputStyle}>
@@ -329,16 +338,18 @@ export default function GestionUsuariosPage() {
                   </select>
                 </div>
               )}
-              <div>
-                <label style={labelStyle}>Rol</label>
-                <select value={editRol} onChange={e => setEditRol(e.target.value)} style={inputStyle}>
-                  <option value="usuario">Usuario</option>
-                  <option value="pvn">PVN (Punto de Venta)</option>
-                  <option value="pvv">PVV (Punto Principal — app móvil)</option>
-                  <option value="lider">Líder de Área</option>
-                  {esAdmin && <option value="admin">Administrador</option>}
-                </select>
-              </div>
+              {!editandoYoMismo && (
+                <div>
+                  <label style={labelStyle}>Rol</label>
+                  <select value={editRol} onChange={e => setEditRol(e.target.value)} style={inputStyle}>
+                    <option value="usuario">Usuario</option>
+                    <option value="pvn">PVN (Punto de Venta)</option>
+                    <option value="pvv">PVV (Punto Principal — app móvil)</option>
+                    <option value="lider">Líder de Área</option>
+                    {esAdmin && <option value="admin">Administrador</option>}
+                  </select>
+                </div>
+              )}
               {editRol === 'pvn' && puntosVenta.length > 0 && (
                 <div>
                   <label style={labelStyle}>Punto de Venta</label>
@@ -386,7 +397,8 @@ export default function GestionUsuariosPage() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Modal crear usuario */}
       {modalOpen && (
