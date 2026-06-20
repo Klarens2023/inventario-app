@@ -109,6 +109,17 @@ CREATE INDEX IF NOT EXISTS idx_pagos_qr_fecha  ON pvn_pagos_qr(fecha);
 CREATE INDEX IF NOT EXISTS idx_pagos_qr_punto  ON pvn_pagos_qr(punto_venta_id);
 CREATE INDEX IF NOT EXISTS idx_pagos_qr_usuario ON pvn_pagos_qr(usuario_id);
 
+-- ─── Permisos por módulo (reemplaza el control rígido por área) ─────────
+-- El admin asigna módulos individuales a cada usuario desde /admin/usuarios.
+-- Tras crear esta tabla, correr UNA VEZ: node scripts/seed-modulos.js
+-- para poblarla con los módulos por defecto de los usuarios ya existentes.
+CREATE TABLE IF NOT EXISTS usuario_modulos (
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  modulo     VARCHAR(40) NOT NULL,
+  PRIMARY KEY (usuario_id, modulo)
+);
+CREATE INDEX IF NOT EXISTS idx_usuario_modulos_usuario ON usuario_modulos(usuario_id);
+
 -- ─── VISTA ACUMULADOS (equivalente a hoja "INFORME ACUMULADOS") ──────────
 CREATE OR REPLACE VIEW vista_acumulados AS
 SELECT

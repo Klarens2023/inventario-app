@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { tieneModulo } from '@/lib/permissions'
 
 function limpiarNum(val: string): number {
   let s = val.replace(/\$|\s/g, '').trim()
@@ -90,6 +91,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!tieneModulo(session.user?.rol ?? '', session.user?.modulos, 'cargar')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const formData = await req.formData()
   const file  = formData.get('file') as File

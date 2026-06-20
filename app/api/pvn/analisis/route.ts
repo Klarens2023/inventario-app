@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
+import { tieneModulo } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { rol, area } = session.user as { rol: string; area: string }
-  if (rol !== 'admin' && !(rol === 'lider' && ['logistica', 'general'].includes(area))) {
+  const { rol, modulos } = session.user
+  if (!tieneModulo(rol, modulos, 'pvn_analisis')) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 

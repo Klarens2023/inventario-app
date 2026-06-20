@@ -9,6 +9,7 @@ export type AuthUser = {
   rol: string
   area: string
   punto_venta_id: number | null
+  modulos: string[]
 }
 
 // Autenticación compartida: sesión web (NextAuth cookie) o JWT móvil (Bearer token)
@@ -22,6 +23,7 @@ export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
       rol: u.rol,
       area: u.area,
       punto_venta_id: u.punto_venta_id ?? null,
+      modulos: u.modulos ?? [],
     }
   }
 
@@ -36,6 +38,7 @@ export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
         rol: payload.rol,
         area: payload.area,
         punto_venta_id: payload.punto_venta_id ?? null,
+        modulos: [],
       }
     } catch {
       return null

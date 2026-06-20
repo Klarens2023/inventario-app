@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
-
-function canManage(rol: string, area: string) {
-  return rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area))
-}
+import { tieneModulo } from '@/lib/permissions'
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
@@ -29,8 +26,10 @@ export async function POST(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  const { rol, area } = user
-  if (!canManage(rol, area)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const { rol, modulos } = user
+  if (!tieneModulo(rol, modulos, 'pvn_catalogo')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const { nombre } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })

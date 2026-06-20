@@ -3,6 +3,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
+import { GRUPOS_MODULOS, MODULO_LABELS, modulosPorDefecto, type Modulo } from '@/lib/permissions'
 
 type Usuario = {
   id: number
@@ -15,6 +16,7 @@ type Usuario = {
   created_at: string
   punto_venta_id?: number | null
   punto_venta_nombre?: string | null
+  modulos?: string[]
 }
 
 type PuntoVenta = { id: number; nombre: string; activo: boolean }
@@ -49,6 +51,7 @@ export default function GestionUsuariosPage() {
   const [username, setUsername] = useState('')
   const [rol, setRol]           = useState('usuario')
   const [area, setArea]         = useState('logistica')
+  const [modulos, setModulos]   = useState<string[]>(() => modulosPorDefecto('usuario', 'logistica'))
 
   const [editModalOpen, setEditModalOpen]   = useState(false)
   const [editando, setEditando]             = useState(false)
@@ -57,6 +60,7 @@ export default function GestionUsuariosPage() {
   const [editUsername, setEditUsername]     = useState('')
   const [editRol, setEditRol]               = useState('usuario')
   const [editArea, setEditArea]             = useState('logistica')
+  const [editModulos, setEditModulos]       = useState<string[]>([])
   const [editResetPassword, setEditResetPassword] = useState(false)
   const [editError, setEditError]           = useState('')
 
@@ -78,6 +82,15 @@ export default function GestionUsuariosPage() {
   useEffect(() => {
     if (!esAdmin) setArea(sesionArea)
   }, [esAdmin, sesionArea])
+
+  // Recalcula los módulos por defecto cada vez que cambia rol/área en el modal de creación
+  useEffect(() => {
+    setModulos(modulosPorDefecto(rol, area))
+  }, [rol, area])
+
+  function toggleModulo(lista: string[], setLista: (m: string[]) => void, modulo: Modulo) {
+    setLista(lista.includes(modulo) ? lista.filter(m => m !== modulo) : [...lista, modulo])
+  }
 
   const cargarUsuarios = useCallback(async () => {
     setLoading(true)
@@ -107,6 +120,7 @@ export default function GestionUsuariosPage() {
     try {
       const body: Record<string, unknown> = { nombre, username, rol, area: esAdmin ? area : sesionArea }
       if (rol === 'pvn' && puntoVenta) body.punto_venta_id = parseInt(puntoVenta)
+      if (!['pvn', 'pvv'].includes(rol)) body.modulos = modulos
       const res = await fetch('/api/usuarios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -130,6 +144,7 @@ export default function GestionUsuariosPage() {
     setEditRol(u.rol)
     setEditArea(u.area)
     setEditPuntoVenta(u.punto_venta_id ? String(u.punto_venta_id) : '')
+    setEditModulos(u.modulos ?? [])
     setEditResetPassword(false)
     setEditError('')
     setEditModalOpen(true)
@@ -151,6 +166,7 @@ export default function GestionUsuariosPage() {
       }
       if (esAdmin) body.area = editArea
       if (editRol === 'pvn') body.punto_venta_id = editPuntoVenta ? parseInt(editPuntoVenta) : null
+      if (!['pvn', 'pvv'].includes(editRol)) body.modulos = editModulos
       if (editResetPassword) body.resetPassword = true
       const res = await fetch(`/api/usuarios/${editUsuario.id}`, {
         method: 'PUT',
@@ -334,6 +350,9 @@ export default function GestionUsuariosPage() {
                   </select>
                 </div>
               )}
+              {!['pvn', 'pvv'].includes(editRol) && (
+                <ModulosChecklist seleccionados={editModulos} onToggle={m => toggleModulo(editModulos, setEditModulos, m)} />
+              )}
               <div
                 onClick={() => setEditResetPassword(v => !v)}
                 style={{
@@ -418,6 +437,9 @@ export default function GestionUsuariosPage() {
                   </select>
                 </div>
               )}
+              {!['pvn', 'pvv'].includes(rol) && (
+                <ModulosChecklist seleccionados={modulos} onToggle={m => toggleModulo(modulos, setModulos, m)} />
+              )}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
               <button onClick={() => setModalOpen(false)} style={btnSecondaryStyle}>Cancelar</button>
@@ -428,6 +450,31 @@ export default function GestionUsuariosPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ModulosChecklist({ seleccionados, onToggle }: { seleccionados: string[]; onToggle: (m: Modulo) => void }) {
+  return (
+    <div>
+      <label style={labelStyle}>Módulos de acceso</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, background: '#f8fafc' }}>
+        {GRUPOS_MODULOS.map(grupo => (
+          <div key={grupo.key}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#0047BA', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              {grupo.label}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {grupo.modulos.map(m => (
+                <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#334155', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={seleccionados.includes(m)} onChange={() => onToggle(m)} style={{ cursor: 'pointer' }} />
+                  {MODULO_LABELS[m]}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

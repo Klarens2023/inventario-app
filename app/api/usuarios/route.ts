@@ -3,9 +3,19 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { modulosPorDefecto } from '@/lib/permissions'
 import bcrypt from 'bcryptjs'
 
 const PASSWORD_GENERICA = '123456'
+
+const SELECT_CON_MODULOS = `
+  SELECT u.id, u.username, u.nombre, u.rol, u.area, u.activo, u.debe_cambiar_password, u.created_at,
+         COALESCE(
+           (SELECT json_agg(m.modulo) FROM usuario_modulos m WHERE m.usuario_id = u.id),
+           '[]'
+         ) AS modulos
+  FROM usuarios u
+`
 
 // GET /api/usuarios
 // admin → todos; lider → solo su área
@@ -18,19 +28,10 @@ export async function GET() {
 
   let rows
   if (rol === 'admin') {
-    rows = await sql`
-      SELECT id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
-      FROM usuarios
-      ORDER BY area, created_at DESC
-    `
+    rows = await sql(`${SELECT_CON_MODULOS} ORDER BY u.area, u.created_at DESC`, [])
   } else {
     const area = session.user?.area ?? 'logistica'
-    rows = await sql`
-      SELECT id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
-      FROM usuarios
-      WHERE area = ${area}
-      ORDER BY created_at DESC
-    `
+    rows = await sql(`${SELECT_CON_MODULOS} WHERE u.area = $1 ORDER BY u.created_at DESC`, [area])
   }
   return NextResponse.json(rows)
 }
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   const rol = session.user?.rol
   if (!['admin', 'lider'].includes(rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
-  const { username, nombre, rol: rolNuevo, area: areaNueva, punto_venta_id: pvId } = await req.json()
+  const { username, nombre, rol: rolNuevo, area: areaNueva, punto_venta_id: pvId, modulos: modulosBody } = await req.json()
 
   if (!username?.trim() || !nombre?.trim()) {
     return NextResponse.json({ error: 'Usuario y nombre son obligatorios' }, { status: 400 })
@@ -71,6 +72,11 @@ export async function POST(req: NextRequest) {
     VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true, ${puntoVentaId})
     RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
   `
+
+  const modulosFinal: string[] = Array.isArray(modulosBody) ? modulosBody : modulosPorDefecto(rolFinal, areaFinal)
+  for (const m of modulosFinal) {
+    await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${nuevo.id}, ${m}) ON CONFLICT DO NOTHING`
+  }
 
   await logAudit({
     usuarioId: session.user?.id ?? null,

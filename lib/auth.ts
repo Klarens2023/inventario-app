@@ -33,6 +33,14 @@ export const authOptions: NextAuthOptions = {
         const valid = await bcrypt.compare(credentials.password, user.password_hash)
         if (!valid) return null
 
+        // try/catch: si la migración de usuario_modulos aún no se ha corrido,
+        // no debe romper el login de nadie — simplemente no hay módulos extra.
+        let modulos: string[] = []
+        try {
+          const modulosRows = await sql`SELECT modulo FROM usuario_modulos WHERE usuario_id = ${user.id}`
+          modulos = modulosRows.map(r => r.modulo as string)
+        } catch {}
+
         const rol = user.rol ?? 'usuario'
         // Admin siempre va a área 'general', sin importar lo que tenga en BD
         const area = rol === 'admin' ? 'general' : (user.area ?? 'logistica')
@@ -44,6 +52,7 @@ export const authOptions: NextAuthOptions = {
           area,
           debe_cambiar_password: user.debe_cambiar_password ?? false,
           punto_venta_id: user.punto_venta_id ?? null,
+          modulos,
         }
       },
     }),
@@ -51,13 +60,14 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        const u = user as { id: string; name?: string; rol?: string; area?: string; debe_cambiar_password?: boolean; punto_venta_id?: number | null }
+        const u = user as { id: string; name?: string; rol?: string; area?: string; debe_cambiar_password?: boolean; punto_venta_id?: number | null; modulos?: string[] }
         token.id                    = u.id
         token.name                  = u.name
         token.rol                   = u.rol ?? 'usuario'
         token.area                  = u.rol === 'admin' ? 'general' : (u.area ?? 'logistica')
         token.debe_cambiar_password = u.debe_cambiar_password ?? false
         token.punto_venta_id        = u.punto_venta_id ?? null
+        token.modulos               = u.modulos ?? []
       }
       // Permite actualizar el token desde el cliente con useSession().update()
       if (trigger === 'update' && session?.debe_cambiar_password !== undefined) {
@@ -73,6 +83,7 @@ export const authOptions: NextAuthOptions = {
         session.user.area                  = (token.area as string) ?? (token.rol === 'admin' ? 'general' : 'logistica')
         session.user.debe_cambiar_password = token.debe_cambiar_password as boolean
         session.user.punto_venta_id        = (token.punto_venta_id as number | null) ?? null
+        session.user.modulos               = (token.modulos as string[]) ?? []
       }
       return session
     },

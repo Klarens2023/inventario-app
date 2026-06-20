@@ -3,11 +3,15 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { tieneModulo } from '@/lib/permissions'
 
 // PUT /api/conteo  → guarda conteo físico y observaciones
 export async function PUT(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!tieneModulo(session.user?.rol ?? '', session.user?.modulos, 'consulta')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const { id_inventario, conteo_fisico, observaciones } = await req.json()
 

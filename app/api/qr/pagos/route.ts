@@ -3,13 +3,10 @@ import { put } from '@vercel/blob'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { tieneModulo } from '@/lib/permissions'
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
-
-function canView(rol: string, area: string) {
-  return rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area))
 }
 
 const MAX_BYTES = 4 * 1024 * 1024
@@ -73,7 +70,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canView(user.rol, user.area)) {
+  if (!tieneModulo(user.rol, user.modulos, 'pvn_pagos_qr')) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 
