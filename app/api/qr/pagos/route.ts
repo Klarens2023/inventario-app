@@ -70,6 +70,20 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+  // pvn/pvv solo ven sus propios pagos del día de hoy (no el historial completo)
+  if (['pvn', 'pvv'].includes(user.rol)) {
+    const hoy = hoyBogota()
+    const rows = await sql(
+      `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, foto_url, created_at
+       FROM pvn_pagos_qr
+       WHERE usuario_id = $1 AND fecha = $2::date
+       ORDER BY created_at DESC`,
+      [parseInt(user.id), hoy]
+    )
+    return NextResponse.json(rows)
+  }
+
   if (!tieneModulo(user.rol, user.modulos, 'pvn_pagos_qr')) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
