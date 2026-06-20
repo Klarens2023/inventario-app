@@ -20,7 +20,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const id = parseInt(params.id)
   if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
-  if (String(id) === session.user?.id) {
+  const esSelf = String(id) === session.user?.id
+  if (esSelf && sesionRol !== 'admin') {
     return NextResponse.json({ error: 'No puedes modificar tu propia cuenta' }, { status: 400 })
   }
 
@@ -41,9 +42,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { activo, rol, nombre, username, area, punto_venta_id, resetPassword, modulos } = body
 
   if (activo !== undefined) {
+    if (esSelf && !activo) {
+      return NextResponse.json({ error: 'No puedes desactivar tu propia cuenta' }, { status: 400 })
+    }
     await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
   }
   if (rol !== undefined) {
+    if (esSelf && rol !== usuario.rol) {
+      return NextResponse.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 })
+    }
     const rolesValidos = sesionRol === 'admin' ? ['admin', 'lider', 'usuario', 'pvn', 'pvv'] : ['lider', 'usuario', 'pvn', 'pvv']
     if (!rolesValidos.includes(rol)) {
       return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
