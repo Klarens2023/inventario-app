@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
-// PUT /api/cambiar-password
+// PUT /api/cambiar-password — usado por web (sesión) y app móvil (Bearer token)
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { nueva_password } = await req.json()
 
@@ -20,7 +19,7 @@ export async function PUT(req: NextRequest) {
   await sql`
     UPDATE usuarios
     SET password_hash = ${hash}, debe_cambiar_password = false
-    WHERE id = ${parseInt(session.user.id)}
+    WHERE id = ${parseInt(user.id)}
   `
 
   return NextResponse.json({ ok: true })
