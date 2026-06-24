@@ -31,9 +31,10 @@ const SIS: Modulo[] = ['equipos']
 // ajustarlos libremente después desde el checklist de edición.
 export function modulosPorDefecto(rol: string, area: string): Modulo[] {
   if (rol === 'admin') return [...MODULOS]
-  if (area === 'logistica') return rol === 'lider' ? [...LOG, ...PV] : [...LOG]
-  if (area === 'sistemas')  return [...SIS]
-  if (area === 'general')   return rol === 'lider' ? [...MODULOS] : [...LOG, ...PV, ...SIS]
+  if (area === 'logistica')    return rol === 'lider' ? [...LOG, ...PV] : [...LOG]
+  if (area === 'sistemas')     return [...SIS]
+  if (area === 'general')      return rol === 'lider' ? [...MODULOS] : [...LOG, ...PV, ...SIS]
+  if (area === 'puntos_venta') return [...PV]
   return []
 }
 

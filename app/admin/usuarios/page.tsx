@@ -30,9 +30,17 @@ const ROL_LABELS: Record<string, { label: string; color: string; bg: string }> =
 }
 
 const AREA_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  logistica: { label: 'Logística',      color: '#065f46', bg: '#d1fae5' },
-  sistemas:  { label: 'Sistemas',       color: '#1e3a5f', bg: '#dbeafe' },
-  general:   { label: 'Administración', color: '#7c2d12', bg: '#fed7aa' },
+  logistica:    { label: 'Logística',       color: '#065f46', bg: '#d1fae5' },
+  sistemas:     { label: 'Sistemas',        color: '#1e3a5f', bg: '#dbeafe' },
+  general:      { label: 'Administración',  color: '#7c2d12', bg: '#fed7aa' },
+  puntos_venta: { label: 'Puntos de Venta', color: '#6b21a8', bg: '#f3e8ff' },
+}
+
+const ROLES_POR_AREA: Record<string, string[]> = {
+  logistica:    ['usuario', 'lider'],
+  puntos_venta: ['pvn', 'pvv'],
+  sistemas:     ['usuario', 'lider'],
+  general:      ['admin', 'lider'],
 }
 
 export default function GestionUsuariosPage() {
@@ -67,6 +75,7 @@ export default function GestionUsuariosPage() {
   const [puntosVenta, setPuntosVenta]       = useState<PuntoVenta[]>([])
   const [puntoVenta, setPuntoVenta]         = useState<string>('')
   const [editPuntoVenta, setEditPuntoVenta] = useState<string>('')
+  const [modalAreasOpen, setModalAreasOpen] = useState(false)
 
   const sesionRol  = session?.user?.rol ?? ''
   const sesionArea = session?.user?.area ?? 'logistica'
@@ -82,6 +91,13 @@ export default function GestionUsuariosPage() {
   useEffect(() => {
     if (!esAdmin) setArea(sesionArea)
   }, [esAdmin, sesionArea])
+
+  // Auto-asigna área según rol al crear
+  useEffect(() => {
+    if (['pvn', 'pvv'].includes(rol)) setArea('puntos_venta')
+    else if (area === 'puntos_venta') setArea(esAdmin ? 'logistica' : sesionArea)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rol])
 
   // Recalcula los módulos por defecto cada vez que cambia rol/área en el modal de creación
   useEffect(() => {
@@ -142,7 +158,7 @@ export default function GestionUsuariosPage() {
     setEditNombre(u.nombre)
     setEditUsername(u.username)
     setEditRol(u.rol)
-    setEditArea(u.area)
+    setEditArea(['pvn', 'pvv'].includes(u.rol) ? 'puntos_venta' : u.area)
     setEditPuntoVenta(u.punto_venta_id ? String(u.punto_venta_id) : '')
     setEditModulos(u.modulos ?? [])
     setEditResetPassword(false)
@@ -211,9 +227,16 @@ export default function GestionUsuariosPage() {
             {esAdmin ? 'Administra todos los usuarios del sistema' : `Usuarios del área de ${AREA_LABELS[sesionArea]?.label ?? sesionArea}`}
           </p>
         </div>
-        <button onClick={() => { setModalOpen(true); setError(''); setExito('') }} style={btnPrimaryStyle}>
-          + Nuevo Usuario
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          {esAdmin && (
+            <button onClick={() => setModalAreasOpen(true)} style={btnSecondaryStyle}>
+              ⚙ Áreas y Roles
+            </button>
+          )}
+          <button onClick={() => { setModalOpen(true); setError(''); setExito('') }} style={btnPrimaryStyle}>
+            + Nuevo Usuario
+          </button>
+        </div>
       </div>
 
       {/* Éxito */}
@@ -249,7 +272,8 @@ export default function GestionUsuariosPage() {
               {loading && <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Cargando...</td></tr>}
               {!loading && usuariosFiltrados.map((u, i) => {
                 const rolInfo  = ROL_LABELS[u.rol]  ?? ROL_LABELS.usuario
-                const areaInfo = AREA_LABELS[u.area] ?? { label: u.area, color: '#374151', bg: '#f3f4f6' }
+                const areaKey  = ['pvn', 'pvv'].includes(u.rol) ? 'puntos_venta' : u.area
+                const areaInfo = AREA_LABELS[areaKey] ?? { label: u.area, color: '#374151', bg: '#f3f4f6' }
                 const esEsteUsuarioYo = String(u.id) === session?.user?.id
                 const puedeEditar     = esAdmin || (u.rol !== 'admin' && !esEsteUsuarioYo)
                 const puedeDesactivar = !esEsteUsuarioYo && (esAdmin || u.rol !== 'admin')
@@ -331,17 +355,28 @@ export default function GestionUsuariosPage() {
               {esAdmin && !editandoYoMismo && (
                 <div>
                   <label style={labelStyle}>Área</label>
-                  <select value={editArea} onChange={e => setEditArea(e.target.value)} style={inputStyle}>
-                    <option value="logistica">Logística</option>
-                    <option value="sistemas">Sistemas</option>
-                    <option value="general">Administración (General)</option>
-                  </select>
+                  {['pvn', 'pvv'].includes(editRol) ? (
+                    <div style={{ ...inputStyle, background: '#f3e8ff', color: '#6b21a8', fontWeight: 600, border: '1px solid #d8b4fe' }}>
+                      Puntos de Venta (asignada automáticamente)
+                    </div>
+                  ) : (
+                    <select value={editArea} onChange={e => setEditArea(e.target.value)} style={inputStyle}>
+                      <option value="logistica">Logística</option>
+                      <option value="sistemas">Sistemas</option>
+                      <option value="general">Administración (General)</option>
+                    </select>
+                  )}
                 </div>
               )}
               {!editandoYoMismo && (
                 <div>
                   <label style={labelStyle}>Rol</label>
-                  <select value={editRol} onChange={e => setEditRol(e.target.value)} style={inputStyle}>
+                  <select value={editRol} onChange={e => {
+                    const r = e.target.value
+                    setEditRol(r)
+                    if (['pvn', 'pvv'].includes(r)) setEditArea('puntos_venta')
+                    else if (editArea === 'puntos_venta') setEditArea('logistica')
+                  }} style={inputStyle}>
                     <option value="usuario">Usuario</option>
                     <option value="pvn">PVN (Punto de Venta)</option>
                     <option value="pvv">PVV (Punto Principal — app móvil)</option>
@@ -400,6 +435,54 @@ export default function GestionUsuariosPage() {
         )
       })()}
 
+      {/* Modal Áreas y Roles */}
+      {modalAreasOpen && (
+        <div onClick={() => setModalAreasOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '32px', maxWidth: 520, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', maxHeight: '85vh', overflowY: 'auto' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: 6 }}>Áreas y Roles</h2>
+            <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
+              Estructura de áreas del sistema. Los roles marcados se asignan automáticamente a cada área.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {Object.entries(AREA_LABELS).map(([areaKey, areaInfo]) => {
+                const rolesDeArea = ROLES_POR_AREA[areaKey] ?? []
+                const usuariosDeArea = usuarios.filter(u =>
+                  (['pvn', 'pvv'].includes(u.rol) ? 'puntos_venta' : u.area) === areaKey
+                )
+                return (
+                  <div key={areaKey} style={{ border: '1px solid #e2e8f0', borderRadius: 12, padding: '16px 18px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ display: 'inline-block', padding: '3px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: areaInfo.color, background: areaInfo.bg }}>
+                          {areaInfo.label}
+                        </span>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>{usuariosDeArea.length} usuario{usuariosDeArea.length !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {rolesDeArea.map(r => {
+                        const ri = ROL_LABELS[r]
+                        return ri ? (
+                          <span key={r} style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: ri.color, background: ri.bg }}>
+                            {ri.label}
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 20, marginBottom: 0 }}>
+              Al asignar el rol PVN o PVV a un usuario, el área se establece automáticamente como <strong>Puntos de Venta</strong>.
+            </p>
+            <div style={{ marginTop: 24 }}>
+              <button onClick={() => setModalAreasOpen(false)} style={{ ...btnSecondaryStyle, width: '100%' }}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal crear usuario */}
       {modalOpen && (
         <div onClick={() => setModalOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
@@ -418,16 +501,6 @@ export default function GestionUsuariosPage() {
                 <label style={labelStyle}>Nombre de usuario</label>
                 <input value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="Ej: jperez" style={inputStyle} onKeyDown={e => e.key === 'Enter' && crearUsuario()} />
               </div>
-              {esAdmin && (
-                <div>
-                  <label style={labelStyle}>Área</label>
-                  <select value={area} onChange={e => setArea(e.target.value)} style={inputStyle}>
-                    <option value="logistica">Logística</option>
-                    <option value="sistemas">Sistemas</option>
-                    <option value="general">Administración (General)</option>
-                  </select>
-                </div>
-              )}
               <div>
                 <label style={labelStyle}>Rol</label>
                 <select value={rol} onChange={e => setRol(e.target.value)} style={inputStyle}>
@@ -438,6 +511,22 @@ export default function GestionUsuariosPage() {
                   {esAdmin && <option value="admin">Administrador</option>}
                 </select>
               </div>
+              {esAdmin && (
+                <div>
+                  <label style={labelStyle}>Área</label>
+                  {['pvn', 'pvv'].includes(rol) ? (
+                    <div style={{ ...inputStyle, background: '#f3e8ff', color: '#6b21a8', fontWeight: 600, border: '1px solid #d8b4fe' }}>
+                      Puntos de Venta (asignada automáticamente)
+                    </div>
+                  ) : (
+                    <select value={area} onChange={e => setArea(e.target.value)} style={inputStyle}>
+                      <option value="logistica">Logística</option>
+                      <option value="sistemas">Sistemas</option>
+                      <option value="general">Administración (General)</option>
+                    </select>
+                  )}
+                </div>
+              )}
               {rol === 'pvn' && puntosVenta.length > 0 && (
                 <div>
                   <label style={labelStyle}>Punto de Venta</label>
