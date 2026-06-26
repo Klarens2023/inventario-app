@@ -30,17 +30,17 @@ export async function middleware(req: NextRequest) {
 
   // Bloquear al rol pvn fuera de sus rutas permitidas
   if (rol === 'pvn') {
-    const permitidas = ['/pvn/registrar', '/dashboard', '/cambiar-password']
+    const permitidas = ['/pvn/registrar', '/pvn/pago-qr', '/dashboard', '/cambiar-password']
     if (!permitidas.some(r => pathname.startsWith(r))) {
-      return NextResponse.redirect(new URL('/pvn/registrar', req.url))
+      return NextResponse.redirect(new URL('/pvn/pago-qr', req.url))
     }
   }
 
-  // pvv es un rol exclusivo de la app móvil — sin acceso a la web
+  // pvv: acceso web desde navegador (iPhone u otros sin app Android)
   if (rol === 'pvv') {
-    const permitidas = ['/dashboard', '/cambiar-password']
+    const permitidas = ['/pvn/pago-qr', '/dashboard', '/cambiar-password']
     if (!permitidas.some(r => pathname.startsWith(r))) {
-      return NextResponse.redirect(new URL('/dashboard', req.url))
+      return NextResponse.redirect(new URL('/pvn/pago-qr', req.url))
     }
   }
 
