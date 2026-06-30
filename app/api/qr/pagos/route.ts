@@ -9,7 +9,7 @@ function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
 
-const MAX_BYTES = 4 * 1024 * 1024
+const MAX_BYTES = 8 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
   const user = await getAuthUser(req)
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (!foto) return NextResponse.json({ error: 'La foto es obligatoria' }, { status: 400 })
   if (!valor || valor <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
   if (foto.size > MAX_BYTES) {
-    return NextResponse.json({ error: 'La imagen es muy pesada (máx 4MB)' }, { status: 413 })
+    return NextResponse.json({ error: 'La imagen es muy pesada (máx 8MB)' }, { status: 413 })
   }
 
   // Sesiones web requieren turno abierto; la app móvil (Bearer token) conserva flujo libre
