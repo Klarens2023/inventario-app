@@ -29,17 +29,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La imagen es muy pesada (máx 4MB)' }, { status: 413 })
   }
 
+  // Sesiones web requieren turno abierto; la app móvil (Bearer token) conserva flujo libre
+  const esWeb = !req.headers.get('authorization')?.startsWith('Bearer ')
   let puntoVentaId: number | null
-  if (user.rol === 'pvn') {
+
+  if (esWeb) {
+    const hoy = hoyBogota()
+    const [turno] = await sql`
+      SELECT punto_venta_id FROM pvn_turnos
+      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
+      LIMIT 1
+    `
+    if (!turno) return NextResponse.json({ error: 'Debes abrir un turno antes de registrar pagos' }, { status: 403 })
+    puntoVentaId = turno.punto_venta_id
+  } else if (user.rol === 'pvn') {
     puntoVentaId = user.punto_venta_id
-    if (!puntoVentaId) {
-      return NextResponse.json({ error: 'Tu usuario no tiene un punto de venta asignado' }, { status: 400 })
-    }
+    if (!puntoVentaId) return NextResponse.json({ error: 'Tu usuario no tiene un punto de venta asignado' }, { status: 400 })
   } else {
     puntoVentaId = puntoVentaIdRaw ? parseInt(String(puntoVentaIdRaw)) : null
-    if (!puntoVentaId) {
-      return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
-    }
+    if (!puntoVentaId) return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
   }
 
   const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId} LIMIT 1`
