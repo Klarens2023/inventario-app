@@ -259,7 +259,7 @@ export default function PagoQRWebPage() {
 
   // ══ PANTALLA: TURNO ABIERTO ══════════════════════════════════════════════
   return (
-    <div style={{ minHeight: '100vh', background: '#f1f5f9', padding: '16px', maxWidth: 480, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: '#f1f5f9', padding: '64px 16px 16px', maxWidth: 480, margin: '0 auto' }}>
 
       {/* Banner turno activo */}
       <div style={{ background: '#0047BA', borderRadius: 12, padding: '12px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
