@@ -47,7 +47,19 @@ const MODULO_ITEM: Record<Modulo, NavItem> = {
 export default function Sidebar() {
   const pathname  = usePathname()
   const { data: session } = useSession()
+  const [isMobile, setIsMobile] = useState(false)
   const [open, setOpen]         = useState(true)
+
+  useEffect(() => {
+    function check() {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      if (mobile) setOpen(false)
+    }
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
   const [mostrarAviso, setMostrarAviso] = useState(false)
   const [cuenta, setCuenta]     = useState(120)
   const timerLogout  = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,15 +131,28 @@ export default function Sidebar() {
 
   if (pathname === '/login') return null
 
-  const W = open ? 260 : 64
+  const W = open ? 260 : (isMobile ? 0 : 64)
 
   return (
+    <>
+      {/* Backdrop en móvil cuando el sidebar está abierto */}
+      {isMobile && open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 998 }}
+        />
+      )}
     <aside style={{
-      position: 'sticky', top: 0, alignSelf: 'flex-start',
-      width: W, minWidth: W, height: '100vh', flexShrink: 0,
+      position: isMobile ? 'fixed' : 'sticky',
+      top: 0, left: 0,
+      zIndex: isMobile ? 999 : 'auto',
+      alignSelf: 'flex-start',
+      width: isMobile ? (open ? 260 : 0) : W,
+      minWidth: isMobile ? (open ? 260 : 0) : W,
+      height: '100vh', flexShrink: 0,
       background: 'linear-gradient(180deg, #0047BA 0%, #002D7A 100%)',
       color: '#fff', display: 'flex', flexDirection: 'column',
-      boxShadow: '4px 0 20px rgba(0,0,0,0.15)',
+      boxShadow: open ? '4px 0 20px rgba(0,0,0,0.15)' : 'none',
       transition: 'width 0.3s ease, min-width 0.3s ease',
       overflow: 'hidden'
     }}>
@@ -166,10 +191,10 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: open ? '12px 12px' : '12px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <NavLink item={{ href: '/dashboard', icon: <Icons.Inicio />, label: 'Inicio' }} pathname={pathname} open={open} />
+        <NavLink item={{ href: '/dashboard', icon: <Icons.Inicio />, label: 'Inicio' }} pathname={pathname} open={open} onClick={isMobile ? () => setOpen(false) : undefined} />
 
         {esPvnPvv ? (
-          navPvnPvv.map(item => <NavLink key={item.href} item={item} pathname={pathname} open={open} />)
+          navPvnPvv.map(item => <NavLink key={item.href} item={item} pathname={pathname} open={open} onClick={isMobile ? () => setOpen(false) : undefined} />)
         ) : (
           <>
             {gruposVisibles.map(grupo => (
@@ -177,6 +202,7 @@ export default function Sidebar() {
                 {open ? (
                   <button
                     onClick={() => toggleGrupo(grupo.key)}
+
                     style={{
                       width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px',
@@ -191,18 +217,18 @@ export default function Sidebar() {
                   <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '8px 4px' }} />
                 )}
                 {!colapsados[grupo.key] && grupo.items.map(item => (
-                  <NavLink key={item.href} item={item} pathname={pathname} open={open} />
+                  <NavLink key={item.href} item={item} pathname={pathname} open={open} onClick={isMobile ? () => setOpen(false) : undefined} />
                 ))}
               </div>
             ))}
 
             {isLider && (
               <div style={{ marginTop: 6 }}>
-                <NavLink item={{ href: '/admin/usuarios', icon: <Icons.Usuarios />, label: 'Usuarios' }} pathname={pathname} open={open} />
+                <NavLink item={{ href: '/admin/usuarios', icon: <Icons.Usuarios />, label: 'Usuarios' }} pathname={pathname} open={open} onClick={isMobile ? () => setOpen(false) : undefined} />
               </div>
             )}
             {isAdmin && (
-              <NavLink item={{ href: '/auditoria', icon: <Icons.Auditoria />, label: 'Auditoría' }} pathname={pathname} open={open} />
+              <NavLink item={{ href: '/auditoria', icon: <Icons.Auditoria />, label: 'Auditoría' }} pathname={pathname} open={open} onClick={isMobile ? () => setOpen(false) : undefined} />
             )}
           </>
         )}
@@ -304,14 +330,34 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+
+      {/* Botón hamburguesa flotante en móvil cuando sidebar está cerrado */}
+      {isMobile && !open && (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            position: 'fixed', top: 14, left: 14, zIndex: 997,
+            background: '#0047BA', border: 'none', borderRadius: 10,
+            width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,71,186,0.4)', color: '#fff',
+          }}
+          title="Menú"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+      )}
+    </>
   )
 }
 
-function NavLink({ item, pathname, open }: { item: NavItem; pathname: string; open: boolean }) {
+function NavLink({ item, pathname, open, onClick }: { item: NavItem; pathname: string; open: boolean; onClick?: () => void }) {
   const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
   return (
     <Link href={item.href}
       title={!open ? item.label : ''}
+      onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center',
         gap: open ? 12 : 0,
