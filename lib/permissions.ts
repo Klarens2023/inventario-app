@@ -1,7 +1,7 @@
 export const MODULOS = [
   'cargar', 'consulta', 'acumulados',
   'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr',
-  'equipos',
+  'equipos', 'movimientos_tic',
 ] as const
 
 export type Modulo = typeof MODULOS[number]
@@ -9,7 +9,7 @@ export type Modulo = typeof MODULOS[number]
 export const GRUPOS_MODULOS: Array<{ key: string; label: string; modulos: Modulo[] }> = [
   { key: 'logistica',    label: 'Logística',      modulos: ['cargar', 'consulta', 'acumulados'] },
   { key: 'puntos_venta', label: 'Puntos de Venta', modulos: ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr'] },
-  { key: 'sistemas',     label: 'Sistemas',        modulos: ['equipos'] },
+  { key: 'sistemas',     label: 'Sistemas',        modulos: ['equipos', 'movimientos_tic'] },
 ]
 
 export const MODULO_LABELS: Record<Modulo, string> = {
@@ -21,11 +21,12 @@ export const MODULO_LABELS: Record<Modulo, string> = {
   pvn_catalogo: 'Catálogo PVN',
   pvn_pagos_qr: 'Pagos QR',
   equipos: 'Equipos TI',
+  movimientos_tic: 'Movimientos TIC',
 }
 
 const LOG: Modulo[] = ['cargar', 'consulta', 'acumulados']
 const PV: Modulo[]  = ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr']
-const SIS: Modulo[] = ['equipos']
+const SIS: Modulo[] = ['equipos', 'movimientos_tic']
 
 // Módulos asignados automáticamente al crear un usuario — el admin puede
 // ajustarlos libremente después desde el checklist de edición.

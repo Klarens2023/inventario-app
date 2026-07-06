@@ -13,7 +13,8 @@ const MODULO_CARD: Record<Modulo, Card> = {
   pvn_analisis:  { href: '/pvn/analisis',     icon: '📈',  title: 'Análisis PVN',      desc: 'Consumo de ingredientes y tendencias de venta' },
   pvn_catalogo:  { href: '/pvn/catalogo',     icon: '📚',  title: 'Catálogo PVN',      desc: 'Gestiona productos y puntos de venta nacionales' },
   pvn_pagos_qr:  { href: '/pvn/pagos-qr',     icon: '🧾',  title: 'Pagos QR',          desc: 'Revisa los comprobantes de pago QR subidos desde la app móvil' },
-  equipos:       { href: '/sistemas/equipos', icon: '🖥️', title: 'Equipos TI',        desc: 'Administra el inventario de equipos tecnológicos' },
+  equipos:         { href: '/sistemas/equipos',      icon: '🖥️', title: 'Equipos TI',         desc: 'Administra el inventario de equipos tecnológicos' },
+  movimientos_tic: { href: '/sistemas/movimientos', icon: '🔄',  title: 'Movimientos TIC',    desc: 'Registra y consulta movimientos de activos tecnológicos' },
 }
 
 const CARD_PVN: Card = { href: '/pvn/registrar', icon: '🛒', title: 'Registrar Ventas', desc: 'Ingresa las ventas del día o turno en tu punto' }
