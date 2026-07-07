@@ -32,7 +32,7 @@ export function imprimirMovimiento(mov: MovimientoDetalle, baseUrl = '') {
   const [anio, mes, dia] = (mov.fecha || '').split('-')
   const totalActivos = mov.activos.reduce((s, a) => s + a.cantidad, 0)
   const nroConsec    = mov.id.replace('TIC-', '')
-  const logoKlarens  = `${baseUrl}/Klarens-logo.png`
+  const logoKlarens  = `${baseUrl}/klarens-logo-print.png`
   const logoHseq     = `${baseUrl}/hseq-logo.png`
 
   const activosRows = Array.from({ length: Math.max(10, mov.activos.length) }, (_, i) => {
