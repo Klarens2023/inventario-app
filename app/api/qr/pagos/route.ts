@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
 
   const bufferOriginal  = Buffer.from(await foto.arrayBuffer())
   const bufferEtiquetado = await agregarEtiqueta(bufferOriginal, fecha, hora, pv.nombre, user.name)
-  const fotoConEtiqueta  = new File([bufferEtiquetado], nombreArchivo, { type: 'image/jpeg' })
+  const fotoConEtiqueta  = new File([new Uint8Array(bufferEtiquetado)], nombreArchivo, { type: 'image/jpeg' })
   const fotoUrl = await subirADrive(fotoConEtiqueta, nombreArchivo)
   const [registro] = await sql`
     INSERT INTO pvn_pagos_qr (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha, valor, foto_url)
