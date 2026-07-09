@@ -1,9 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
+import { google } from 'googleapis'
+import { Readable } from 'stream'
+import sharp from 'sharp'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
+
+async function agregarEtiqueta(
+  buffer: Buffer,
+  fecha: string,
+  hora: string,
+  sede: string,
+  usuario: string
+): Promise<Buffer> {
+  const img = sharp(buffer)
+  const { width = 800 } = await img.metadata()
+
+  const linea1 = `${fecha}  ${hora}`
+  const linea2 = `${sede}  ·  ${usuario}`
+  const altoBanner = 52
+  const fontSize = 15
+
+  const svg = `
+    <svg width="${width}" height="${altoBanner}" xmlns="http://www.w3.org/2000/svg">
+      <rect width="${width}" height="${altoBanner}" fill="rgba(0,0,0,0.72)"/>
+      <text x="14" y="20" font-family="Arial, sans-serif" font-size="${fontSize}" fill="white" font-weight="bold">${linea1}</text>
+      <text x="14" y="42" font-family="Arial, sans-serif" font-size="${fontSize}" fill="#93c5fd">${linea2}</text>
+    </svg>`
+
+  return img
+    .composite([{
+      input: Buffer.from(svg),
+      gravity: 'south',
+    }])
+    .jpeg({ quality: 85 })
+    .toBuffer()
+}
+
+async function subirADrive(file: File, nombreArchivo: string): Promise<string> {
+  const auth = new google.auth.GoogleAuth({
+    credentials: {
+      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  })
+  const drive = google.drive({ version: 'v3', auth })
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const stream = Readable.from(buffer)
+
+  const res = await drive.files.create({
+    supportsAllDrives: true,
+    requestBody: {
+      name: nombreArchivo,
+      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID!],
+    },
+    media: { mimeType: file.type || 'image/jpeg', body: stream },
+    fields: 'id',
+  })
+
+  const fileId = res.data.id!
+  await drive.permissions.create({
+    fileId,
+    supportsAllDrives: true,
+    requestBody: { role: 'reader', type: 'anyone' },
+  })
+
+  return `https://drive.google.com/uc?export=view&id=${fileId}`
+}
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -53,14 +118,21 @@ export async function POST(req: NextRequest) {
   const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId} LIMIT 1`
   if (!pv) return NextResponse.json({ error: 'Punto de venta inválido' }, { status: 400 })
 
-  const ext = (foto.name?.split('.').pop() || 'jpg').toLowerCase()
-  const blobName = `qr-pagos/${pv.id}/${Date.now()}-${user.id}.${ext}`
-  const blob = await put(blobName, foto, { access: 'public', addRandomSuffix: true })
-
   const fecha = hoyBogota()
+  const ahora = new Date()
+  const hora  = ahora.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const horaArchivo = hora.replace(/:/g, '-')
+  const sede  = pv.nombre.replace(/[^a-zA-Z0-9]/g, '_')
+  const nombreUsuario = user.name.replace(/[^a-zA-Z0-9]/g, '_')
+  const nombreArchivo = `${fecha}_${horaArchivo}_${sede}_${nombreUsuario}.jpg`
+
+  const bufferOriginal  = Buffer.from(await foto.arrayBuffer())
+  const bufferEtiquetado = await agregarEtiqueta(bufferOriginal, fecha, hora, pv.nombre, user.name)
+  const fotoConEtiqueta  = new File([bufferEtiquetado], nombreArchivo, { type: 'image/jpeg' })
+  const fotoUrl = await subirADrive(fotoConEtiqueta, nombreArchivo)
   const [registro] = await sql`
     INSERT INTO pvn_pagos_qr (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha, valor, foto_url)
-    VALUES (${parseInt(user.id)}, ${user.name}, ${pv.id}, ${pv.nombre}, ${fecha}::date, ${valor}, ${blob.url})
+    VALUES (${parseInt(user.id)}, ${user.name}, ${pv.id}, ${pv.nombre}, ${fecha}::date, ${valor}, ${fotoUrl})
     RETURNING id, fecha::text AS fecha, valor, foto_url, created_at
   `
 
