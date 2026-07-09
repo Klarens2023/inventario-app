@@ -3,7 +3,7 @@ import './globals.css' // Esto es vital para que no se vea feo
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: "Control de Inventario - Klaren's",
+  title: "Operaciones - Klaren's",
   description: 'Sistema de control y conteo de inventario',
 }
 
