@@ -89,6 +89,18 @@ export default function Sidebar() {
     .map(g => ({ ...g, items: g.modulos.filter(m => isAdmin || modulos.includes(m)).map(m => MODULO_ITEM[m]) }))
     .filter(g => g.items.length > 0)
 
+  // Con más de 2 módulos habilitados (p. ej. el admin, que los tiene todos),
+  // arrancamos los grupos colapsados para no saturar el menú al ingresar.
+  const colapsadosListos = useRef(false)
+  useEffect(() => {
+    if (colapsadosListos.current || !session) return
+    colapsadosListos.current = true
+    const totalModulos = gruposVisibles.reduce((s, g) => s + g.items.length, 0)
+    if (totalModulos > 2) {
+      setColapsados(Object.fromEntries(gruposVisibles.map(g => [g.key, true])))
+    }
+  }, [session, gruposVisibles])
+
   const cerrarAvisoYReiniciar = useCallback(() => {
     setMostrarAviso(false)
     setCuenta(120)
