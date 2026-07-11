@@ -21,9 +21,11 @@ const CARD_PVN: Card = { href: '/pvn/registrar', icon: '🛒', title: 'Registrar
 const CARD_USUARIOS: Card = { href: '/admin/usuarios', icon: '👥', title: 'Usuarios', desc: 'Gestiona cuentas y módulos de acceso' }
 const CARD_AUDITORIA: Card = { href: '/auditoria', icon: '📄', title: 'Auditoría', desc: 'Registro completo de acciones en el sistema' }
 
+const CARD_PVV_QR: Card = { href: '/pvn/subir-qr', icon: '📷', title: 'Pagos QR', desc: 'Sube el comprobante de pago QR de tu punto de venta' }
+
 const SUBTITLES: Record<string, string> = {
   pvn:     'Registra las ventas de tu punto — ¿qué deseas hacer?',
-  pvv:     'Usa la app móvil para registrar tus pagos QR',
+  pvv:     '¿Qué deseas hacer hoy?',
   admin:   'Panel de administración — ¿qué deseas gestionar?',
   lider:   'Panel del líder — ¿qué deseas revisar?',
   usuario: 'Sistema de control de inventario — ¿qué deseas hacer hoy?',
@@ -31,7 +33,7 @@ const SUBTITLES: Record<string, string> = {
 
 function getCards(rol: string, modulos: string[]): Card[] {
   if (rol === 'pvn') return [CARD_PVN]
-  if (rol === 'pvv') return []
+  if (rol === 'pvv') return [CARD_PVN, CARD_PVV_QR]
 
   const modulosUsuario = rol === 'admin' ? [...MODULOS] : modulos
   const cards = modulosUsuario.map(m => MODULO_CARD[m as Modulo]).filter(Boolean)
@@ -58,16 +60,7 @@ export default function DashboardPage() {
           {SUBTITLES[rol] ?? SUBTITLES.usuario}
         </p>
       </div>
-      {rol === 'pvv' && (
-        <div className="card" style={{ maxWidth: 360, padding: 24 }}>
-          <div style={{ fontSize: 28, marginBottom: 12 }}>📱</div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>Usa la app móvil</h2>
-          <p style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5 }}>
-            Tu rol solo registra pagos QR desde la aplicación móvil. Descárgala e inicia sesión con tu mismo usuario.
-          </p>
-        </div>
-      )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+<div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
         {cards.map(c => (
           <Link key={c.href} href={c.href} style={{ textDecoration: 'none' }}>
             <div className="card" style={{ cursor: 'pointer', transition: 'all 0.2s' }}>

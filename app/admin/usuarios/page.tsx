@@ -9,7 +9,8 @@ import { UsuariosList }  from '@/components/usuarios/UsuariosList'
 import { AreaFilterBar } from '@/components/usuarios/AreaFilterBar'
 import { ModalCrear }    from '@/components/usuarios/ModalCrear'
 import { ModalEditar }   from '@/components/usuarios/ModalEditar'
-import { ModalAreas }    from '@/components/usuarios/ModalAreas'
+import { ModalAreas }      from '@/components/usuarios/ModalAreas'
+import { PuntosVentaTab }  from '@/components/usuarios/PuntosVentaTab'
 
 export default function GestionUsuariosPage() {
   const { data: session, status } = useSession()
@@ -39,6 +40,7 @@ export default function GestionUsuariosPage() {
   const [usuarioEdit, setUsuarioEdit] = useState<Usuario | null>(null)
 
   const [modalAreas,  setModalAreas]  = useState(false)
+  const [tab,         setTab]         = useState<'usuarios' | 'puntos'>('usuarios')
 
   const cargar = useCallback(async () => {
     setLoading(true)
@@ -96,37 +98,56 @@ export default function GestionUsuariosPage() {
             {esAdmin ? 'Administra todos los usuarios del sistema' : `Usuarios del área de ${AREA_LABELS[sesionArea]?.label ?? sesionArea}`}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {esAdmin && (
-            <button onClick={() => setModalAreas(true)} style={{ padding: '10px 22px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-              ⚙ Áreas y Roles
+        {tab === 'usuarios' && (
+          <div style={{ display: 'flex', gap: 10 }}>
+            {esAdmin && (
+              <button onClick={() => setModalAreas(true)} style={{ padding: '10px 22px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+                ⚙ Áreas y Roles
+              </button>
+            )}
+            <button onClick={() => { setModalCrear(true); setErrorCrear('') }} style={{ padding: '10px 22px', borderRadius: 8, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+              + Nuevo Usuario
             </button>
-          )}
-          <button onClick={() => { setModalCrear(true); setErrorCrear('') }} style={{ padding: '10px 22px', borderRadius: 8, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-            + Nuevo Usuario
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
-      {exito && (
-        <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 10, padding: '14px 18px', marginBottom: 20, color: '#065f46', fontWeight: 600, fontSize: 14 }}>
-          {exito}
-          <button onClick={() => setExito('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontSize: 18, lineHeight: 1 }}>×</button>
-        </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#f1f5f9', borderRadius: 10, padding: 4, width: 'fit-content' }}>
+        {([['usuarios', 'Usuarios'], ['puntos', 'Puntos de Venta']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} style={{
+            padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+            background: tab === key ? '#fff' : 'transparent',
+            color: tab === key ? '#0047BA' : '#64748b',
+            boxShadow: tab === key ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+            transition: 'all 0.15s',
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === 'usuarios' && (
+        <>
+          {exito && (
+            <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 10, padding: '14px 18px', marginBottom: 20, color: '#065f46', fontWeight: 600, fontSize: 14 }}>
+              {exito}
+              <button onClick={() => setExito('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+          )}
+          {esAdmin && usuarios.length > 0 && (
+            <AreaFilterBar usuarios={usuarios} filtroArea={filtroArea} onChange={setFiltroArea} />
+          )}
+          <UsuariosList
+            usuarios={usuariosFiltrados}
+            loading={loading}
+            sessionUserId={session?.user?.id}
+            esAdmin={esAdmin}
+            onEditar={u => { setUsuarioEdit(u); setModalEditar(true) }}
+            onToggleActivo={handleToggleActivo}
+          />
+        </>
       )}
 
-      {esAdmin && usuarios.length > 0 && (
-        <AreaFilterBar usuarios={usuarios} filtroArea={filtroArea} onChange={setFiltroArea} />
-      )}
-
-      <UsuariosList
-        usuarios={usuariosFiltrados}
-        loading={loading}
-        sessionUserId={session?.user?.id}
-        esAdmin={esAdmin}
-        onEditar={u => { setUsuarioEdit(u); setModalEditar(true) }}
-        onToggleActivo={handleToggleActivo}
-      />
+      {tab === 'puntos' && <PuntosVentaTab />}
 
       {modalCrear && (
         <ModalCrear

@@ -74,6 +74,13 @@ function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
 
+// Google Drive bloquea el hotlinking de "uc?export=view" al embeberlo como <img>
+// desde otro dominio, así que las respuestas devuelven nuestra propia URL de proxy.
+function aUrlProxy(row: Record<string, any>): Record<string, any> {
+  const fileId = String(row.foto_url).match(/[?&]id=([^&]+)/)?.[1]
+  return fileId ? { ...row, foto_url: `/api/qr/foto?id=${fileId}` } : row
+}
+
 const MAX_BYTES = 8 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
@@ -94,25 +101,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La imagen es muy pesada (máx 8MB)' }, { status: 413 })
   }
 
-  // Sesiones web requieren turno abierto; la app móvil (Bearer token) conserva flujo libre
   const esWeb = !req.headers.get('authorization')?.startsWith('Bearer ')
   let puntoVentaId: number | null
 
-  if (esWeb) {
-    const hoy = hoyBogota()
-    const [turno] = await sql`
-      SELECT punto_venta_id FROM pvn_turnos
-      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
-      LIMIT 1
-    `
-    if (!turno) return NextResponse.json({ error: 'Debes abrir un turno antes de registrar pagos' }, { status: 403 })
-    puntoVentaId = turno.punto_venta_id
-  } else if (user.rol === 'pvn') {
-    puntoVentaId = user.punto_venta_id
-    if (!puntoVentaId) return NextResponse.json({ error: 'Tu usuario no tiene un punto de venta asignado' }, { status: 400 })
+  if (user.rol === 'pvn') {
+    if (esWeb) {
+      const hoy = hoyBogota()
+      const [turno] = await sql`
+        SELECT punto_venta_id FROM pvn_turnos
+        WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE LIMIT 1
+      `
+      if (!turno) return NextResponse.json({ error: 'Debes abrir un turno antes de registrar pagos' }, { status: 403 })
+      puntoVentaId = turno.punto_venta_id
+    } else {
+      puntoVentaId = user.punto_venta_id
+      if (!puntoVentaId) return NextResponse.json({ error: 'Tu usuario no tiene un punto de venta asignado' }, { status: 400 })
+    }
   } else {
-    puntoVentaId = puntoVentaIdRaw ? parseInt(String(puntoVentaIdRaw)) : null
-    if (!puntoVentaId) return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
+    // pvv fija: tiene punto_venta_id en su perfil, no requiere turno
+    // pvv rotatoria (sin punto fijo): debe tener turno abierto y enviar punto_venta_id
+    if (user.punto_venta_id) {
+      puntoVentaId = user.punto_venta_id
+    } else if (esWeb) {
+      const hoy = hoyBogota()
+      const [turno] = await sql`
+        SELECT punto_venta_id FROM pvn_turnos
+        WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE LIMIT 1
+      `
+      if (!turno) return NextResponse.json({ error: 'Debes abrir un turno antes de registrar pagos' }, { status: 403 })
+      puntoVentaId = turno.punto_venta_id
+    } else {
+      puntoVentaId = puntoVentaIdRaw ? parseInt(String(puntoVentaIdRaw)) : null
+      if (!puntoVentaId) return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
+    }
   }
 
   const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId} LIMIT 1`
@@ -161,7 +182,7 @@ export async function GET(req: NextRequest) {
        ORDER BY created_at DESC`,
       [parseInt(user.id), hoy]
     )
-    return NextResponse.json(rows)
+    return NextResponse.json(rows.map(aUrlProxy))
   }
 
   if (!tieneModulo(user.rol, user.modulos, 'pvn_pagos_qr')) {
@@ -184,5 +205,5 @@ export async function GET(req: NextRequest) {
      LIMIT 200`,
     [desde, hasta, pvId ? parseInt(pvId) : null]
   )
-  return NextResponse.json(rows)
+  return NextResponse.json(rows.map(aUrlProxy))
 }

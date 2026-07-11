@@ -68,7 +68,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     await sql`UPDATE usuarios SET username = ${username.trim()} WHERE id = ${id}`
   }
   if (area !== undefined && sesionRol === 'admin') {
-    const areasValidas = ['logistica', 'sistemas', 'general']
+    const areasValidas = ['logistica', 'sistemas', 'general', 'puntos_venta']
     if (!areasValidas.includes(area)) {
       return NextResponse.json({ error: 'Área inválida' }, { status: 400 })
     }

@@ -39,7 +39,7 @@ export function ModalCrear({ esAdmin, sesionArea, puntosVenta, guardando, error,
 
   function handleCrear() {
     const body: Record<string, unknown> = { nombre, username, rol, area: esAdmin ? area : sesionArea }
-    if (rol === 'pvn' && puntoVenta) body.punto_venta_id = parseInt(puntoVenta)
+    if ((rol === 'pvn' || rol === 'pvv') && puntoVenta) body.punto_venta_id = parseInt(puntoVenta)
     if (!['pvn', 'pvv'].includes(rol)) body.modulos = modulos
     onCrear(body)
   }
@@ -89,12 +89,12 @@ export function ModalCrear({ esAdmin, sesionArea, puntosVenta, guardando, error,
               )}
             </div>
           )}
-          {rol === 'pvn' && puntosVenta.length > 0 && (
+          {(rol === 'pvn' || rol === 'pvv') && puntosVenta.length > 0 && (
             <div>
-              <label style={labelStyle}>Punto de Venta</label>
+              <label style={labelStyle}>Punto de Venta {rol === 'pvv' ? '(dejar vacío si es rotatoria)' : ''}</label>
               <select value={puntoVenta} onChange={e => setPuntoVenta(e.target.value)} style={inputStyle}>
                 <option value="">— Sin asignar —</option>
-                {puntosVenta.filter(pv => pv.activo).map(pv => (
+                {puntosVenta.filter(pv => pv.activo && pv.tipo === (rol === 'pvv' ? 'principal' : 'nacional')).map(pv => (
                   <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>
                 ))}
               </select>

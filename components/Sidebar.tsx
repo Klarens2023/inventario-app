@@ -81,7 +81,7 @@ export default function Sidebar() {
 
   // pvn/pvv tienen su propia navegación mínima, no usan el sistema de módulos
   const navPvnPvv: NavItem[] = [
-    { href: '/pvn/pago-qr', icon: <Icons.PVNPagosQR />, label: 'Pago QR' },
+    { href: '/pvn/subir-qr', icon: <Icons.PVNPagosQR />, label: 'Pago QR' },
     ...(rol === 'pvn' ? [{ href: '/pvn/registrar', icon: <Icons.PVNReg />, label: 'Registrar Ventas' }] : []),
   ]
 

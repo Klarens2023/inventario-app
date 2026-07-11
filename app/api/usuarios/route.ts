@@ -10,11 +10,13 @@ const PASSWORD_GENERICA = '123456'
 
 const SELECT_CON_MODULOS = `
   SELECT u.id, u.username, u.nombre, u.rol, u.area, u.activo, u.debe_cambiar_password, u.created_at,
+         u.punto_venta_id, pv.nombre AS punto_venta_nombre,
          COALESCE(
            (SELECT json_agg(m.modulo) FROM usuario_modulos m WHERE m.usuario_id = u.id),
            '[]'
          ) AS modulos
   FROM usuarios u
+  LEFT JOIN pvn_puntos_venta pv ON pv.id = u.punto_venta_id
 `
 
 // GET /api/usuarios
@@ -65,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
 
-  const puntoVentaId = (rolFinal === 'pvn' && pvId) ? parseInt(pvId) : null
+  const puntoVentaId = (['pvn', 'pvv'].includes(rolFinal) && pvId) ? parseInt(pvId) : null
 
   const [nuevo] = await sql`
     INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password, punto_venta_id)

@@ -48,6 +48,9 @@ export function UsuariosList({ usuarios, loading, sessionUserId, esAdmin, onEdit
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: rolInfo.color, background: rolInfo.bg }}>{rolInfo.label}</span>
+                    {u.punto_venta_nombre && (
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{u.punto_venta_nombre}</div>
+                    )}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: u.activo ? '#065f46' : '#991b1b', background: u.activo ? '#d1fae5' : '#fee2e2' }}>

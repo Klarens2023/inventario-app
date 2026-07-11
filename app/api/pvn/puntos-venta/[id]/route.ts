@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const id = parseInt(params.id)
   if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
-  const { nombre, activo } = await req.json()
+  const { nombre, activo, tipo } = await req.json()
 
   if (nombre !== undefined) {
     const dup = await sql`
@@ -28,7 +28,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (activo !== undefined) {
     await sql`UPDATE pvn_puntos_venta SET activo = ${!!activo} WHERE id = ${id}`
   }
+  if (tipo !== undefined && ['nacional', 'principal'].includes(tipo)) {
+    await sql`UPDATE pvn_puntos_venta SET tipo = ${tipo} WHERE id = ${id}`
+  }
 
-  const [updated] = await sql`SELECT id, nombre, activo FROM pvn_puntos_venta WHERE id = ${id}`
+  const [updated] = await sql`SELECT id, nombre, activo, tipo FROM pvn_puntos_venta WHERE id = ${id}`
   return NextResponse.json(updated)
 }

@@ -8,6 +8,7 @@ function hoyBogota(): string {
 }
 
 // GET /api/qr/turno — turno abierto hoy para el usuario autenticado
+// Con ?pendiente=true también devuelve turno sin cerrar de días anteriores
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -20,7 +21,18 @@ export async function GET(req: NextRequest) {
     WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
     LIMIT 1
   `
-  return NextResponse.json(turno ?? null)
+
+  const incluirPendiente = req.nextUrl.searchParams.get('pendiente') === 'true'
+  if (!incluirPendiente) return NextResponse.json(turno ?? null)
+
+  const [pendiente] = await sql`
+    SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at
+    FROM pvn_turnos
+    WHERE usuario_id = ${parseInt(user.id)} AND fecha < ${hoy}::date AND activo = TRUE
+    ORDER BY fecha DESC
+    LIMIT 1
+  `
+  return NextResponse.json({ turnoHoy: turno ?? null, turnoPendiente: pendiente ?? null })
 }
 
 // POST /api/qr/turno — abrir o cerrar turno
@@ -35,12 +47,12 @@ export async function POST(req: NextRequest) {
   const hoy = hoyBogota()
 
   if (accion === 'abrir') {
-    // Verificar que no haya ya un turno abierto hoy
+    // No se puede abrir un turno nuevo si ya hay uno activo hoy: debe cerrarse primero
     const [existente] = await sql`
       SELECT id FROM pvn_turnos
       WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
     `
-    if (existente) return NextResponse.json({ error: 'Ya tienes un turno abierto hoy' }, { status: 409 })
+    if (existente) return NextResponse.json({ error: 'Ya tienes un turno abierto hoy. Ciérralo antes de abrir uno nuevo.' }, { status: 409 })
 
     let puntoVentaId: number
     let puntoVentaNombre: string
@@ -51,7 +63,14 @@ export async function POST(req: NextRequest) {
       const [pv] = await sql`SELECT nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId}`
       if (!pv) return NextResponse.json({ error: 'Punto de venta no encontrado' }, { status: 400 })
       puntoVentaNombre = pv.nombre
+    } else if (user.punto_venta_id) {
+      // pvv con punto de venta fijo asignado
+      puntoVentaId = user.punto_venta_id
+      const [pv] = await sql`SELECT nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId}`
+      if (!pv) return NextResponse.json({ error: 'Punto de venta no encontrado' }, { status: 400 })
+      puntoVentaNombre = pv.nombre
     } else {
+      // pvv rotativa: elige el punto en cada apertura
       const pvId = parseInt(body.punto_venta_id)
       if (!pvId) return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
       const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${pvId} AND activo = TRUE`
@@ -78,19 +97,30 @@ export async function POST(req: NextRequest) {
   }
 
   if (accion === 'cerrar') {
-    const [turno] = await sql`
-      UPDATE pvn_turnos
-      SET activo = FALSE, cerrado_at = NOW()
-      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
-      RETURNING id, punto_venta_nombre, fecha::text AS fecha
-    `
+    // turno_id explícito (p.ej. cierre de un turno pendiente de un día anterior);
+    // sin él, cierra el turno activo de hoy
+    const turnoId = body.turno_id ? parseInt(body.turno_id) : null
+
+    const [turno] = turnoId
+      ? await sql`
+          UPDATE pvn_turnos
+          SET activo = FALSE, cerrado_at = NOW()
+          WHERE id = ${turnoId} AND usuario_id = ${parseInt(user.id)} AND activo = TRUE
+          RETURNING id, punto_venta_nombre, fecha::text AS fecha
+        `
+      : await sql`
+          UPDATE pvn_turnos
+          SET activo = FALSE, cerrado_at = NOW()
+          WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
+          RETURNING id, punto_venta_nombre, fecha::text AS fecha
+        `
     if (!turno) return NextResponse.json({ error: 'No hay turno abierto para cerrar' }, { status: 404 })
 
     // También registrar cierre de día en auditoría
     const [resumen] = await sql`
       SELECT COUNT(*)::int AS total_pagos, COALESCE(SUM(valor), 0) AS total_valor
       FROM pvn_pagos_qr
-      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date
+      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${turno.fecha}::date
     `
 
     await logAudit({

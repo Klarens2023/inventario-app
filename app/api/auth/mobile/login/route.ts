@@ -12,9 +12,11 @@ export async function POST(req: NextRequest) {
   }
 
   const rows = await sql`
-    SELECT id, username, password_hash, nombre, rol, area, activo, punto_venta_id, debe_cambiar_password
-    FROM usuarios
-    WHERE username = ${username} AND activo = true
+    SELECT u.id, u.username, u.password_hash, u.nombre, u.rol, u.area, u.activo,
+           u.punto_venta_id, pv.nombre AS punto_venta_nombre, u.debe_cambiar_password
+    FROM usuarios u
+    LEFT JOIN pvn_puntos_venta pv ON pv.id = u.punto_venta_id
+    WHERE u.username = ${username} AND u.activo = true
     LIMIT 1
   `
   if (rows.length === 0) {
@@ -37,6 +39,7 @@ export async function POST(req: NextRequest) {
     rol: user.rol as string,
     area: user.area ?? 'logistica',
     punto_venta_id: user.punto_venta_id ?? null,
+    punto_venta_nombre: user.punto_venta_nombre ?? null,
   }
 
   const token = jwt.sign(payload, process.env.NEXTAUTH_SECRET as string, { expiresIn: '30d' })

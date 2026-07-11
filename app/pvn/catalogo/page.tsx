@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from 'react'
 
 type Comp = { componente_id?: number; componente_nombre: string; cantidad: number; unidad: string }
 type Producto = { id: number; nombre: string; activo: boolean; componentes: Comp[] }
-type PuntoVenta = { id: number; nombre: string; activo: boolean; usuarios_asignados: number }
 
 const UNIDADES = ['UND', 'KG', 'GRM', 'LT', 'ML']
 
@@ -15,9 +14,7 @@ export default function CatalogoPVNPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [tab, setTab]               = useState<'productos' | 'puntos'>('productos')
   const [productos, setProductos]   = useState<Producto[]>([])
-  const [puntos, setPuntos]         = useState<PuntoVenta[]>([])
   const [loading, setLoading]       = useState(false)
 
   // — Producto modal —
@@ -32,14 +29,7 @@ export default function CatalogoPVNPage() {
   const [prodError, setProdError]   = useState('')
   const [prodGuard, setProdGuard]   = useState(false)
 
-  // — Punto de venta modal —
-  const [pvModal, setPvModal]       = useState(false)
-  const [editPv, setEditPv]         = useState<PuntoVenta | null>(null)
-  const [pvNombre, setPvNombre]     = useState('')
-  const [pvError, setPvError]       = useState('')
-  const [pvGuard, setPvGuard]       = useState(false)
-
-  const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
+const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
   const canView = rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area ?? ''))
 
   useEffect(() => {
@@ -57,17 +47,9 @@ export default function CatalogoPVNPage() {
     }
   }, [])
 
-  const cargarPuntos = useCallback(async () => {
-    const res = await fetch('/api/pvn/puntos-venta')
-    setPuntos(await res.json())
-  }, [])
-
   useEffect(() => {
-    if (status === 'authenticated' && canView) {
-      cargarProductos()
-      cargarPuntos()
-    }
-  }, [status, canView, cargarProductos, cargarPuntos])
+    if (status === 'authenticated' && canView) cargarProductos()
+  }, [status, canView, cargarProductos])
 
   // ── Producto handlers ──────────────────────────────────────────────────────
   function abrirNuevoProd() {
@@ -131,44 +113,7 @@ export default function CatalogoPVNPage() {
     cargarProductos()
   }
 
-  // ── Punto de venta handlers ────────────────────────────────────────────────
-  function abrirNuevoPv() {
-    setEditPv(null); setPvNombre(''); setPvError(''); setPvModal(true)
-  }
-
-  function abrirEditarPv(pv: PuntoVenta) {
-    setEditPv(pv); setPvNombre(pv.nombre); setPvError(''); setPvModal(true)
-  }
-
-  async function guardarPv() {
-    if (!pvNombre.trim()) { setPvError('El nombre es obligatorio'); return }
-    setPvGuard(true); setPvError('')
-    try {
-      const url = editPv ? `/api/pvn/puntos-venta/${editPv.id}` : '/api/pvn/puntos-venta'
-      const res = await fetch(url, {
-        method: editPv ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: pvNombre.trim() }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setPvError(data.error ?? 'Error'); return }
-      setPvModal(false)
-      cargarPuntos()
-    } finally {
-      setPvGuard(false)
-    }
-  }
-
-  async function toggleActivoPv(pv: PuntoVenta) {
-    await fetch(`/api/pvn/puntos-venta/${pv.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ activo: !pv.activo }),
-    })
-    cargarPuntos()
-  }
-
-  if (status === 'loading' || !canView) return null
+if (status === 'loading' || !canView) return null
 
   return (
     <div style={{ padding: '32px 28px', background: '#f8fafc', minHeight: '100vh' }}>
@@ -179,27 +124,11 @@ export default function CatalogoPVNPage() {
         <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>Gestión de productos y puntos de venta</p>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24, background: '#f1f5f9', borderRadius: 10, padding: 4, width: 'fit-content' }}>
-        {(['productos', 'puntos'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '8px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-            background: tab === t ? '#fff' : 'transparent',
-            color: tab === t ? '#0047BA' : '#64748b',
-            boxShadow: tab === t ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
-            transition: 'all 0.15s'
-          }}>
-            {t === 'productos' ? 'Productos' : 'Puntos de Venta'}
-          </button>
-        ))}
-      </div>
 
-      {/* ──── TAB PRODUCTOS ──────────────────────────────────────────────── */}
-      {tab === 'productos' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-            <button onClick={abrirNuevoProd} style={btnPrimary}>+ Nuevo Producto</button>
-          </div>
+      {/* ──── PRODUCTOS ──────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+          <button onClick={abrirNuevoProd} style={btnPrimary}>+ Nuevo Producto</button>
+        </div>
 
           <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
             {loading && <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Cargando...</div>}
@@ -238,62 +167,6 @@ export default function CatalogoPVNPage() {
               </table>
             )}
           </div>
-        </>
-      )}
-
-      {/* ──── TAB PUNTOS DE VENTA ────────────────────────────────────────── */}
-      {tab === 'puntos' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-            <button onClick={abrirNuevoPv} style={btnPrimary}>+ Nuevo Punto de Venta</button>
-          </div>
-
-          <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
-            {puntos.length === 0 && (
-              <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
-                No hay puntos de venta. Crea el primero.
-              </div>
-            )}
-            {puntos.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                    {['Punto de Venta', 'Usuarios asignados', 'Estado', 'Acciones'].map(h => (
-                      <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontWeight: 700, color: '#475569', fontSize: 12 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {puntos.map((pv, i) => (
-                    <tr key={pv.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa', opacity: pv.activo ? 1 : 0.5 }}>
-                      <td style={{ padding: '12px 16px', fontWeight: 600, color: '#1e293b' }}>{pv.nombre}</td>
-                      <td style={{ padding: '12px 16px', color: '#64748b' }}>
-                        <span style={{ fontWeight: 700, color: pv.usuarios_asignados > 0 ? '#0047BA' : '#94a3b8' }}>
-                          {pv.usuarios_asignados}
-                        </span> usuarios
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                          color: pv.activo ? '#065f46' : '#991b1b', background: pv.activo ? '#d1fae5' : '#fee2e2' }}>
-                          {pv.activo ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button onClick={() => abrirEditarPv(pv)} style={btnEdit}>Editar</button>
-                          <button onClick={() => toggleActivoPv(pv)} style={{ ...btnEdit, color: pv.activo ? '#dc2626' : '#16a34a', borderColor: pv.activo ? '#fca5a5' : '#bbf7d0' }}>
-                            {pv.activo ? 'Desactivar' : 'Activar'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
-      )}
 
       {/* ──── MODAL PRODUCTO ─────────────────────────────────────────────── */}
       {prodModal && (
@@ -377,25 +250,6 @@ export default function CatalogoPVNPage() {
         </div>
       )}
 
-      {/* ──── MODAL PUNTO DE VENTA ────────────────────────────────────────── */}
-      {pvModal && (
-        <div onClick={() => setPvModal(false)} style={modalOverlay}>
-          <div onClick={e => e.stopPropagation()} style={{ ...modalBox, maxWidth: 400 }}>
-            <h2 style={modalTitle}>{editPv ? 'Editar Punto de Venta' : 'Nuevo Punto de Venta'}</h2>
-            {pvError && <div style={errBox}>{pvError}</div>}
-            <label style={lbl}>Nombre</label>
-            <input value={pvNombre} onChange={e => setPvNombre(e.target.value)} style={{ ...inp, marginBottom: 24 }}
-              placeholder="Ej: PVN Bogotá Centro"
-              onKeyDown={e => e.key === 'Enter' && guardarPv()} />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setPvModal(false)} style={btnSecondary}>Cancelar</button>
-              <button onClick={guardarPv} disabled={pvGuard} style={{ ...btnPrimary, flex: 1, opacity: pvGuard ? 0.7 : 1 }}>
-                {pvGuard ? 'Guardando...' : (editPv ? 'Guardar' : 'Crear')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

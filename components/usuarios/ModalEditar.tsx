@@ -37,7 +37,7 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, puntosVenta, edit
     const body: Record<string, unknown> = { nombre, username }
     if (!esYo) body.rol = rol
     if (esAdmin && !esYo) body.area = area
-    if (rol === 'pvn') body.punto_venta_id = puntoVenta ? parseInt(puntoVenta) : null
+    if (rol === 'pvn' || rol === 'pvv') body.punto_venta_id = puntoVenta ? parseInt(puntoVenta) : null
     if (!['pvn', 'pvv'].includes(rol)) body.modulos = modulos
     if (resetPassword) body.resetPassword = true
     onGuardar(usuario.id, body)
@@ -96,12 +96,12 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, puntosVenta, edit
               </select>
             </div>
           )}
-          {rol === 'pvn' && puntosVenta.length > 0 && (
+          {(rol === 'pvn' || rol === 'pvv') && puntosVenta.length > 0 && (
             <div>
-              <label style={labelStyle}>Punto de Venta</label>
+              <label style={labelStyle}>Punto de Venta {rol === 'pvv' ? '(dejar vacío si es rotatoria)' : ''}</label>
               <select value={puntoVenta} onChange={e => setPuntoVenta(e.target.value)} style={inputStyle}>
                 <option value="">— Sin asignar —</option>
-                {puntosVenta.filter(pv => pv.activo).map(pv => (
+                {puntosVenta.filter(pv => pv.activo && pv.tipo === (rol === 'pvv' ? 'principal' : 'nacional')).map(pv => (
                   <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>
                 ))}
               </select>

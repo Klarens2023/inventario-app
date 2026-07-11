@@ -31,15 +31,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }
 
-  const { nombre } = await req.json()
+  const { nombre, tipo } = await req.json()
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
+  if (!['nacional', 'principal'].includes(tipo)) return NextResponse.json({ error: 'Tipo inválido (nacional o principal)' }, { status: 400 })
 
   const dup = await sql`SELECT id FROM pvn_puntos_venta WHERE LOWER(nombre) = LOWER(${nombre.trim()}) LIMIT 1`
   if (dup.length > 0) return NextResponse.json({ error: 'Ya existe un punto de venta con ese nombre' }, { status: 409 })
 
   const [nuevo] = await sql`
-    INSERT INTO pvn_puntos_venta (nombre) VALUES (${nombre.trim()})
-    RETURNING id, nombre, activo
+    INSERT INTO pvn_puntos_venta (nombre, tipo) VALUES (${nombre.trim()}, ${tipo})
+    RETURNING id, nombre, activo, tipo
   `
   return NextResponse.json(nuevo, { status: 201 })
 }

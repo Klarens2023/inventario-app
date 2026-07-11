@@ -12,4 +12,4 @@ export type Usuario = {
   modulos?: string[]
 }
 
-export type PuntoVenta = { id: number; nombre: string; activo: boolean }
+export type PuntoVenta = { id: number; nombre: string; activo: boolean; tipo: string }
