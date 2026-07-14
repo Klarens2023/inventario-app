@@ -76,9 +76,12 @@ function hoyBogota(): string {
 
 // Google Drive bloquea el hotlinking de "uc?export=view" al embeberlo como <img>
 // desde otro dominio, así que las respuestas devuelven nuestra propia URL de proxy.
-function aUrlProxy(row: Record<string, any>): Record<string, any> {
+// Debe ser absoluta (no solo el path): la web la resuelve igual contra su propio
+// origen, pero la app móvil (React Native <Image>) no tiene un "origen actual" y
+// necesita la URL completa, o la imagen simplemente no carga.
+function aUrlProxy(row: Record<string, any>, baseUrl: string): Record<string, any> {
   const fileId = String(row.foto_url).match(/[?&]id=([^&]+)/)?.[1]
-  return fileId ? { ...row, foto_url: `/api/qr/foto?id=${fileId}` } : row
+  return fileId ? { ...row, foto_url: `${baseUrl}/api/qr/foto?id=${fileId}` } : row
 }
 
 const MAX_BYTES = 8 * 1024 * 1024
@@ -209,7 +212,7 @@ export async function GET(req: NextRequest) {
        ORDER BY created_at DESC`,
       [parseInt(user.id), hoy, turnoId]
     )
-    return NextResponse.json(rows.map(aUrlProxy))
+    return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin)))
   }
 
   if (!tieneModulo(user.rol, user.modulos, 'pvn_pagos_qr')) {
@@ -232,5 +235,5 @@ export async function GET(req: NextRequest) {
      LIMIT 200`,
     [desde, hasta, pvId ? parseInt(pvId) : null]
   )
-  return NextResponse.json(rows.map(aUrlProxy))
+  return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin)))
 }
