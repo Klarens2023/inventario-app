@@ -262,7 +262,7 @@ export default function ConsultaPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, flexShrink: 0 }}>
         {[
           { label: 'REFERENCIAS',      value: rowsMostradas.length,                                                   color: '#1d4ed8' },
-          { label: 'CON CONTEO',       value: rowsMostradas.filter(r => edits[r.id]?.conteo !== '').length,            color: '#16a34a' },
+          { label: 'CON CONTEO',       value: rowsMostradas.filter(r => edits[r.id]?.conteo !== '').length,           color: '#16a34a' },
           { label: 'COSTO BODEGA',     value: fmt(totalBodega),                                                       color: '#1d4ed8' },
           { label: 'COSTO DIFERENCIA', value: fmt(totalDif),                                                          color: totalDif < 0 ? '#ef4444' : '#16a34a' },
           { label: 'PARTICIPACION',    value: totalBodega !== 0 ? ((totalDif/totalBodega)*100).toFixed(1)+'%' : '—',  color: '#d97706' },
