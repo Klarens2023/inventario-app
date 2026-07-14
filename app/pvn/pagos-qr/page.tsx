@@ -15,6 +15,15 @@ type Pago = {
   created_at: string
 }
 type PuntoVenta = { id: number; nombre: string; activo: boolean; tipo: string }
+type TurnoActivo = {
+  id: number
+  usuario_id: number
+  usuario_nombre: string
+  punto_venta_id: number
+  punto_venta_nombre: string
+  fecha: string
+  abierto_at: string
+}
 
 function fmtFechaHora(s: string) {
   return new Date(s).toLocaleString('es-CO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -36,13 +45,73 @@ export default function PagosQRPage() {
   })
   const [hasta, setHasta] = useState(new Date().toISOString().split('T')[0])
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [editandoId, setEditandoId]     = useState<number | null>(null)
+  const [valorEdit,  setValorEdit]      = useState('')
+  const [puntoEdit,  setPuntoEdit]      = useState('')
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
+  const [turnosActivos, setTurnosActivos] = useState<TurnoActivo[]>([])
+  const [cargandoTurnos, setCargandoTurnos] = useState(false)
+  const [cerrandoTurnoId, setCerrandoTurnoId] = useState<number | null>(null)
+  const [mostrarTurnos, setMostrarTurnos] = useState(false)
 
   const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
   const canView = rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area ?? ''))
+  const isAdmin = rol === 'admin'
 
   useEffect(() => {
     if (status === 'authenticated' && !canView) router.replace('/dashboard')
   }, [status, canView, router])
+
+  const cargarTurnosActivos = useCallback(async () => {
+    setCargandoTurnos(true)
+    try {
+      const data = await fetch('/api/qr/turno/activos').then(r => r.json())
+      setTurnosActivos(Array.isArray(data) ? data : [])
+    } finally {
+      setCargandoTurnos(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (status === 'authenticated' && isAdmin) cargarTurnosActivos()
+  }, [status, isAdmin, cargarTurnosActivos])
+
+  async function cerrarTurnoActivo(t: TurnoActivo) {
+    if (!confirm(`¿Cerrar el turno de ${t.usuario_nombre} en ${t.punto_venta_nombre}?`)) return
+    setCerrandoTurnoId(t.id)
+    try {
+      const res = await fetch('/api/qr/turno/activos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ turno_id: t.id }),
+      })
+      if (res.ok) setTurnosActivos(prev => prev.filter(x => x.id !== t.id))
+    } finally {
+      setCerrandoTurnoId(null)
+    }
+  }
+
+  function iniciarEdicionPago(p: Pago) {
+    setEditandoId(p.id)
+    setValorEdit(String(p.valor))
+    setPuntoEdit(p.punto_venta_id ? String(p.punto_venta_id) : '')
+  }
+
+  async function guardarEdicionPago(id: number) {
+    const valorNum = parseFloat(valorEdit.replace(/[^\d.]/g, ''))
+    if (!valorNum || valorNum <= 0) return
+    setGuardandoEdit(true)
+    try {
+      const res = await fetch(`/api/qr/pagos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valor: valorNum, punto_venta_id: puntoEdit || undefined }),
+      })
+      if (res.ok) { setEditandoId(null); cargar() }
+    } finally {
+      setGuardandoEdit(false)
+    }
+  }
 
   useEffect(() => {
     if (status === 'authenticated' && canView) {
@@ -127,6 +196,47 @@ export default function PagosQRPage() {
         </div>
       </div>
 
+      {/* Turnos activos (solo admin) */}
+      {isAdmin && (
+        <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', marginBottom: 20, overflow: 'hidden' }}>
+          <button
+            onClick={() => setMostrarTurnos(v => !v)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+          >
+            <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>
+              🕐 Turnos activos ahora {turnosActivos.length > 0 && `(${turnosActivos.length})`}
+            </span>
+            <span style={{ color: '#94a3b8', transform: mostrarTurnos ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+          </button>
+          {mostrarTurnos && (
+            <div style={{ borderTop: '1px solid #f1f5f9' }}>
+              {cargandoTurnos && <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8' }}>Cargando...</div>}
+              {!cargandoTurnos && turnosActivos.length === 0 && (
+                <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8' }}>Nadie tiene un turno abierto ahora mismo</div>
+              )}
+              {!cargandoTurnos && turnosActivos.map(t => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 14, borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ minWidth: 160, fontSize: 13, fontWeight: 700, color: '#0f172a' }}>{t.usuario_nombre}</div>
+                  <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', whiteSpace: 'nowrap' }}>
+                    {t.punto_venta_nombre}
+                  </span>
+                  <div style={{ flex: 1, fontSize: 12, color: '#64748b' }}>
+                    Desde {new Date(t.abierto_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                  <button
+                    onClick={() => cerrarTurnoActivo(t)}
+                    disabled={cerrandoTurnoId === t.id}
+                    style={{ ...btnDanger, opacity: cerrandoTurnoId === t.id ? 0.6 : 1, cursor: cerrandoTurnoId === t.id ? 'not-allowed' : 'pointer' }}
+                  >
+                    {cerrandoTurnoId === t.id ? 'Cerrando...' : '⏹ Cerrar turno'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Resumen */}
       {!loading && pagos.length > 0 && (
         <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -152,25 +262,66 @@ export default function PagosQRPage() {
         {!loading && pagos.map(p => (
           <div
             key={p.id}
-            onClick={() => setLightbox(p.foto_url)}
             style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 14,
-              borderBottom: '1px solid #f1f5f9', cursor: 'pointer', transition: 'background 0.15s' }}
+              borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
             onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
             onMouseLeave={e => e.currentTarget.style.background = '#fff'}
           >
-            <img src={p.foto_url} alt="Comprobante" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0 }} />
+            <img
+              src={p.foto_url} alt="Comprobante" onClick={() => setLightbox(p.foto_url)}
+              style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
+            />
             <div style={{ minWidth: 150, fontSize: 13, color: '#0f172a', fontWeight: 600 }}>{fmtFechaHora(p.created_at)}</div>
-            {p.punto_venta_nombre && (
-              <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', whiteSpace: 'nowrap' }}>
-                {p.punto_venta_nombre}
-              </span>
+
+            {editandoId === p.id ? (
+              <select value={puntoEdit} onChange={e => setPuntoEdit(e.target.value)} style={{ ...inp, fontSize: 12, padding: '5px 8px' }}>
+                <option value="">— Punto de venta —</option>
+                {puntosNacionales.length > 0 && (
+                  <optgroup label="Nacionales (PVN)">
+                    {puntosNacionales.map(pv => <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>)}
+                  </optgroup>
+                )}
+                {puntosPrincipales.length > 0 && (
+                  <optgroup label="Principales (PVV)">
+                    {puntosPrincipales.map(pv => <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            ) : (
+              p.punto_venta_nombre && (
+                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', whiteSpace: 'nowrap' }}>
+                  {p.punto_venta_nombre}
+                </span>
+              )
             )}
+
             <div style={{ flex: 1, fontSize: 13, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {p.usuario_nombre}
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#16a34a', whiteSpace: 'nowrap' }}>
-              {fmtMoneda(p.valor)}
-            </div>
+
+            {editandoId === p.id ? (
+              <>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={valorEdit}
+                  onChange={e => setValorEdit(e.target.value)}
+                  autoFocus
+                  style={{ width: 100, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 700, color: '#0f172a' }}
+                />
+                <button onClick={() => guardarEdicionPago(p.id)} disabled={guardandoEdit} title="Guardar" style={{ ...iconBtn, ...iconBtnConfirmar, opacity: guardandoEdit ? 0.6 : 1 }}>✓</button>
+                <button onClick={() => setEditandoId(null)} title="Cancelar" style={{ ...iconBtn, ...iconBtnCancelar }}>×</button>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#16a34a', whiteSpace: 'nowrap' }}>
+                  {fmtMoneda(p.valor)}
+                </div>
+                {isAdmin && (
+                  <button onClick={() => iniciarEdicionPago(p)} title="Editar valor / punto de venta" style={iconBtn}>✏️</button>
+                )}
+              </>
+            )}
           </div>
         ))}
       </div>
@@ -192,3 +343,7 @@ const lbl: React.CSSProperties      = { display: 'block', fontSize: 12, fontWeig
 const inp: React.CSSProperties      = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 14, color: '#1e293b', outline: 'none' }
 const btnPrimary: React.CSSProperties = { padding: '9px 20px', borderRadius: 8, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
 const btnSecondary: React.CSSProperties = { padding: '9px 20px', borderRadius: 8, border: '1px solid #0047BA', background: '#fff', color: '#0047BA', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
+const btnDanger: React.CSSProperties    = { padding: '8px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }
+const iconBtn: React.CSSProperties      = { background: '#f1f5f9', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, flexShrink: 0 }
+const iconBtnConfirmar: React.CSSProperties = { background: '#dcfce7', color: '#16a34a', fontWeight: 800 }
+const iconBtnCancelar: React.CSSProperties  = { background: '#fee2e2', color: '#dc2626', fontWeight: 800 }
