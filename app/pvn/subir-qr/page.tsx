@@ -504,8 +504,8 @@ export default function SubirQRPage() {
                   <div style={{ padding: '16px 20px 0' }}>
                     <button
                       onClick={() => cerrarTurno()}
-                      disabled={cerrando}
-                      style={{ ...btnDanger, width: '100%', opacity: cerrando ? 0.6 : 1, cursor: cerrando ? 'not-allowed' : 'pointer' }}
+                      disabled={cerrando || editandoId !== null}
+                      style={{ ...btnDanger, width: '100%', opacity: (cerrando || editandoId !== null) ? 0.5 : 1, cursor: (cerrando || editandoId !== null) ? 'not-allowed' : 'pointer' }}
                     >
                       {cerrando ? 'Cerrando...' : `⏹ Cerrar turno${pagosHoy.length > 0 ? ` · ${fmtMoneda(totalHoy)}` : ''}`}
                     </button>
