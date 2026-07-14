@@ -73,6 +73,10 @@ export default function SubirQRPage() {
   const [mostrarHoy, setMostrarHoy] = useState(false)
   const [cargandoPagos, setCargandoPagos] = useState(false)
   const [lightbox,  setLightbox]  = useState<string | null>(null)
+  const [editandoId, setEditandoId]     = useState<number | null>(null)
+  const [valorEdit,  setValorEdit]      = useState('')
+  const [guardandoEdit, setGuardandoEdit] = useState(false)
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -168,6 +172,34 @@ export default function SubirQRPage() {
   }
 
   const totalHoy = pagosHoy.reduce((s, p) => s + Number(p.valor), 0)
+
+  function iniciarEdicion(p: Pago) {
+    setEditandoId(p.id)
+    setValorEdit(String(p.valor))
+  }
+
+  async function guardarEdicion(id: number) {
+    const valorNum = parseFloat(valorEdit.replace(/[^\d.]/g, ''))
+    if (!valorNum || valorNum <= 0) return
+    setGuardandoEdit(true)
+    try {
+      const res = await fetch(`/api/qr/pagos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valor: valorNum }),
+      })
+      if (res.ok) { setEditandoId(null); cargarPagosHoy() }
+    } finally { setGuardandoEdit(false) }
+  }
+
+  async function eliminarPago(id: number) {
+    if (!confirm('¿Eliminar este pago?')) return
+    setEliminandoId(id)
+    try {
+      const res = await fetch(`/api/qr/pagos/${id}`, { method: 'DELETE' })
+      if (res.ok) cargarPagosHoy()
+    } finally { setEliminandoId(null) }
+  }
 
   function cerrarPanelHoy() {
     setMostrarHoy(false)
@@ -373,11 +405,33 @@ export default function SubirQRPage() {
               {cargandoPagos && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>Cargando...</div>}
               {!cargandoPagos && pagosHoy.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin pagos hoy</div>}
               {!cargandoPagos && pagosHoy.map(p => (
-                <div key={p.id} onClick={() => setLightbox(p.foto_url)} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-                  <img src={p.foto_url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0 }} />
+                <div key={p.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img
+                    src={p.foto_url} alt="" onClick={() => setLightbox(p.foto_url)}
+                    style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
+                  />
                   <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>{fmtHora(p.created_at)}</span>
                   <span style={{ flex: 1 }} />
-                  <span style={{ fontSize: 15, fontWeight: 800, color: '#16a34a' }}>{fmtMoneda(Number(p.valor))}</span>
+                  {editandoId === p.id ? (
+                    <>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={valorEdit}
+                        onChange={e => setValorEdit(e.target.value)}
+                        autoFocus
+                        style={{ width: 90, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 700, color: '#0f172a' }}
+                      />
+                      <button onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit} title="Guardar" style={iconBtn}>✓</button>
+                      <button onClick={() => setEditandoId(null)} title="Cancelar" style={iconBtn}>×</button>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: '#16a34a' }}>{fmtMoneda(Number(p.valor))}</span>
+                      <button onClick={() => iniciarEdicion(p)} title="Editar valor" style={iconBtn}>✏️</button>
+                      <button onClick={() => eliminarPago(p.id)} disabled={eliminandoId === p.id} title="Eliminar" style={{ ...iconBtn, opacity: eliminandoId === p.id ? 0.5 : 1 }}>🗑️</button>
+                    </>
+                  )}
                 </div>
               ))}
             </div>
@@ -411,3 +465,4 @@ const inp: React.CSSProperties          = { width: '100%', padding: '10px 12px',
 const btnPrimary: React.CSSProperties   = { padding: '11px 20px', borderRadius: 10, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
 const btnSecondary: React.CSSProperties = { padding: '11px 20px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, fontSize: 14, cursor: 'pointer' }
 const btnDanger: React.CSSProperties    = { padding: '13px 20px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }
+const iconBtn: React.CSSProperties      = { background: '#f1f5f9', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, flexShrink: 0 }
