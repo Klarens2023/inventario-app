@@ -20,10 +20,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const hoy = hoyBogota()
   const [existente] = await sql`
-    SELECT id, valor, punto_venta_nombre FROM pvn_pagos_qr
-    WHERE id = ${id} AND usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date
+    SELECT p.id, p.valor, p.punto_venta_nombre, t.activo AS turno_activo
+    FROM pvn_pagos_qr p
+    LEFT JOIN pvn_turnos t ON t.id = p.turno_id
+    WHERE p.id = ${id} AND p.usuario_id = ${parseInt(user.id)} AND p.fecha = ${hoy}::date
   `
   if (!existente) return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 })
+  if (!existente.turno_activo) return NextResponse.json({ error: 'No se puede editar: el turno ya está cerrado' }, { status: 403 })
 
   await sql`UPDATE pvn_pagos_qr SET valor = ${valorNum} WHERE id = ${id}`
 
@@ -47,10 +50,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const id = parseInt(params.id)
   const hoy = hoyBogota()
   const [existente] = await sql`
-    SELECT id, valor, punto_venta_nombre FROM pvn_pagos_qr
-    WHERE id = ${id} AND usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date
+    SELECT p.id, p.valor, p.punto_venta_nombre, t.activo AS turno_activo
+    FROM pvn_pagos_qr p
+    LEFT JOIN pvn_turnos t ON t.id = p.turno_id
+    WHERE p.id = ${id} AND p.usuario_id = ${parseInt(user.id)} AND p.fecha = ${hoy}::date
   `
   if (!existente) return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 })
+  if (!existente.turno_activo) return NextResponse.json({ error: 'No se puede eliminar: el turno ya está cerrado' }, { status: 403 })
 
   await sql`DELETE FROM pvn_pagos_qr WHERE id = ${id}`
 

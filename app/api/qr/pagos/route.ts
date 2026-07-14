@@ -139,6 +139,15 @@ export async function POST(req: NextRequest) {
   const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId} LIMIT 1`
   if (!pv) return NextResponse.json({ error: 'Punto de venta inválido' }, { status: 400 })
 
+  // Turno activo de hoy (si existe) — permite agrupar "mis pagos de hoy" por
+  // turno cuando una persona trabaja en más de un punto el mismo día.
+  const hoyTurno = hoyBogota()
+  const [turnoActivo] = await sql`
+    SELECT id FROM pvn_turnos
+    WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoyTurno}::date AND activo = TRUE
+    LIMIT 1
+  `
+
   const fecha = hoyBogota()
   const ahora = new Date()
   const hora  = ahora.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -152,8 +161,8 @@ export async function POST(req: NextRequest) {
   const fotoConEtiqueta  = new File([new Uint8Array(bufferEtiquetado)], nombreArchivo, { type: 'image/jpeg' })
   const fotoUrl = await subirADrive(fotoConEtiqueta, nombreArchivo)
   const [registro] = await sql`
-    INSERT INTO pvn_pagos_qr (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha, valor, foto_url)
-    VALUES (${parseInt(user.id)}, ${user.name}, ${pv.id}, ${pv.nombre}, ${fecha}::date, ${valor}, ${fotoUrl})
+    INSERT INTO pvn_pagos_qr (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, turno_id, fecha, valor, foto_url)
+    VALUES (${parseInt(user.id)}, ${user.name}, ${pv.id}, ${pv.nombre}, ${turnoActivo?.id ?? null}, ${fecha}::date, ${valor}, ${fotoUrl})
     RETURNING id, fecha::text AS fecha, valor, foto_url, created_at
   `
 
@@ -172,15 +181,33 @@ export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  // pvn/pvv solo ven sus propios pagos del día de hoy (no el historial completo)
+  // pvn/pvv solo ven los pagos de su turno actual (o de un turno específico
+  // de hoy vía ?turno_id=, para "turnos anteriores" si trabajaron en más de
+  // un punto el mismo día) — no el historial completo.
   if (['pvn', 'pvv'].includes(user.rol)) {
     const hoy = hoyBogota()
+    const turnoIdParam = req.nextUrl.searchParams.get('turno_id')
+
+    let turnoId: number | null
+    if (turnoIdParam) {
+      turnoId = parseInt(turnoIdParam)
+    } else {
+      const [turnoActivo] = await sql`
+        SELECT id FROM pvn_turnos
+        WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
+        LIMIT 1
+      `
+      turnoId = turnoActivo?.id ?? null
+    }
+
+    if (!turnoId) return NextResponse.json([])
+
     const rows = await sql(
       `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, foto_url, created_at
        FROM pvn_pagos_qr
-       WHERE usuario_id = $1 AND fecha = $2::date
+       WHERE usuario_id = $1 AND fecha = $2::date AND turno_id = $3
        ORDER BY created_at DESC`,
-      [parseInt(user.id), hoy]
+      [parseInt(user.id), hoy, turnoId]
     )
     return NextResponse.json(rows.map(aUrlProxy))
   }

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 type Turno = { id: number; punto_venta_id: number; punto_venta_nombre: string; fecha: string; abierto_at: string }
 type TurnoResp = { turnoHoy: Turno | null; turnoPendiente: Turno | null }
+type TurnoHist = { id: number; punto_venta_nombre: string; abierto_at: string; cerrado_at: string | null; activo: boolean }
 type PuntoVenta = { id: number; nombre: string; activo: boolean; tipo: string }
 type Pago = { id: number; punto_venta_nombre: string | null; fecha: string; valor: number; foto_url: string; created_at: string }
 
@@ -77,6 +78,10 @@ export default function SubirQRPage() {
   const [valorEdit,  setValorEdit]      = useState('')
   const [guardandoEdit, setGuardandoEdit] = useState(false)
   const [eliminandoId, setEliminandoId] = useState<number | null>(null)
+  const [verTurnoId,   setVerTurnoId]   = useState<number | null>(null) // null = turno actual
+  const [turnosHist,   setTurnosHist]   = useState<TurnoHist[]>([])
+  const [mostrarListaTurnos, setMostrarListaTurnos] = useState(false)
+  const [cargandoTurnosHist, setCargandoTurnosHist] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -95,13 +100,34 @@ export default function SubirQRPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, permitido, esRotatoria])
 
-  const cargarPagosHoy = useCallback(async () => {
+  const cargarPagosHoy = useCallback(async (turnoId?: number | null) => {
     setCargandoPagos(true)
     try {
-      const data = await fetch('/api/qr/pagos').then(r => r.json())
+      const qs = turnoId ? `?turno_id=${turnoId}` : ''
+      const data = await fetch(`/api/qr/pagos${qs}`).then(r => r.json())
       setPagosHoy(Array.isArray(data) ? data : [])
     } finally { setCargandoPagos(false) }
   }, [])
+
+  const cargarTurnosHist = useCallback(async () => {
+    setCargandoTurnosHist(true)
+    try {
+      const data = await fetch('/api/qr/turno?historial=true').then(r => r.json())
+      setTurnosHist(Array.isArray(data) ? data : [])
+    } finally { setCargandoTurnosHist(false) }
+  }, [])
+
+  function verTurnoActual() {
+    setVerTurnoId(null)
+    setMostrarListaTurnos(false)
+    cargarPagosHoy()
+  }
+
+  function verTurnoAnterior(t: TurnoHist) {
+    setVerTurnoId(t.id)
+    setMostrarListaTurnos(false)
+    cargarPagosHoy(t.id)
+  }
 
   async function abrirTurno() {
     setErrorTurno('')
@@ -204,6 +230,8 @@ export default function SubirQRPage() {
   function cerrarPanelHoy() {
     setMostrarHoy(false)
     setErrorTurno('')
+    setMostrarListaTurnos(false)
+    setVerTurnoId(null)
   }
 
   // ── Loading ───────────────────────────────────────────────────────────────
@@ -302,7 +330,7 @@ export default function SubirQRPage() {
             <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 2 }}>Desde {fmtHora(turnoHoy.abierto_at)}</div>
           </div>
           <button
-            onClick={() => { setMostrarHoy(true); cargarPagosHoy() }}
+            onClick={() => { setMostrarHoy(true); setVerTurnoId(null); setMostrarListaTurnos(false); cargarPagosHoy() }}
             style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
           >
             📋 Ver pagos
@@ -388,63 +416,102 @@ export default function SubirQRPage() {
           <div onClick={e => e.stopPropagation()} style={{ background: '#f1f5f9', borderRadius: '16px 16px 0 0', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', paddingBottom: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 20px 12px' }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>Mis pagos de hoy</div>
-                {nombrePunto && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{nombrePunto}</div>}
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
+                  {mostrarListaTurnos ? 'Turnos de hoy' : verTurnoId ? 'Turno anterior' : 'Mis pagos de hoy'}
+                </div>
+                {!mostrarListaTurnos && (
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    {verTurnoId ? `🔒 ${turnosHist.find(t => t.id === verTurnoId)?.punto_venta_nombre} · solo lectura` : nombrePunto}
+                  </div>
+                )}
               </div>
               <button onClick={cerrarPanelHoy} style={{ background: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', fontSize: 18, color: '#475569' }}>×</button>
             </div>
-            <div style={{ display: 'flex', gap: 12, padding: '0 20px 16px' }}>
-              {[{ label: 'Pagos', val: String(pagosHoy.length) }, { label: 'Total', val: fmtMoneda(totalHoy) }].map(({ label, val }) => (
-                <div key={label} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: 14, textAlign: 'center' }}>
-                  <div style={{ fontSize: 20, fontWeight: 800, color: '#0047BA' }}>{val}</div>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{label}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
-              {cargandoPagos && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>Cargando...</div>}
-              {!cargandoPagos && pagosHoy.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin pagos hoy</div>}
-              {!cargandoPagos && pagosHoy.map(p => (
-                <div key={p.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <img
-                    src={p.foto_url} alt="" onClick={() => setLightbox(p.foto_url)}
-                    style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
-                  />
-                  <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>{fmtHora(p.created_at)}</span>
-                  <span style={{ flex: 1 }} />
-                  {editandoId === p.id ? (
-                    <>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={valorEdit}
-                        onChange={e => setValorEdit(e.target.value)}
-                        autoFocus
-                        style={{ width: 90, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 700, color: '#0f172a' }}
-                      />
-                      <button onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit} title="Guardar" style={iconBtn}>✓</button>
-                      <button onClick={() => setEditandoId(null)} title="Cancelar" style={iconBtn}>×</button>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: '#16a34a' }}>{fmtMoneda(Number(p.valor))}</span>
-                      <button onClick={() => iniciarEdicion(p)} title="Editar valor" style={iconBtn}>✏️</button>
-                      <button onClick={() => eliminarPago(p.id)} disabled={eliminandoId === p.id} title="Eliminar" style={{ ...iconBtn, opacity: eliminandoId === p.id ? 0.5 : 1 }}>🗑️</button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            {necesitaTurno && (
-              <div style={{ padding: '16px 20px 0' }}>
-                <button
-                  onClick={() => cerrarTurno()}
-                  disabled={cerrando}
-                  style={{ ...btnDanger, width: '100%', opacity: cerrando ? 0.6 : 1, cursor: cerrando ? 'not-allowed' : 'pointer' }}
-                >
-                  {cerrando ? 'Cerrando...' : `⏹ Cerrar turno${pagosHoy.length > 0 ? ` · ${fmtMoneda(totalHoy)}` : ''}`}
-                </button>
+
+            {!mostrarListaTurnos && (
+              <div style={{ padding: '0 20px 12px' }}>
+                {verTurnoId ? (
+                  <button onClick={verTurnoActual} style={linkBtn}>← Volver al turno actual</button>
+                ) : (
+                  <button onClick={() => { setMostrarListaTurnos(true); cargarTurnosHist() }} style={linkBtn}>🕐 Turnos anteriores de hoy</button>
+                )}
               </div>
+            )}
+
+            {mostrarListaTurnos ? (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
+                {cargandoTurnosHist && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>Cargando...</div>}
+                {!cargandoTurnosHist && turnosHist.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin turnos hoy</div>}
+                {!cargandoTurnosHist && turnosHist.map(t => (
+                  <button key={t.id} onClick={() => verTurnoAnterior(t)} style={filaTurno}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>{t.punto_venta_nombre}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        {fmtHora(t.abierto_at)} – {t.cerrado_at ? fmtHora(t.cerrado_at) : (t.activo ? 'en curso' : '—')}
+                      </div>
+                    </div>
+                    <span style={{ color: '#94a3b8', fontSize: 18 }}>›</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 12, padding: '0 20px 16px' }}>
+                  {[{ label: 'Pagos', val: String(pagosHoy.length) }, { label: 'Total', val: fmtMoneda(totalHoy) }].map(({ label, val }) => (
+                    <div key={label} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: 14, textAlign: 'center' }}>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: '#0047BA' }}>{val}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
+                  {cargandoPagos && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>Cargando...</div>}
+                  {!cargandoPagos && pagosHoy.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin pagos</div>}
+                  {!cargandoPagos && pagosHoy.map(p => (
+                    <div key={p.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <img
+                        src={p.foto_url} alt="" onClick={() => setLightbox(p.foto_url)}
+                        style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>{fmtHora(p.created_at)}</span>
+                      <span style={{ flex: 1 }} />
+                      {verTurnoId !== null ? (
+                        <span style={{ fontSize: 15, fontWeight: 800, color: '#16a34a' }}>{fmtMoneda(Number(p.valor))}</span>
+                      ) : editandoId === p.id ? (
+                        <>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            value={valorEdit}
+                            onChange={e => setValorEdit(e.target.value)}
+                            autoFocus
+                            style={{ width: 90, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 700, color: '#0f172a' }}
+                          />
+                          <button onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit} title="Guardar" style={iconBtn}>✓</button>
+                          <button onClick={() => setEditandoId(null)} title="Cancelar" style={iconBtn}>×</button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: '#16a34a' }}>{fmtMoneda(Number(p.valor))}</span>
+                          <button onClick={() => iniciarEdicion(p)} title="Editar valor" style={iconBtn}>✏️</button>
+                          <button onClick={() => eliminarPago(p.id)} disabled={eliminandoId === p.id} title="Eliminar" style={{ ...iconBtn, opacity: eliminandoId === p.id ? 0.5 : 1 }}>🗑️</button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {necesitaTurno && verTurnoId === null && (
+                  <div style={{ padding: '16px 20px 0' }}>
+                    <button
+                      onClick={() => cerrarTurno()}
+                      disabled={cerrando}
+                      style={{ ...btnDanger, width: '100%', opacity: cerrando ? 0.6 : 1, cursor: cerrando ? 'not-allowed' : 'pointer' }}
+                    >
+                      {cerrando ? 'Cerrando...' : `⏹ Cerrar turno${pagosHoy.length > 0 ? ` · ${fmtMoneda(totalHoy)}` : ''}`}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -466,3 +533,5 @@ const btnPrimary: React.CSSProperties   = { padding: '11px 20px', borderRadius: 
 const btnSecondary: React.CSSProperties = { padding: '11px 20px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, fontSize: 14, cursor: 'pointer' }
 const btnDanger: React.CSSProperties    = { padding: '13px 20px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }
 const iconBtn: React.CSSProperties      = { background: '#f1f5f9', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, flexShrink: 0 }
+const linkBtn: React.CSSProperties      = { background: 'none', border: 'none', color: '#0047BA', fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0 }
+const filaTurno: React.CSSProperties    = { width: '100%', background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }

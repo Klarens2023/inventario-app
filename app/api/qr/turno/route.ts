@@ -9,12 +9,24 @@ function hoyBogota(): string {
 
 // GET /api/qr/turno — turno abierto hoy para el usuario autenticado
 // Con ?pendiente=true también devuelve turno sin cerrar de días anteriores
+// Con ?historial=true devuelve todos los turnos de hoy (para "turnos anteriores")
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!['pvn', 'pvv'].includes(user.rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
   const hoy = hoyBogota()
+
+  if (req.nextUrl.searchParams.get('historial') === 'true') {
+    const turnos = await sql`
+      SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at, cerrado_at, activo
+      FROM pvn_turnos
+      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date
+      ORDER BY abierto_at DESC
+    `
+    return NextResponse.json(turnos)
+  }
+
   const [turno] = await sql`
     SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at, activo
     FROM pvn_turnos
