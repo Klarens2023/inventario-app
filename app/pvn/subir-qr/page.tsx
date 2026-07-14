@@ -487,8 +487,8 @@ export default function SubirQRPage() {
                             autoFocus
                             style={{ width: 90, padding: '5px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 14, fontWeight: 700, color: '#0f172a' }}
                           />
-                          <button onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit} title="Guardar" style={iconBtn}>✓</button>
-                          <button onClick={() => setEditandoId(null)} title="Cancelar" style={iconBtn}>×</button>
+                          <button onClick={() => guardarEdicion(p.id)} disabled={guardandoEdit} title="Guardar" style={{ ...iconBtn, ...iconBtnConfirmar, opacity: guardandoEdit ? 0.6 : 1 }}>✓</button>
+                          <button onClick={() => setEditandoId(null)} title="Cancelar" style={{ ...iconBtn, ...iconBtnCancelar }}>×</button>
                         </>
                       ) : (
                         <>
@@ -533,5 +533,7 @@ const btnPrimary: React.CSSProperties   = { padding: '11px 20px', borderRadius: 
 const btnSecondary: React.CSSProperties = { padding: '11px 20px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, fontSize: 14, cursor: 'pointer' }
 const btnDanger: React.CSSProperties    = { padding: '13px 20px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }
 const iconBtn: React.CSSProperties      = { background: '#f1f5f9', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, flexShrink: 0 }
+const iconBtnConfirmar: React.CSSProperties = { background: '#dcfce7', color: '#16a34a', fontWeight: 800 }
+const iconBtnCancelar: React.CSSProperties  = { background: '#fee2e2', color: '#dc2626', fontWeight: 800 }
 const linkBtn: React.CSSProperties      = { background: 'none', border: 'none', color: '#0047BA', fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0 }
 const filaTurno: React.CSSProperties    = { width: '100%', background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }
