@@ -15,6 +15,7 @@ const MODULO_CARD: Record<Modulo, Card> = {
   pvn_pagos_qr:  { href: '/pvn/pagos-qr',     icon: '🧾',  title: 'Pagos QR',          desc: 'Revisa los comprobantes de pago QR subidos desde la app móvil' },
   equipos:         { href: '/sistemas/equipos',      icon: '🖥️', title: 'Equipos TI',         desc: 'Administra el inventario de equipos tecnológicos' },
   movimientos_tic: { href: '/sistemas/movimientos', icon: '🔄',  title: 'Movimientos TIC',    desc: 'Registra y consulta movimientos de activos tecnológicos' },
+  planos:        { href: '/planos',           icon: '🧾',  title: 'Generación de Planos', desc: 'Carga saldos iniciales contables y genera el plano para Siesa ERP' },
 }
 
 const CARD_PVN: Card = { href: '/pvn/registrar', icon: '🛒', title: 'Registrar Ventas', desc: 'Ingresa las ventas del día o turno en tu punto' }

@@ -2,6 +2,7 @@ export const MODULOS = [
   'cargar', 'consulta', 'acumulados',
   'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr',
   'equipos', 'movimientos_tic',
+  'planos',
 ] as const
 
 export type Modulo = typeof MODULOS[number]
@@ -10,6 +11,7 @@ export const GRUPOS_MODULOS: Array<{ key: string; label: string; modulos: Modulo
   { key: 'logistica',    label: 'Logística',      modulos: ['cargar', 'consulta', 'acumulados'] },
   { key: 'puntos_venta', label: 'Puntos de Venta', modulos: ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr'] },
   { key: 'sistemas',     label: 'Sistemas',        modulos: ['equipos', 'movimientos_tic'] },
+  { key: 'contabilidad', label: 'Contabilidad',    modulos: ['planos'] },
 ]
 
 export const MODULO_LABELS: Record<Modulo, string> = {
@@ -22,6 +24,7 @@ export const MODULO_LABELS: Record<Modulo, string> = {
   pvn_pagos_qr: 'Pagos QR',
   equipos: 'Equipos TI',
   movimientos_tic: 'Movimientos TIC',
+  planos: 'Generación de Planos',
 }
 
 const LOG: Modulo[] = ['cargar', 'consulta', 'acumulados']
@@ -30,6 +33,8 @@ const SIS: Modulo[] = ['equipos', 'movimientos_tic']
 
 // Módulos asignados automáticamente al crear un usuario — el admin puede
 // ajustarlos libremente después desde el checklist de edición.
+// 'planos' maneja información contable sensible: no se asigna por defecto,
+// el admin debe concederlo explícitamente desde la edición de usuario.
 export function modulosPorDefecto(rol: string, area: string): Modulo[] {
   if (rol === 'admin') return [...MODULOS]
   if (area === 'logistica')    return rol === 'lider' ? [...LOG, ...PV] : [...LOG]

@@ -23,6 +23,7 @@ const Icons = {
   PVNCat:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="12" y1="7" x2="16" y2="7"/><line x1="12" y1="12" x2="16" y2="12"/></svg>,
   PVNPagosQR: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="17.5" y1="14" x2="17.5" y2="17.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>,
   MovTIC:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/><rect x="2" y="4" width="4" height="4" rx="1"/><rect x="18" y="16" width="4" height="4" rx="1"/></svg>,
+  Planos:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="15" y2="7"/><line x1="8" y1="11" x2="15" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>,
   Collapse:   ({ open }: { open: boolean }) => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       style={{ transition: 'transform 0.3s', transform: open ? 'rotate(0deg)' : 'rotate(180deg)' }}>
@@ -44,6 +45,7 @@ const MODULO_ITEM: Record<Modulo, NavItem> = {
   pvn_pagos_qr:  { href: '/pvn/pagos-qr',          icon: <Icons.PVNPagosQR />, label: 'Pagos QR' },
   equipos:       { href: '/sistemas/equipos',       icon: <Icons.Equipos />,    label: 'Equipos TI' },
   movimientos_tic: { href: '/sistemas/movimientos', icon: <Icons.MovTIC />,     label: 'Movimientos TIC' },
+  planos:        { href: '/planos',           icon: <Icons.Planos />,     label: 'Generación de Planos' },
 }
 
 export default function Sidebar() {

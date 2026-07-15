@@ -11,6 +11,7 @@ const PATH_MODULO: Array<[string, Modulo]> = [
   ['/pvn/catalogo', 'pvn_catalogo'],
   ['/pvn/pagos-qr', 'pvn_pagos_qr'],
   ['/sistemas', 'equipos'],
+  ['/planos', 'planos'],
 ]
 
 export async function middleware(req: NextRequest) {
@@ -76,6 +77,7 @@ export const config = {
     '/admin/:path*',
     '/sistemas/:path*',
     '/pvn/:path*',
+    '/planos/:path*',
     '/cambiar-password',
   ],
 }
