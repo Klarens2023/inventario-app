@@ -223,17 +223,19 @@ export async function GET(req: NextRequest) {
   const desde = searchParams.get('desde')
   const hasta = searchParams.get('hasta')
   const pvId  = searchParams.get('punto_venta_id')
+  const usuarioId = searchParams.get('usuario_id')
 
   const rows = await sql(
-    `SELECT id, usuario_nombre, punto_venta_id, punto_venta_nombre,
+    `SELECT id, usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre,
             fecha::text AS fecha, valor, foto_url, created_at
      FROM pvn_pagos_qr
      WHERE ($1::date IS NULL OR fecha >= $1::date)
        AND ($2::date IS NULL OR fecha <= $2::date)
        AND ($3::int IS NULL OR punto_venta_id = $3::int)
+       AND ($4::int IS NULL OR usuario_id = $4::int)
      ORDER BY fecha DESC, created_at DESC
      LIMIT 200`,
-    [desde, hasta, pvId ? parseInt(pvId) : null]
+    [desde, hasta, pvId ? parseInt(pvId) : null, usuarioId ? parseInt(usuarioId) : null]
   )
   return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin)))
 }

@@ -6,6 +6,7 @@ import { exportarExcel } from '@/lib/exportExcel'
 
 type Pago = {
   id: number
+  usuario_id: number
   usuario_nombre: string
   punto_venta_id: number | null
   punto_venta_nombre: string | null
@@ -15,6 +16,8 @@ type Pago = {
   created_at: string
 }
 type PuntoVenta = { id: number; nombre: string; activo: boolean; tipo: string }
+type Usuario = { id: number; nombre: string; rol: string }
+type SortKey = 'fecha' | 'punto' | 'usuario' | 'valor'
 type TurnoActivo = {
   id: number
   usuario_id: number
@@ -38,8 +41,13 @@ export default function PagosQRPage() {
 
   const [pagos, setPagos]     = useState<Pago[]>([])
   const [puntos, setPuntos]   = useState<PuntoVenta[]>([])
+  const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [loading, setLoading] = useState(false)
   const [pvFiltro, setPvFiltro] = useState('todos')
+  const [usuarioFiltro, setUsuarioFiltro] = useState('todos')
+  const [sortBy, setSortBy] = useState<SortKey>('fecha')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null)
   const [desde, setDesde]     = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
   })
@@ -116,6 +124,9 @@ export default function PagosQRPage() {
   useEffect(() => {
     if (status === 'authenticated' && canView) {
       fetch('/api/pvn/puntos-venta').then(r => r.json()).then(setPuntos)
+      fetch('/api/usuarios').then(r => r.json()).then((data: Usuario[]) => {
+        setUsuarios(Array.isArray(data) ? data.filter(u => ['pvn', 'pvv'].includes(u.rol)) : [])
+      })
     }
   }, [status, canView])
 
@@ -124,13 +135,30 @@ export default function PagosQRPage() {
     try {
       const params = new URLSearchParams({ desde, hasta })
       if (pvFiltro !== 'todos') params.set('punto_venta_id', pvFiltro)
+      if (usuarioFiltro !== 'todos') params.set('usuario_id', usuarioFiltro)
       const res  = await fetch(`/api/qr/pagos?${params}`)
       const data = await res.json()
       setPagos(Array.isArray(data) ? data : [])
     } finally {
       setLoading(false)
     }
-  }, [desde, hasta, pvFiltro])
+  }, [desde, hasta, pvFiltro, usuarioFiltro])
+
+  function toggleSort(key: SortKey) {
+    if (sortBy === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortBy(key); setSortDir('asc') }
+  }
+
+  async function eliminarPago(p: Pago) {
+    if (!confirm(`¿Eliminar el pago de ${p.usuario_nombre} por ${fmtMoneda(p.valor)}?`)) return
+    setEliminandoId(p.id)
+    try {
+      const res = await fetch(`/api/qr/pagos/${p.id}`, { method: 'DELETE' })
+      if (res.ok) setPagos(prev => prev.filter(x => x.id !== p.id))
+    } finally {
+      setEliminandoId(null)
+    }
+  }
 
   useEffect(() => {
     if (status === 'authenticated' && canView) cargar()
@@ -160,6 +188,20 @@ export default function PagosQRPage() {
   const puntosNacionales = puntos.filter(p => p.tipo === 'nacional')
   const puntosPrincipales = puntos.filter(p => p.tipo === 'principal')
 
+  const pagosOrdenados = [...pagos].sort((a, b) => {
+    let cmp = 0
+    if (sortBy === 'fecha') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    else if (sortBy === 'punto') cmp = (a.punto_venta_nombre ?? '').localeCompare(b.punto_venta_nombre ?? '')
+    else if (sortBy === 'usuario') cmp = a.usuario_nombre.localeCompare(b.usuario_nombre)
+    else if (sortBy === 'valor') cmp = Number(a.valor) - Number(b.valor)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  function flecha(key: SortKey) {
+    if (sortBy !== key) return ''
+    return sortDir === 'asc' ? ' ▲' : ' ▼'
+  }
+
   return (
     <div style={{ padding: '32px 28px', background: '#f8fafc', minHeight: '100vh' }}>
 
@@ -184,6 +226,15 @@ export default function PagosQRPage() {
                     {puntosPrincipales.map(pv => <option key={pv.id} value={String(pv.id)}>{pv.nombre}</option>)}
                   </optgroup>
                 )}
+              </select>
+            </div>
+          )}
+          {usuarios.length > 0 && (
+            <div>
+              <label style={lbl}>Usuario</label>
+              <select value={usuarioFiltro} onChange={e => setUsuarioFiltro(e.target.value)} style={inp}>
+                <option value="todos">Todos</option>
+                {usuarios.map(u => <option key={u.id} value={String(u.id)}>{u.nombre}</option>)}
               </select>
             </div>
           )}
@@ -255,11 +306,21 @@ export default function PagosQRPage() {
 
       {/* Lista */}
       <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
+        {!loading && pagos.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 14, background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+            <div style={{ width: 44, flexShrink: 0 }} />
+            <button onClick={() => toggleSort('fecha')} style={{ ...colHeaderBtn, minWidth: 150 }}>Fecha{flecha('fecha')}</button>
+            <button onClick={() => toggleSort('punto')} style={{ ...colHeaderBtn, width: 140 }}>Punto de venta{flecha('punto')}</button>
+            <button onClick={() => toggleSort('usuario')} style={{ ...colHeaderBtn, flex: 1 }}>Usuario{flecha('usuario')}</button>
+            <button onClick={() => toggleSort('valor')} style={{ ...colHeaderBtn, width: 100, justifyContent: 'flex-end' }}>Valor{flecha('valor')}</button>
+            {isAdmin && <div style={{ width: 68, flexShrink: 0 }} />}
+          </div>
+        )}
         {loading && <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Cargando...</div>}
         {!loading && pagos.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>No hay pagos en el período</div>
         )}
-        {!loading && pagos.map(p => (
+        {!loading && pagosOrdenados.map(p => (
           <div
             key={p.id}
             style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 14,
@@ -318,7 +379,10 @@ export default function PagosQRPage() {
                   {fmtMoneda(p.valor)}
                 </div>
                 {isAdmin && (
-                  <button onClick={() => iniciarEdicionPago(p)} title="Editar valor / punto de venta" style={iconBtn}>✏️</button>
+                  <>
+                    <button onClick={() => iniciarEdicionPago(p)} title="Editar valor / punto de venta" style={iconBtn}>✏️</button>
+                    <button onClick={() => eliminarPago(p)} disabled={eliminandoId === p.id} title="Eliminar pago" style={{ ...iconBtn, opacity: eliminandoId === p.id ? 0.5 : 1 }}>🗑️</button>
+                  </>
                 )}
               </>
             )}
@@ -347,3 +411,8 @@ const btnDanger: React.CSSProperties    = { padding: '8px 16px', borderRadius: 8
 const iconBtn: React.CSSProperties      = { background: '#f1f5f9', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, flexShrink: 0 }
 const iconBtnConfirmar: React.CSSProperties = { background: '#dcfce7', color: '#16a34a', fontWeight: 800 }
 const iconBtnCancelar: React.CSSProperties  = { background: '#fee2e2', color: '#dc2626', fontWeight: 800 }
+const colHeaderBtn: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
+  display: 'flex', alignItems: 'center', gap: 4,
+  fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em',
+}

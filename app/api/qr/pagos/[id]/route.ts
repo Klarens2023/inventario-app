@@ -91,13 +91,34 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ ok: true })
 }
 
-// DELETE /api/qr/pagos/[id] — eliminar un pago propio registrado hoy
+// DELETE /api/qr/pagos/[id]
+// admin: puede eliminar cualquier pago, sin restricción (p. ej. duplicados por error)
+// pvn/pvv: solo un pago propio de hoy, con turno activo
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!['pvn', 'pvv'].includes(user.rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
   const id = parseInt(params.id)
+
+  if (user.rol === 'admin') {
+    const [existente] = await sql`SELECT id, valor, punto_venta_nombre, usuario_nombre FROM pvn_pagos_qr WHERE id = ${id}`
+    if (!existente) return NextResponse.json({ error: 'Pago no encontrado' }, { status: 404 })
+
+    await sql`DELETE FROM pvn_pagos_qr WHERE id = ${id}`
+
+    await logAudit({
+      usuarioId: user.id,
+      usuarioNombre: user.name,
+      accion: 'PVN_PAGO_QR_ELIMINADO',
+      descripcion: `Admin eliminó pago QR de ${existente.usuario_nombre} — ${existente.valor} en ${existente.punto_venta_nombre}`,
+      datos: { pago_id: id, valor: Number(existente.valor), usuario_afectado: existente.usuario_nombre, eliminado_por_admin: true },
+    })
+
+    return NextResponse.json({ ok: true })
+  }
+
+  if (!['pvn', 'pvv'].includes(user.rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+
   const hoy = hoyBogota()
   const [existente] = await sql`
     SELECT p.id, p.valor, p.punto_venta_nombre, t.activo AS turno_activo
