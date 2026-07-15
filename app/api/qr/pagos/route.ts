@@ -96,7 +96,6 @@ export async function POST(req: NextRequest) {
   const form = await req.formData()
   const foto = form.get('foto') as File | null
   const valor = parseFloat(String(form.get('valor') ?? ''))
-  const puntoVentaIdRaw = form.get('punto_venta_id')
 
   if (!foto) return NextResponse.json({ error: 'La foto es obligatoria' }, { status: 400 })
   if (!valor || valor <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
@@ -104,68 +103,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La imagen es muy pesada (máx 8MB)' }, { status: 413 })
   }
 
-  const esWeb = !req.headers.get('authorization')?.startsWith('Bearer ')
-  let puntoVentaId: number | null
-
-  if (user.rol === 'pvn') {
-    if (esWeb) {
-      const hoy = hoyBogota()
-      const [turno] = await sql`
-        SELECT punto_venta_id FROM pvn_turnos
-        WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE LIMIT 1
-      `
-      if (!turno) return NextResponse.json({ error: 'Debes abrir un turno antes de registrar pagos' }, { status: 403 })
-      puntoVentaId = turno.punto_venta_id
-    } else {
-      puntoVentaId = user.punto_venta_id
-      if (!puntoVentaId) return NextResponse.json({ error: 'Tu usuario no tiene un punto de venta asignado' }, { status: 400 })
-    }
-  } else {
-    // pvv fija: tiene punto_venta_id en su perfil, no requiere turno
-    // pvv rotatoria (sin punto fijo): debe tener turno abierto y enviar punto_venta_id
-    if (user.punto_venta_id) {
-      puntoVentaId = user.punto_venta_id
-    } else if (esWeb) {
-      const hoy = hoyBogota()
-      const [turno] = await sql`
-        SELECT punto_venta_id FROM pvn_turnos
-        WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE LIMIT 1
-      `
-      if (!turno) return NextResponse.json({ error: 'Debes abrir un turno antes de registrar pagos' }, { status: 403 })
-      puntoVentaId = turno.punto_venta_id
-    } else {
-      puntoVentaId = puntoVentaIdRaw ? parseInt(String(puntoVentaIdRaw)) : null
-      if (!puntoVentaId) return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
-    }
-  }
-
-  const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${puntoVentaId} LIMIT 1`
-  if (!pv) return NextResponse.json({ error: 'Punto de venta inválido' }, { status: 400 })
-
-  // Turno activo de hoy (si existe) — permite agrupar "mis pagos de hoy" por
-  // turno cuando una persona trabaja en más de un punto el mismo día.
-  const hoyTurno = hoyBogota()
-  const [turnoActivo] = await sql`
-    SELECT id FROM pvn_turnos
-    WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoyTurno}::date AND activo = TRUE
+  // Se exige turno abierto para TODOS (pvn, pvv fija y pvv rotativa): así el
+  // pago siempre queda asociado a un turno_id y no se pueden colar registros
+  // "huérfanos" que después no aparecen en "Mis pagos de hoy" de nadie.
+  const hoy = hoyBogota()
+  const [turno] = await sql`
+    SELECT id, punto_venta_id, punto_venta_nombre FROM pvn_turnos
+    WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
     LIMIT 1
   `
+  if (!turno) {
+    return NextResponse.json({ error: 'Debes tener un turno abierto para registrar pagos. Si el problema persiste, cierra sesión y vuelve a entrar.' }, { status: 403 })
+  }
 
-  const fecha = hoyBogota()
+  const fecha = hoy
   const ahora = new Date()
   const hora  = ahora.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit' })
   const horaArchivo = hora.replace(/:/g, '-')
-  const sede  = pv.nombre.replace(/[^a-zA-Z0-9]/g, '_')
+  const sede  = turno.punto_venta_nombre.replace(/[^a-zA-Z0-9]/g, '_')
   const nombreUsuario = user.name.replace(/[^a-zA-Z0-9]/g, '_')
   const nombreArchivo = `${fecha}_${horaArchivo}_${sede}_${nombreUsuario}.jpg`
 
   const bufferOriginal  = Buffer.from(await foto.arrayBuffer())
-  const bufferEtiquetado = await agregarEtiqueta(bufferOriginal, fecha, hora, pv.nombre, user.name)
+  const bufferEtiquetado = await agregarEtiqueta(bufferOriginal, fecha, hora, turno.punto_venta_nombre, user.name)
   const fotoConEtiqueta  = new File([new Uint8Array(bufferEtiquetado)], nombreArchivo, { type: 'image/jpeg' })
   const fotoUrl = await subirADrive(fotoConEtiqueta, nombreArchivo)
   const [registro] = await sql`
     INSERT INTO pvn_pagos_qr (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, turno_id, fecha, valor, foto_url)
-    VALUES (${parseInt(user.id)}, ${user.name}, ${pv.id}, ${pv.nombre}, ${turnoActivo?.id ?? null}, ${fecha}::date, ${valor}, ${fotoUrl})
+    VALUES (${parseInt(user.id)}, ${user.name}, ${turno.punto_venta_id}, ${turno.punto_venta_nombre}, ${turno.id}, ${fecha}::date, ${valor}, ${fotoUrl})
     RETURNING id, fecha::text AS fecha, valor, foto_url, created_at
   `
 
@@ -173,8 +138,8 @@ export async function POST(req: NextRequest) {
     usuarioId: user.id,
     usuarioNombre: user.name,
     accion: 'PVN_PAGO_QR_REGISTRADO',
-    descripcion: `Registró pago QR de ${valor} en ${pv.nombre}`,
-    datos: { punto_venta: pv.nombre, valor },
+    descripcion: `Registró pago QR de ${valor} en ${turno.punto_venta_nombre}`,
+    datos: { punto_venta: turno.punto_venta_nombre, valor },
   })
 
   return NextResponse.json(registro, { status: 201 })
