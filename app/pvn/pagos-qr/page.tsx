@@ -3,6 +3,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { exportarExcel } from '@/lib/exportExcel'
+import { tieneModulo } from '@/lib/permissions'
 
 type Pago = {
   id: number
@@ -62,8 +63,8 @@ export default function PagosQRPage() {
   const [cerrandoTurnoId, setCerrandoTurnoId] = useState<number | null>(null)
   const [mostrarTurnos, setMostrarTurnos] = useState(false)
 
-  const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
-  const canView = rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area ?? ''))
+  const { rol, modulos } = (session?.user ?? {}) as { rol?: string; modulos?: string[] }
+  const canView = tieneModulo(rol ?? '', modulos, 'pvn_pagos_qr')
   const isAdmin = rol === 'admin'
 
   useEffect(() => {

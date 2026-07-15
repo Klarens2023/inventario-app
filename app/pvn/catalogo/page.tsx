@@ -2,6 +2,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
+import { tieneModulo } from '@/lib/permissions'
 
 type Comp = { componente_id?: number; componente_nombre: string; cantidad: number; unidad: string }
 type Producto = { id: number; nombre: string; activo: boolean; componentes: Comp[] }
@@ -29,8 +30,8 @@ export default function CatalogoPVNPage() {
   const [prodError, setProdError]   = useState('')
   const [prodGuard, setProdGuard]   = useState(false)
 
-const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
-  const canView = rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area ?? ''))
+  const { rol, modulos } = (session?.user ?? {}) as { rol?: string; modulos?: string[] }
+  const canView = tieneModulo(rol ?? '', modulos, 'pvn_catalogo')
 
   useEffect(() => {
     if (status === 'authenticated' && !canView) router.replace('/dashboard')

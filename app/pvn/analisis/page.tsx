@@ -2,6 +2,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
+import { tieneModulo } from '@/lib/permissions'
 
 type Summary     = { total_registros: number; total_unidades: number; total_productos_distintos: number }
 type Producto    = { producto_id: number; producto_nombre: string; total_vendido: number }
@@ -56,8 +57,8 @@ export default function AnalisisPVNPage() {
   const [detalle, setDetalle]   = useState<DetalleProd | null>(null)
   const [detLoading, setDetLoading] = useState(false)
 
-  const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
-  const canView = rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area ?? ''))
+  const { rol, modulos } = (session?.user ?? {}) as { rol?: string; modulos?: string[] }
+  const canView = tieneModulo(rol ?? '', modulos, 'pvn_analisis')
 
   useEffect(() => {
     if (status === 'authenticated' && !canView) router.replace('/dashboard')

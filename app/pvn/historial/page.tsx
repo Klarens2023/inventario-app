@@ -2,6 +2,7 @@
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
+import { tieneModulo } from '@/lib/permissions'
 
 type Detalle    = { producto_id: number; producto_nombre: string; cantidad: number }
 type PuntoVenta = { id: number; nombre: string; activo: boolean }
@@ -38,8 +39,8 @@ export default function HistorialPVNPage() {
   })
   const [hasta, setHasta] = useState(new Date().toISOString().split('T')[0])
 
-  const { rol, area } = (session?.user ?? {}) as { rol?: string; area?: string }
-  const canView = rol === 'admin' || (rol === 'lider' && ['logistica', 'general'].includes(area ?? ''))
+  const { rol, modulos } = (session?.user ?? {}) as { rol?: string; modulos?: string[] }
+  const canView = tieneModulo(rol ?? '', modulos, 'pvn_historial')
 
   useEffect(() => {
     if (status === 'authenticated' && !canView) router.replace('/dashboard')
