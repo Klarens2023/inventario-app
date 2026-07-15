@@ -1,23 +1,24 @@
 'use client'
 import type { Usuario } from '@/types/usuarios'
-import { AREA_LABELS } from './constants'
+import type { AreaInfo } from '@/lib/permissions'
 
 type Props = {
   usuarios: Usuario[]
+  areas: AreaInfo[]
   filtroArea: string
   onChange: (area: string) => void
 }
 
-export function AreaFilterBar({ usuarios, filtroArea, onChange }: Props) {
-  const areas = Array.from(new Set(usuarios.map(u => u.area))).sort()
+export function AreaFilterBar({ usuarios, areas, filtroArea, onChange }: Props) {
+  const areasConUsuarios = Array.from(new Set(usuarios.map(u => u.area))).sort()
 
   return (
     <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
       <AreaBtn label={`Todas (${usuarios.length})`} active={filtroArea === 'todos'} onClick={() => onChange('todos')} />
-      {areas.map(a => (
+      {areasConUsuarios.map(a => (
         <AreaBtn
           key={a}
-          label={`${AREA_LABELS[a]?.label ?? a} (${usuarios.filter(u => u.area === a).length})`}
+          label={`${areas.find(x => x.key === a)?.label ?? a} (${usuarios.filter(u => u.area === a).length})`}
           active={filtroArea === a}
           onClick={() => onChange(a)}
         />

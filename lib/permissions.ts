@@ -27,21 +27,27 @@ export const MODULO_LABELS: Record<Modulo, string> = {
   planos: 'Generación de Planos',
 }
 
-const LOG: Modulo[] = ['cargar', 'consulta', 'acumulados']
-const PV: Modulo[]  = ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr']
-const SIS: Modulo[] = ['equipos', 'movimientos_tic']
+// Área tal como vive en la tabla `areas` (gestionable desde la UI de admin).
+export type AreaInfo = {
+  id: number
+  key: string
+  label: string
+  color: string
+  bg: string
+  roles_permitidos: string[]
+  modulos_usuario: string[]
+  modulos_lider: string[]
+  protegida: boolean
+}
 
-// Módulos asignados automáticamente al crear un usuario — el admin puede
-// ajustarlos libremente después desde el checklist de edición.
-// 'planos' maneja información contable sensible: no se asigna por defecto,
-// el admin debe concederlo explícitamente desde la edición de usuario.
-export function modulosPorDefecto(rol: string, area: string): Modulo[] {
+// Módulos asignados automáticamente al crear un usuario, según lo configurado
+// en su área (tabla `areas`) — el admin puede ajustarlos libremente después
+// desde el checklist de edición, y también puede cambiar el default por área
+// desde "Áreas y Roles".
+export function modulosPorDefecto(rol: string, area: AreaInfo | undefined): Modulo[] {
   if (rol === 'admin') return [...MODULOS]
-  if (area === 'logistica')    return rol === 'lider' ? [...LOG, ...PV] : [...LOG]
-  if (area === 'sistemas')     return [...SIS]
-  if (area === 'general')      return rol === 'lider' ? [...MODULOS] : [...LOG, ...PV, ...SIS]
-  if (area === 'puntos_venta') return [...PV]
-  return []
+  if (!area) return []
+  return (rol === 'lider' ? area.modulos_lider : area.modulos_usuario) as Modulo[]
 }
 
 export function tieneModulo(rol: string, modulos: string[] | undefined, modulo: Modulo): boolean {

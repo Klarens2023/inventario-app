@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { Usuario, PuntoVenta } from '@/types/usuarios'
-import { type Modulo } from '@/lib/permissions'
+import { type Modulo, type AreaInfo } from '@/lib/permissions'
 import { labelStyle, inputStyle, btnPrimary, btnSecondary } from './constants'
 import { ModulosChecklist } from './ModulosChecklist'
 
@@ -9,13 +9,14 @@ type Props = {
   usuario: Usuario
   esAdmin: boolean
   sessionUserId?: string
+  areas: AreaInfo[]
   puntosVenta: PuntoVenta[]
   editando: boolean
   onClose: () => void
   onGuardar: (id: number, body: Record<string, unknown>) => void
 }
 
-export function ModalEditar({ usuario, esAdmin, sessionUserId, puntosVenta, editando, onClose, onGuardar }: Props) {
+export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVenta, editando, onClose, onGuardar }: Props) {
   const esYo = String(usuario.id) === sessionUserId
 
   const [nombre, setNombre]           = useState(usuario.nombre)
@@ -72,9 +73,9 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, puntosVenta, edit
                 </div>
               ) : (
                 <select value={area} onChange={e => setArea(e.target.value)} style={inputStyle}>
-                  <option value="logistica">Logística</option>
-                  <option value="sistemas">Sistemas</option>
-                  <option value="general">Administración (General)</option>
+                  {areas.filter(a => a.key !== 'puntos_venta').map(a => (
+                    <option key={a.key} value={a.key}>{a.label}</option>
+                  ))}
                 </select>
               )}
             </div>
@@ -86,7 +87,7 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, puntosVenta, edit
                 const r = e.target.value
                 setRol(r)
                 if (['pvn', 'pvv'].includes(r)) setArea('puntos_venta')
-                else if (area === 'puntos_venta') setArea('logistica')
+                else if (area === 'puntos_venta') setArea(areas.find(a => a.key !== 'puntos_venta')?.key ?? 'logistica')
               }} style={inputStyle}>
                 <option value="usuario">Usuario</option>
                 <option value="pvn">PVN (Punto de Venta)</option>

@@ -5,12 +5,13 @@ import { labelStyle } from './constants'
 type Props = {
   seleccionados: string[]
   onToggle: (m: Modulo) => void
+  titulo?: string
 }
 
-export function ModulosChecklist({ seleccionados, onToggle }: Props) {
+export function ModulosChecklist({ seleccionados, onToggle, titulo = 'Módulos de acceso' }: Props) {
   return (
     <div>
-      <label style={labelStyle}>Módulos de acceso</label>
+      <label style={labelStyle}>{titulo}</label>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, background: '#f8fafc' }}>
         {GRUPOS_MODULOS.map(grupo => (
           <div key={grupo.key}>

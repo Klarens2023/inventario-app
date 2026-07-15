@@ -8,19 +8,8 @@ export const ROL_LABELS: Record<string, { label: string; color: string; bg: stri
   pvv:     { label: 'PVV',     color: '#9a3412', bg: '#ffedd5' },
 }
 
-export const AREA_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  logistica:    { label: 'Logística',       color: '#065f46', bg: '#d1fae5' },
-  sistemas:     { label: 'Sistemas',        color: '#1e3a5f', bg: '#dbeafe' },
-  general:      { label: 'Administración',  color: '#7c2d12', bg: '#fed7aa' },
-  puntos_venta: { label: 'Puntos de Venta', color: '#6b21a8', bg: '#f3e8ff' },
-}
-
-export const ROLES_POR_AREA: Record<string, string[]> = {
-  logistica:    ['usuario', 'lider'],
-  puntos_venta: ['pvn', 'pvv'],
-  sistemas:     ['usuario', 'lider'],
-  general:      ['admin', 'lider'],
-}
+// Las áreas ahora viven en la tabla `areas` (ver lib/permissions.ts AreaInfo
+// y /api/areas) — gestionables desde "Áreas y Roles" en vez de hardcodeadas.
 
 export const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6,

@@ -1,10 +1,12 @@
 'use client'
 import { format } from 'date-fns'
 import type { Usuario } from '@/types/usuarios'
-import { ROL_LABELS, AREA_LABELS } from './constants'
+import type { AreaInfo } from '@/lib/permissions'
+import { ROL_LABELS } from './constants'
 
 type Props = {
   usuarios: Usuario[]
+  areas: AreaInfo[]
   loading: boolean
   sessionUserId?: string
   esAdmin: boolean
@@ -12,7 +14,7 @@ type Props = {
   onToggleActivo: (u: Usuario) => void
 }
 
-export function UsuariosList({ usuarios, loading, sessionUserId, esAdmin, onEditar, onToggleActivo }: Props) {
+export function UsuariosList({ usuarios, areas, loading, sessionUserId, esAdmin, onEditar, onToggleActivo }: Props) {
   return (
     <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
       <div style={{ overflowX: 'auto' }}>
@@ -34,7 +36,8 @@ export function UsuariosList({ usuarios, loading, sessionUserId, esAdmin, onEdit
             {!loading && usuarios.map((u, i) => {
               const rolInfo  = ROL_LABELS[u.rol]  ?? ROL_LABELS.usuario
               const areaKey  = ['pvn', 'pvv'].includes(u.rol) ? 'puntos_venta' : u.area
-              const areaInfo = AREA_LABELS[areaKey] ?? { label: u.area, color: '#374151', bg: '#f3f4f6' }
+              const areaEncontrada = areas.find(a => a.key === areaKey)
+              const areaInfo = areaEncontrada ? { label: areaEncontrada.label, color: areaEncontrada.color, bg: areaEncontrada.bg } : { label: u.area, color: '#374151', bg: '#f3f4f6' }
               const esYo           = String(u.id) === sessionUserId
               const puedeEditar    = esAdmin || (u.rol !== 'admin' && !esYo)
               const puedeDesactivar = !esYo && (esAdmin || u.rol !== 'admin')

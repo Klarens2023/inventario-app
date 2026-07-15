@@ -3,8 +3,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import type { Usuario, PuntoVenta } from '@/types/usuarios'
+import type { AreaInfo } from '@/lib/permissions'
 import { fetchUsuarios, crearUsuario, editarUsuario, toggleActivo } from '@/lib/api/usuarios'
-import { AREA_LABELS } from '@/components/usuarios/constants'
 import { UsuariosList }  from '@/components/usuarios/UsuariosList'
 import { AreaFilterBar } from '@/components/usuarios/AreaFilterBar'
 import { ModalCrear }    from '@/components/usuarios/ModalCrear'
@@ -26,6 +26,7 @@ export default function GestionUsuariosPage() {
   }, [status, esLider, router])
 
   const [usuarios,    setUsuarios]    = useState<Usuario[]>([])
+  const [areas,       setAreas]       = useState<AreaInfo[]>([])
   const [loading,     setLoading]     = useState(false)
   const [puntosVenta, setPuntosVenta] = useState<PuntoVenta[]>([])
   const [filtroArea,  setFiltroArea]  = useState('todos')
@@ -48,12 +49,18 @@ export default function GestionUsuariosPage() {
     finally { setLoading(false) }
   }, [])
 
+  const cargarAreas = useCallback(async () => {
+    const res = await fetch('/api/areas')
+    if (res.ok) setAreas(await res.json())
+  }, [])
+
   useEffect(() => {
     if (status === 'authenticated' && esLider) {
       cargar()
+      cargarAreas()
       fetch('/api/pvn/puntos-venta').then(r => r.json()).then(setPuntosVenta).catch(() => {})
     }
-  }, [status, esLider, cargar])
+  }, [status, esLider, cargar, cargarAreas])
 
   async function handleCrear(body: Record<string, unknown>) {
     if (!body.nombre || !body.username) { setErrorCrear('Nombre y usuario son obligatorios'); return }
@@ -95,7 +102,7 @@ export default function GestionUsuariosPage() {
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0f172a', margin: 0 }}>Gestión de Usuarios</h1>
           <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
-            {esAdmin ? 'Administra todos los usuarios del sistema' : `Usuarios del área de ${AREA_LABELS[sesionArea]?.label ?? sesionArea}`}
+            {esAdmin ? 'Administra todos los usuarios del sistema' : `Usuarios del área de ${areas.find(a => a.key === sesionArea)?.label ?? sesionArea}`}
           </p>
         </div>
         {tab === 'usuarios' && (
@@ -134,10 +141,11 @@ export default function GestionUsuariosPage() {
             </div>
           )}
           {esAdmin && usuarios.length > 0 && (
-            <AreaFilterBar usuarios={usuarios} filtroArea={filtroArea} onChange={setFiltroArea} />
+            <AreaFilterBar usuarios={usuarios} areas={areas} filtroArea={filtroArea} onChange={setFiltroArea} />
           )}
           <UsuariosList
             usuarios={usuariosFiltrados}
+            areas={areas}
             loading={loading}
             sessionUserId={session?.user?.id}
             esAdmin={esAdmin}
@@ -153,6 +161,7 @@ export default function GestionUsuariosPage() {
         <ModalCrear
           esAdmin={esAdmin}
           sesionArea={sesionArea}
+          areas={areas}
           puntosVenta={puntosVenta}
           guardando={guardando}
           error={errorCrear}
@@ -166,6 +175,7 @@ export default function GestionUsuariosPage() {
           usuario={usuarioEdit}
           esAdmin={esAdmin}
           sessionUserId={session?.user?.id}
+          areas={areas}
           puntosVenta={puntosVenta}
           editando={editando}
           onClose={() => setModalEditar(false)}
@@ -174,7 +184,7 @@ export default function GestionUsuariosPage() {
       )}
 
       {modalAreas && (
-        <ModalAreas usuarios={usuarios} onClose={() => setModalAreas(false)} />
+        <ModalAreas usuarios={usuarios} areas={areas} esAdmin={esAdmin} onAreasChanged={cargarAreas} onClose={() => setModalAreas(false)} />
       )}
     </div>
   )

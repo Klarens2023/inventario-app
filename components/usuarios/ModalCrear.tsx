@@ -1,13 +1,14 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type { PuntoVenta } from '@/types/usuarios'
-import { type Modulo, modulosPorDefecto } from '@/lib/permissions'
+import { type Modulo, type AreaInfo, modulosPorDefecto } from '@/lib/permissions'
 import { labelStyle, inputStyle, btnPrimary, btnSecondary } from './constants'
 import { ModulosChecklist } from './ModulosChecklist'
 
 type Props = {
   esAdmin: boolean
   sesionArea: string
+  areas: AreaInfo[]
   puntosVenta: PuntoVenta[]
   guardando: boolean
   error: string
@@ -15,22 +16,25 @@ type Props = {
   onCrear: (body: Record<string, unknown>) => void
 }
 
-export function ModalCrear({ esAdmin, sesionArea, puntosVenta, guardando, error, onClose, onCrear }: Props) {
+export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando, error, onClose, onCrear }: Props) {
+  const areaInicial = esAdmin ? (areas.find(a => a.key !== 'puntos_venta')?.key ?? sesionArea) : sesionArea
+
   const [nombre, setNombre]       = useState('')
   const [username, setUsername]   = useState('')
   const [rol, setRol]             = useState('usuario')
-  const [area, setArea]           = useState(esAdmin ? 'logistica' : sesionArea)
+  const [area, setArea]           = useState(areaInicial)
   const [puntoVenta, setPuntoVenta] = useState('')
-  const [modulos, setModulos]     = useState<string[]>(() => modulosPorDefecto('usuario', esAdmin ? 'logistica' : sesionArea))
+  const [modulos, setModulos]     = useState<string[]>(() => modulosPorDefecto('usuario', areas.find(a => a.key === areaInicial)))
 
   useEffect(() => {
     if (['pvn', 'pvv'].includes(rol)) setArea('puntos_venta')
-    else if (area === 'puntos_venta') setArea(esAdmin ? 'logistica' : sesionArea)
+    else if (area === 'puntos_venta') setArea(areaInicial)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rol])
 
   useEffect(() => {
-    setModulos(modulosPorDefecto(rol, area))
+    setModulos(modulosPorDefecto(rol, areas.find(a => a.key === area)))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rol, area])
 
   function toggleModulo(m: Modulo) {
@@ -82,9 +86,9 @@ export function ModalCrear({ esAdmin, sesionArea, puntosVenta, guardando, error,
                 </div>
               ) : (
                 <select value={area} onChange={e => setArea(e.target.value)} style={inputStyle}>
-                  <option value="logistica">Logística</option>
-                  <option value="sistemas">Sistemas</option>
-                  <option value="general">Administración (General)</option>
+                  {areas.filter(a => a.key !== 'puntos_venta').map(a => (
+                    <option key={a.key} value={a.key}>{a.label}</option>
+                  ))}
                 </select>
               )}
             </div>

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { modulosPorDefecto } from '@/lib/permissions'
+import { modulosPorDefecto, type AreaInfo } from '@/lib/permissions'
 import bcrypt from 'bcryptjs'
 
 const PASSWORD_GENERICA = '123456'
@@ -75,7 +75,13 @@ export async function POST(req: NextRequest) {
     RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
   `
 
-  const modulosFinal: string[] = Array.isArray(modulosBody) ? modulosBody : modulosPorDefecto(rolFinal, areaFinal)
+  let modulosFinal: string[]
+  if (Array.isArray(modulosBody)) {
+    modulosFinal = modulosBody
+  } else {
+    const [areaInfo] = await sql`SELECT * FROM areas WHERE key = ${areaFinal}`
+    modulosFinal = modulosPorDefecto(rolFinal, areaInfo as AreaInfo | undefined)
+  }
   for (const m of modulosFinal) {
     await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${nuevo.id}, ${m}) ON CONFLICT DO NOTHING`
   }
