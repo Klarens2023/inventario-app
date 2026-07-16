@@ -1,0 +1,11 @@
+export const card: React.CSSProperties         = { background: '#fff', borderRadius: 12, padding: 16, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }
+export const lbl: React.CSSProperties          = { display: 'block', fontSize: 12, fontWeight: 700, color: '#475569', marginBottom: 8 }
+export const inp: React.CSSProperties          = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 15, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }
+export const btnPrimary: React.CSSProperties   = { padding: '11px 20px', borderRadius: 10, border: 'none', background: '#0047BA', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }
+export const btnSecondary: React.CSSProperties = { padding: '11px 20px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#fff', color: '#334155', fontWeight: 600, fontSize: 14, cursor: 'pointer' }
+export const btnDanger: React.CSSProperties    = { padding: '13px 20px', borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }
+export const iconBtn: React.CSSProperties      = { background: '#f1f5f9', border: 'none', borderRadius: 6, width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 13, flexShrink: 0 }
+export const iconBtnConfirmar: React.CSSProperties = { background: '#dcfce7', color: '#16a34a', fontWeight: 800 }
+export const iconBtnCancelar: React.CSSProperties  = { background: '#fee2e2', color: '#dc2626', fontWeight: 800 }
+export const linkBtn: React.CSSProperties      = { background: 'none', border: 'none', color: '#0047BA', fontWeight: 700, fontSize: 13, cursor: 'pointer', padding: 0 }
+export const filaTurno: React.CSSProperties    = { width: '100%', background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }
