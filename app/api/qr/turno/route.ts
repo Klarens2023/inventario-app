@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { subirADrive, limpiarNombreArchivo, aUrlProxy } from '@/lib/google-drive'
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
 }
+
+const MAX_BYTES = 8 * 1024 * 1024
 
 // GET /api/qr/turno — turno abierto hoy para el usuario autenticado
 // Con ?pendiente=true también devuelve turno sin cerrar de días anteriores
@@ -19,12 +22,13 @@ export async function GET(req: NextRequest) {
 
   if (req.nextUrl.searchParams.get('historial') === 'true') {
     const turnos = await sql`
-      SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at, cerrado_at, activo
+      SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at, cerrado_at, activo,
+             foto_datafono_url, numero_recogida
       FROM pvn_turnos
       WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date
       ORDER BY abierto_at DESC
     `
-    return NextResponse.json(turnos)
+    return NextResponse.json(turnos.map(t => aUrlProxy(t, req.nextUrl.origin, 'foto_datafono_url')))
   }
 
   const [turno] = await sql`
@@ -53,8 +57,22 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!['pvn', 'pvv'].includes(user.rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
-  const body = await req.json()
-  const accion: string = body.accion
+  const contentType = req.headers.get('content-type') ?? ''
+  const esMultipart = contentType.includes('multipart/form-data')
+
+  let body: Record<string, unknown> = {}
+  let fotoDatafono: File | null = null
+  let accion: string
+
+  if (esMultipart) {
+    const form = await req.formData()
+    accion = String(form.get('accion') ?? '')
+    body = { turno_id: form.get('turno_id'), numero_recogida: form.get('numero_recogida') }
+    fotoDatafono = form.get('foto_datafono') as File | null
+  } else {
+    body = await req.json()
+    accion = String(body.accion ?? '')
+  }
 
   const hoy = hoyBogota()
 
@@ -83,7 +101,7 @@ export async function POST(req: NextRequest) {
       puntoVentaNombre = pv.nombre
     } else {
       // pvv rotativa: elige el punto en cada apertura
-      const pvId = parseInt(body.punto_venta_id)
+      const pvId = parseInt(String(body.punto_venta_id))
       if (!pvId) return NextResponse.json({ error: 'Debes seleccionar un punto de venta' }, { status: 400 })
       const [pv] = await sql`SELECT id, nombre FROM pvn_puntos_venta WHERE id = ${pvId} AND activo = TRUE`
       if (!pv) return NextResponse.json({ error: 'Punto de venta inválido' }, { status: 400 })
@@ -111,18 +129,51 @@ export async function POST(req: NextRequest) {
   if (accion === 'cerrar') {
     // turno_id explícito (p.ej. cierre de un turno pendiente de un día anterior);
     // sin él, cierra el turno activo de hoy
-    const turnoId = body.turno_id ? parseInt(body.turno_id) : null
+    const turnoId = body.turno_id ? parseInt(String(body.turno_id)) : null
+
+    // El cierre de turno PVV (fijo o rotativo) exige foto del cierre del
+    // datafono + número de recogida del cuadre de caja; PVN no lo requiere.
+    let fotoDatafonoUrl: string | null = null
+    let numeroRecogida: string | null = null
+
+    if (user.rol === 'pvv') {
+      const numeroRaw = String(body.numero_recogida ?? '').trim()
+      if (!fotoDatafono || fotoDatafono.size === 0) {
+        return NextResponse.json({ error: 'Debes adjuntar la foto del cierre del datafono' }, { status: 400 })
+      }
+      if (!/^\d+$/.test(numeroRaw)) {
+        return NextResponse.json({ error: 'Ingresa un número de recogida válido (solo dígitos)' }, { status: 400 })
+      }
+      if (fotoDatafono.size > MAX_BYTES) {
+        return NextResponse.json({ error: 'La foto es muy pesada (máx 8MB)' }, { status: 413 })
+      }
+
+      const [turnoInfo] = turnoId
+        ? await sql`SELECT punto_venta_nombre, fecha::text AS fecha FROM pvn_turnos WHERE id = ${turnoId} AND usuario_id = ${parseInt(user.id)} AND activo = TRUE`
+        : await sql`SELECT punto_venta_nombre, fecha::text AS fecha FROM pvn_turnos WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE`
+      if (!turnoInfo) return NextResponse.json({ error: 'No hay turno abierto para cerrar' }, { status: 404 })
+
+      numeroRecogida = numeroRaw
+      const ahora = new Date()
+      const horaArchivo = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Bogota', hour12: false }).replace(/:/g, '-')
+      const nombreArchivo = `${limpiarNombreArchivo(turnoInfo.punto_venta_nombre)}_RG1_${numeroRecogida}_${limpiarNombreArchivo(user.name)}_${turnoInfo.fecha}_${horaArchivo}.jpg`
+      fotoDatafonoUrl = await subirADrive(fotoDatafono, nombreArchivo)
+    }
 
     const [turno] = turnoId
       ? await sql`
           UPDATE pvn_turnos
-          SET activo = FALSE, cerrado_at = NOW()
+          SET activo = FALSE, cerrado_at = NOW(),
+              foto_datafono_url = COALESCE(${fotoDatafonoUrl}, foto_datafono_url),
+              numero_recogida = COALESCE(${numeroRecogida}, numero_recogida)
           WHERE id = ${turnoId} AND usuario_id = ${parseInt(user.id)} AND activo = TRUE
           RETURNING id, punto_venta_nombre, fecha::text AS fecha
         `
       : await sql`
           UPDATE pvn_turnos
-          SET activo = FALSE, cerrado_at = NOW()
+          SET activo = FALSE, cerrado_at = NOW(),
+              foto_datafono_url = COALESCE(${fotoDatafonoUrl}, foto_datafono_url),
+              numero_recogida = COALESCE(${numeroRecogida}, numero_recogida)
           WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
           RETURNING id, punto_venta_nombre, fecha::text AS fecha
         `
@@ -140,7 +191,7 @@ export async function POST(req: NextRequest) {
       usuarioNombre: user.name,
       accion: 'PVN_TURNO_CERRADO',
       descripcion: `Cerró turno en ${turno.punto_venta_nombre} — ${resumen.total_pagos} pagos, total ${resumen.total_valor}`,
-      datos: { punto_venta: turno.punto_venta_nombre, fecha: hoy, total_pagos: resumen.total_pagos, total_valor: resumen.total_valor },
+      datos: { punto_venta: turno.punto_venta_nombre, fecha: hoy, total_pagos: resumen.total_pagos, total_valor: resumen.total_valor, numero_recogida: numeroRecogida },
     })
 
     return NextResponse.json({ ok: true, total_pagos: resumen.total_pagos, total_valor: Number(resumen.total_valor) })

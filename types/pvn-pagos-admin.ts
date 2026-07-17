@@ -22,4 +22,16 @@ export type TurnoActivo = {
   fecha: string
   abierto_at: string
 }
+export type CierreTurno = {
+  id: number
+  usuario_id: number
+  usuario_nombre: string
+  punto_venta_id: number | null
+  punto_venta_nombre: string | null
+  fecha: string
+  abierto_at: string
+  cerrado_at: string | null
+  foto_datafono_url: string | null
+  numero_recogida: string | null
+}
 export type { PuntoVenta }

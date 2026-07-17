@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { google } from 'googleapis'
-import { Readable } from 'stream'
 import sharp from 'sharp'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
+import { subirADrive, aUrlProxy } from '@/lib/google-drive'
 
 async function agregarEtiqueta(
   buffer: Buffer,
@@ -14,12 +13,16 @@ async function agregarEtiqueta(
   sede: string,
   usuario: string
 ): Promise<Buffer> {
-  const img = sharp(buffer)
-  const { width = 800 } = await img.metadata()
+  const meta = await sharp(buffer).metadata()
+  const width  = meta.width  ?? 800
+  const height = meta.height ?? 600
 
   const linea1 = `${fecha}  ${hora}`
   const linea2 = `${sede}  ·  ${usuario}`
-  const altoBanner = 52
+  // El banner nunca puede ser más alto que la propia foto, o sharp rechaza el
+  // composite ("Image to composite must have same dimensions or smaller") —
+  // pasaba con fotos de aspecto poco común (ej. capturas muy alargadas).
+  const altoBanner = Math.min(52, height)
   const fontSize = 15
 
   const svg = `
@@ -29,59 +32,23 @@ async function agregarEtiqueta(
       <text x="14" y="42" font-family="Arial, sans-serif" font-size="${fontSize}" fill="#93c5fd">${linea2}</text>
     </svg>`
 
-  return img
-    .composite([{
-      input: Buffer.from(svg),
-      gravity: 'south',
-    }])
-    .jpeg({ quality: 85 })
-    .toBuffer()
-}
-
-async function subirADrive(file: File, nombreArchivo: string): Promise<string> {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-  })
-  const drive = google.drive({ version: 'v3', auth })
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const stream = Readable.from(buffer)
-
-  const res = await drive.files.create({
-    supportsAllDrives: true,
-    requestBody: {
-      name: nombreArchivo,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID!],
-    },
-    media: { mimeType: file.type || 'image/jpeg', body: stream },
-    fields: 'id',
-  })
-
-  const fileId = res.data.id!
-  await drive.permissions.create({
-    fileId,
-    supportsAllDrives: true,
-    requestBody: { role: 'reader', type: 'anyone' },
-  })
-
-  return `https://drive.google.com/uc?export=view&id=${fileId}`
+  try {
+    return await sharp(buffer)
+      .composite([{
+        input: Buffer.from(svg),
+        gravity: 'south',
+      }])
+      .jpeg({ quality: 85 })
+      .toBuffer()
+  } catch {
+    // Si la superposición falla por alguna dimensión atípica, se sube la foto
+    // tal cual en vez de bloquear el registro del pago (que sí es obligatorio).
+    return sharp(buffer).jpeg({ quality: 85 }).toBuffer()
+  }
 }
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
-
-// Google Drive bloquea el hotlinking de "uc?export=view" al embeberlo como <img>
-// desde otro dominio, así que las respuestas devuelven nuestra propia URL de proxy.
-// Debe ser absoluta (no solo el path): la web la resuelve igual contra su propio
-// origen, pero la app móvil (React Native <Image>) no tiene un "origen actual" y
-// necesita la URL completa, o la imagen simplemente no carga.
-function aUrlProxy(row: Record<string, any>, baseUrl: string): Record<string, any> {
-  const fileId = String(row.foto_url).match(/[?&]id=([^&]+)/)?.[1]
-  return fileId ? { ...row, foto_url: `${baseUrl}/api/qr/foto?id=${fileId}` } : row
 }
 
 const MAX_BYTES = 8 * 1024 * 1024

@@ -12,6 +12,7 @@ import { TurnoPendienteScreen } from '@/components/pvn-qr/TurnoPendienteScreen'
 import { AbrirTurnoScreen } from '@/components/pvn-qr/AbrirTurnoScreen'
 import { ComprobanteForm } from '@/components/pvn-qr/ComprobanteForm'
 import { MisPagosPanel } from '@/components/pvn-qr/MisPagosPanel'
+import { CierreDatafonoForm } from '@/components/pvn-qr/CierreDatafonoForm'
 import { Lightbox } from '@/components/pvn-qr/Lightbox'
 
 export default function SubirQRPage() {
@@ -39,6 +40,9 @@ export default function SubirQRPage() {
   const [cerrando,       setCerrando]       = useState(false)
   const [errorTurno,     setErrorTurno]     = useState('')
   const [resumenCierre,  setResumenCierre]  = useState<ResumenCierre | null>(null)
+  const [mostrarCierreDatafono, setMostrarCierreDatafono] = useState(false)
+  const [turnoIdACerrar, setTurnoIdACerrar] = useState<number | undefined>(undefined)
+  const [errorCierreDatafono, setErrorCierreDatafono]     = useState('')
 
   // Formulario de pago
   const [foto,      setFoto]      = useState<File | null>(null)
@@ -110,18 +114,44 @@ export default function SubirQRPage() {
     } finally { setAbriendo(false) }
   }
 
-  async function handleCerrarTurno(turnoId?: number) {
+  // PVV (fijo o rotativo) debe adjuntar la foto de cierre del datafono + el
+  // número de recogida del cuadre de caja antes de poder cerrar; PVN cierra
+  // directo con la confirmación simple de siempre.
+  function handleCerrarTurno(turnoId?: number) {
+    if (esPvv) {
+      setTurnoIdACerrar(turnoId)
+      setErrorCierreDatafono('')
+      setMostrarCierreDatafono(true)
+      return
+    }
+    cerrarTurnoSimple(turnoId)
+  }
+
+  async function cerrarTurnoSimple(turnoId?: number) {
     if (!confirm('¿Confirmas el cierre del turno?')) return
     setCerrando(true)
     try {
       const res = await apiCerrarTurno(turnoId)
-      if (res.ok) {
-        setResumenCierre({ total_pagos: res.total_pagos, total_valor: res.total_valor })
-        setTurnoHoy(null)
-        setTurnoPendiente(null)
-        setMostrarHoy(false)
-      }
+      if (res.ok) aplicarCierreExitoso(res)
     } finally { setCerrando(false) }
+  }
+
+  async function cerrarTurnoConDatafono(foto: File, numeroRecogida: string) {
+    setCerrando(true)
+    setErrorCierreDatafono('')
+    try {
+      const res = await apiCerrarTurno(turnoIdACerrar, { foto, numeroRecogida })
+      if (!res.ok) { setErrorCierreDatafono(res.error); return }
+      aplicarCierreExitoso(res)
+      setMostrarCierreDatafono(false)
+    } finally { setCerrando(false) }
+  }
+
+  function aplicarCierreExitoso(res: { total_pagos: number; total_valor: number }) {
+    setResumenCierre({ total_pagos: res.total_pagos, total_valor: res.total_valor })
+    setTurnoHoy(null)
+    setTurnoPendiente(null)
+    setMostrarHoy(false)
   }
 
   async function seleccionarFoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -178,6 +208,17 @@ export default function SubirQRPage() {
     setVerTurnoId(null)
   }
 
+  // Se referencia desde varias pantallas (turno pendiente y la principal), por
+  // eso vive antes de los "return" tempranos y no dentro de un único JSX.
+  const datafonoModal = mostrarCierreDatafono && (
+    <CierreDatafonoForm
+      cerrando={cerrando}
+      error={errorCierreDatafono}
+      onCancelar={() => setMostrarCierreDatafono(false)}
+      onConfirmar={cerrarTurnoConDatafono}
+    />
+  )
+
   // ── Loading ───────────────────────────────────────────────────────────────
   if (status === 'loading' || !permitido || (necesitaTurno && turnoHoy === undefined)) {
     return (
@@ -189,7 +230,12 @@ export default function SubirQRPage() {
 
   // ── Turno pendiente de día anterior ──────────────────────────────────────
   if (necesitaTurno && turnoPendiente && !turnoHoy) {
-    return <TurnoPendienteScreen turnoPendiente={turnoPendiente} cerrando={cerrando} onCerrar={() => handleCerrarTurno(turnoPendiente.id)} />
+    return (
+      <>
+        <TurnoPendienteScreen turnoPendiente={turnoPendiente} cerrando={cerrando} onCerrar={() => handleCerrarTurno(turnoPendiente.id)} />
+        {datafonoModal}
+      </>
+    )
   }
 
   // ── Sin turno abierto ──────────────────────────────────────────────────────
@@ -261,6 +307,8 @@ export default function SubirQRPage() {
       )}
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
+
+      {datafonoModal}
     </div>
   )
 }

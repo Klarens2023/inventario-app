@@ -4,16 +4,18 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import { exportarExcel } from '@/lib/exportExcel'
 import { tieneModulo } from '@/lib/permissions'
-import type { PagoAdmin, PuntoVenta, Usuario, SortKey, TurnoActivo } from '@/types/pvn-pagos-admin'
+import type { PagoAdmin, PuntoVenta, Usuario, SortKey, TurnoActivo, CierreTurno } from '@/types/pvn-pagos-admin'
 import {
-  getPagos, getPuntosVenta, getUsuariosPvnPvv, getTurnosActivos,
+  getPagos, getPuntosVenta, getUsuariosPvnPvv, getTurnosActivos, getCierresTurno,
   cerrarTurnoActivo as apiCerrarTurnoActivo, putPagoAdmin, deletePagoAdmin,
 } from '@/lib/api/pvn-pagos-admin'
 import { fmtMoneda } from '@/components/pvn-pagos-admin/utils'
 import { FiltrosBar } from '@/components/pvn-pagos-admin/FiltrosBar'
+import { Tabs, type Tab } from '@/components/pvn-pagos-admin/Tabs'
 import { TurnosActivosPanel } from '@/components/pvn-pagos-admin/TurnosActivosPanel'
 import { ResumenCards } from '@/components/pvn-pagos-admin/ResumenCards'
 import { PagosTable } from '@/components/pvn-pagos-admin/PagosTable'
+import { CierresTurnoTable } from '@/components/pvn-pagos-admin/CierresTurnoTable'
 import { Lightbox } from '@/components/pvn-pagos-admin/Lightbox'
 
 export default function PagosQRPage() {
@@ -42,6 +44,9 @@ export default function PagosQRPage() {
   const [cargandoTurnos, setCargandoTurnos] = useState(false)
   const [cerrandoTurnoId, setCerrandoTurnoId] = useState<number | null>(null)
   const [mostrarTurnos, setMostrarTurnos] = useState(false)
+  const [tab, setTab] = useState<Tab>('pagos')
+  const [cierres, setCierres] = useState<CierreTurno[]>([])
+  const [loadingCierres, setLoadingCierres] = useState(false)
 
   const { rol, modulos } = (session?.user ?? {}) as { rol?: string; modulos?: string[] }
   const canView = tieneModulo(rol ?? '', modulos, 'pvn_pagos_qr')
@@ -104,9 +109,15 @@ export default function PagosQRPage() {
     finally { setLoading(false) }
   }, [desde, hasta, pvFiltro, usuarioFiltro])
 
+  const cargarCierres = useCallback(async () => {
+    setLoadingCierres(true)
+    try { setCierres(await getCierresTurno({ desde, hasta, puntoVentaId: pvFiltro, usuarioId: usuarioFiltro })) }
+    finally { setLoadingCierres(false) }
+  }, [desde, hasta, pvFiltro, usuarioFiltro])
+
   useEffect(() => {
-    if (status === 'authenticated' && canView) cargar()
-  }, [status, canView, cargar])
+    if (status === 'authenticated' && canView) { cargar(); cargarCierres() }
+  }, [status, canView, cargar, cargarCierres])
 
   function toggleSort(key: SortKey) {
     if (sortBy === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -141,6 +152,24 @@ export default function PagosQRPage() {
     exportarExcel(`pagos_qr_${desde}_a_${hasta}`, columnas, filas, session?.user?.name ?? undefined, 'KLARENS  —  Consolidado de Pagos QR')
   }
 
+  function exportarCierres() {
+    const columnas = ['Fecha cierre', 'Hora cierre', 'Punto de Venta', 'Usuario', 'N° de recogida', 'Foto cierre datafono']
+    const filas = cierres.map(c => {
+      const fechaObj = c.cerrado_at ? new Date(c.cerrado_at) : null
+      return [
+        c.fecha,
+        fechaObj ? fechaObj.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '',
+        c.punto_venta_nombre ?? '',
+        c.usuario_nombre,
+        c.numero_recogida ?? '',
+        c.foto_datafono_url ?? '',
+      ]
+    })
+    exportarExcel(`cierres_turno_pvv_${desde}_a_${hasta}`, columnas, filas, session?.user?.name ?? undefined, 'KLARENS  —  Cierres de Turno PVV')
+  }
+
+  function filtrar() { cargar(); cargarCierres() }
+
   if (status === 'loading' || !canView) return null
 
   return (
@@ -156,45 +185,53 @@ export default function PagosQRPage() {
         onDesdeChange={setDesde}
         hasta={hasta}
         onHastaChange={setHasta}
-        onFiltrar={cargar}
-        onExportar={exportar}
-        puedeExportar={pagos.length > 0}
+        onFiltrar={filtrar}
+        onExportar={tab === 'pagos' ? exportar : exportarCierres}
+        puedeExportar={tab === 'pagos' ? pagos.length > 0 : cierres.length > 0}
       />
 
-      {isAdmin && (
-        <TurnosActivosPanel
-          turnosActivos={turnosActivos}
-          cargando={cargandoTurnos}
-          mostrar={mostrarTurnos}
-          onToggleMostrar={() => setMostrarTurnos(v => !v)}
-          cerrandoTurnoId={cerrandoTurnoId}
-          onCerrarTurno={cerrarTurnoActivo}
-        />
+      <Tabs tab={tab} onChange={setTab} />
+
+      {tab === 'pagos' ? (
+        <>
+          {isAdmin && (
+            <TurnosActivosPanel
+              turnosActivos={turnosActivos}
+              cargando={cargandoTurnos}
+              mostrar={mostrarTurnos}
+              onToggleMostrar={() => setMostrarTurnos(v => !v)}
+              cerrandoTurnoId={cerrandoTurnoId}
+              onCerrarTurno={cerrarTurnoActivo}
+            />
+          )}
+
+          {!loading && pagos.length > 0 && <ResumenCards pagos={pagos} />}
+
+          <PagosTable
+            pagos={pagos}
+            loading={loading}
+            puntos={puntos}
+            isAdmin={isAdmin}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onToggleSort={toggleSort}
+            onSetLightbox={setLightbox}
+            editandoId={editandoId}
+            valorEdit={valorEdit}
+            onValorEditChange={setValorEdit}
+            puntoEdit={puntoEdit}
+            onPuntoEditChange={setPuntoEdit}
+            guardandoEdit={guardandoEdit}
+            onIniciarEdicion={iniciarEdicionPago}
+            onGuardarEdicion={guardarEdicionPago}
+            onCancelarEdicion={() => setEditandoId(null)}
+            eliminandoId={eliminandoId}
+            onEliminarPago={eliminarPago}
+          />
+        </>
+      ) : (
+        <CierresTurnoTable cierres={cierres} loading={loadingCierres} onSetLightbox={setLightbox} />
       )}
-
-      {!loading && pagos.length > 0 && <ResumenCards pagos={pagos} />}
-
-      <PagosTable
-        pagos={pagos}
-        loading={loading}
-        puntos={puntos}
-        isAdmin={isAdmin}
-        sortBy={sortBy}
-        sortDir={sortDir}
-        onToggleSort={toggleSort}
-        onSetLightbox={setLightbox}
-        editandoId={editandoId}
-        valorEdit={valorEdit}
-        onValorEditChange={setValorEdit}
-        puntoEdit={puntoEdit}
-        onPuntoEditChange={setPuntoEdit}
-        guardandoEdit={guardandoEdit}
-        onIniciarEdicion={iniciarEdicionPago}
-        onGuardarEdicion={guardarEdicionPago}
-        onCancelarEdicion={() => setEditandoId(null)}
-        eliminandoId={eliminandoId}
-        onEliminarPago={eliminarPago}
-      />
 
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>

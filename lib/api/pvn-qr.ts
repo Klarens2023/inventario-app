@@ -21,14 +21,27 @@ export async function abrirTurno(puntoVentaId: string): Promise<{ ok: true; turn
   return { ok: true, turno: data }
 }
 
-export async function cerrarTurno(turnoId?: number): Promise<{ ok: true; total_pagos: number; total_valor: number } | { ok: false; error: string }> {
-  const body: Record<string, unknown> = { accion: 'cerrar' }
-  if (turnoId) body.turno_id = turnoId
-  const res = await fetch('/api/qr/turno', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+export async function cerrarTurno(
+  turnoId?: number,
+  datafono?: { foto: File; numeroRecogida: string }
+): Promise<{ ok: true; total_pagos: number; total_valor: number } | { ok: false; error: string }> {
+  let res: Response
+  if (datafono) {
+    const form = new FormData()
+    form.append('accion', 'cerrar')
+    if (turnoId) form.append('turno_id', String(turnoId))
+    form.append('numero_recogida', datafono.numeroRecogida)
+    form.append('foto_datafono', datafono.foto)
+    res = await fetch('/api/qr/turno', { method: 'POST', body: form })
+  } else {
+    const body: Record<string, unknown> = { accion: 'cerrar' }
+    if (turnoId) body.turno_id = turnoId
+    res = await fetch('/api/qr/turno', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
   const data = await res.json()
   if (!res.ok) return { ok: false, error: data.error ?? 'Error al cerrar turno' }
   return { ok: true, total_pagos: data.total_pagos, total_valor: data.total_valor }

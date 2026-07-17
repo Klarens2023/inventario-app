@@ -1,4 +1,4 @@
-import type { PagoAdmin, PuntoVenta, Usuario, TurnoActivo } from '@/types/pvn-pagos-admin'
+import type { PagoAdmin, PuntoVenta, Usuario, TurnoActivo, CierreTurno } from '@/types/pvn-pagos-admin'
 
 export async function getPagos(params: { desde: string; hasta: string; puntoVentaId?: string; usuarioId?: string }): Promise<PagoAdmin[]> {
   const qs = new URLSearchParams({ desde: params.desde, hasta: params.hasta })
@@ -15,6 +15,14 @@ export async function getPuntosVenta(): Promise<PuntoVenta[]> {
 export async function getUsuariosPvnPvv(): Promise<Usuario[]> {
   const data = await fetch('/api/usuarios').then(r => r.json())
   return Array.isArray(data) ? data.filter((u: Usuario) => ['pvn', 'pvv'].includes(u.rol)) : []
+}
+
+export async function getCierresTurno(params: { desde: string; hasta: string; puntoVentaId?: string; usuarioId?: string }): Promise<CierreTurno[]> {
+  const qs = new URLSearchParams({ desde: params.desde, hasta: params.hasta })
+  if (params.puntoVentaId && params.puntoVentaId !== 'todos') qs.set('punto_venta_id', params.puntoVentaId)
+  if (params.usuarioId && params.usuarioId !== 'todos') qs.set('usuario_id', params.usuarioId)
+  const data = await fetch(`/api/qr/turno/cierres?${qs}`).then(r => r.json())
+  return Array.isArray(data) ? data : []
 }
 
 export async function getTurnosActivos(): Promise<TurnoActivo[]> {
