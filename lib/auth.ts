@@ -3,8 +3,14 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { sql } from './db'
 
+const SESION_PVN_PVV_SEGUNDOS = 24 * 60 * 60 // 24 horas
+const SESION_DEFAULT_SEGUNDOS = 8 * 60 * 60  // 8 horas (admin, lider, usuario)
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 }, // 8 horas
+  // maxAge es el techo (para que la cookie no expire antes que el JWT de
+  // pvn/pvv); la duración real por rol se fija abajo en el callback jwt,
+  // escribiendo token.exp directamente.
+  session: { strategy: 'jwt', maxAge: SESION_PVN_PVV_SEGUNDOS },
   pages: {
     signIn: '/login',
     error:  '/login',
@@ -68,6 +74,13 @@ export const authOptions: NextAuthOptions = {
         token.debe_cambiar_password = u.debe_cambiar_password ?? false
         token.punto_venta_id        = u.punto_venta_id ?? null
         token.modulos               = u.modulos ?? []
+
+        // Sesión más larga para pvn/pvv (24h) que para el resto (8h); se fija
+        // solo al iniciar sesión, no en cada refresco del token.
+        const duracion = ['pvn', 'pvv'].includes(token.rol as string)
+          ? SESION_PVN_PVV_SEGUNDOS
+          : SESION_DEFAULT_SEGUNDOS
+        token.exp = Math.floor(Date.now() / 1000) + duracion
       }
       // Permite actualizar el token desde el cliente con useSession().update()
       if (trigger === 'update' && session?.debe_cambiar_password !== undefined) {

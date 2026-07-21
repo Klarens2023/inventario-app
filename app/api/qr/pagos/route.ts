@@ -157,6 +157,9 @@ export async function GET(req: NextRequest) {
   const pvId  = searchParams.get('punto_venta_id')
   const usuarioId = searchParams.get('usuario_id')
 
+  // Sin LIMIT: esta consulta alimenta tanto la tabla como la exportación a
+  // Excel, y truncar en silencio descartaba fechas completas del rango
+  // filtrado sin avisar (las más antiguas, por el ORDER BY fecha DESC).
   const rows = await sql(
     `SELECT id, usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre,
             fecha::text AS fecha, valor, foto_url, created_at
@@ -165,8 +168,7 @@ export async function GET(req: NextRequest) {
        AND ($2::date IS NULL OR fecha <= $2::date)
        AND ($3::int IS NULL OR punto_venta_id = $3::int)
        AND ($4::int IS NULL OR usuario_id = $4::int)
-     ORDER BY fecha DESC, created_at DESC
-     LIMIT 200`,
+     ORDER BY fecha DESC, created_at DESC`,
     [desde, hasta, pvId ? parseInt(pvId) : null, usuarioId ? parseInt(usuarioId) : null]
   )
   return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin)))

@@ -110,7 +110,10 @@ export default function Sidebar() {
   }, [])
 
   const iniciarTimers = useCallback(() => {
-    if (pathname === '/login') return
+    // pvn/pvv no se cierran por inactividad, solo cuando expira su sesión
+    // (24h) o al tocar "Salir" — pueden pasar buen rato sin tocar la pantalla
+    // mientras atienden clientes en el punto de venta.
+    if (pathname === '/login' || esPvnPvv) return
     if (timerLogout.current) clearTimeout(timerLogout.current)
     if (timerAviso.current)  clearTimeout(timerAviso.current)
     cerrarAvisoYReiniciar()
@@ -129,10 +132,10 @@ export default function Sidebar() {
     timerLogout.current = setTimeout(() => {
       signOut({ callbackUrl: '/login' })
     }, INACTIVIDAD_MS)
-  }, [pathname, cerrarAvisoYReiniciar])
+  }, [pathname, esPvnPvv, cerrarAvisoYReiniciar])
 
   useEffect(() => {
-    if (pathname === '/login' || !session) return
+    if (pathname === '/login' || !session || esPvnPvv) return
     const eventos = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click']
     const onActividad = () => iniciarTimers()
     eventos.forEach(ev => window.addEventListener(ev, onActividad))
@@ -143,7 +146,7 @@ export default function Sidebar() {
       if (timerAviso.current)  clearTimeout(timerAviso.current)
       if (timerCuenta.current) clearInterval(timerCuenta.current)
     }
-  }, [pathname, session, iniciarTimers])
+  }, [pathname, session, esPvnPvv, iniciarTimers])
 
   if (pathname === '/login') return null
 

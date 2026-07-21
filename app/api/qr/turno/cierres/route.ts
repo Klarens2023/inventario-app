@@ -24,6 +24,9 @@ export async function GET(req: NextRequest) {
   const pvId  = searchParams.get('punto_venta_id')
   const usuarioId = searchParams.get('usuario_id')
 
+  // Sin LIMIT, por la misma razón que /api/qr/pagos: esta consulta alimenta
+  // la exportación a Excel y truncar en silencio descartaría cierres del
+  // rango filtrado sin avisar.
   const rows = await sql(
     `SELECT id, usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre,
             fecha::text AS fecha, abierto_at, cerrado_at, foto_datafono_url, numero_recogida
@@ -33,8 +36,7 @@ export async function GET(req: NextRequest) {
        AND ($2::date IS NULL OR fecha <= $2::date)
        AND ($3::int IS NULL OR punto_venta_id = $3::int)
        AND ($4::int IS NULL OR usuario_id = $4::int)
-     ORDER BY cerrado_at DESC
-     LIMIT 200`,
+     ORDER BY cerrado_at DESC`,
     [desde, hasta, pvId ? parseInt(pvId) : null, usuarioId ? parseInt(usuarioId) : null]
   )
   return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin, 'foto_datafono_url')))
