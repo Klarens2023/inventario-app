@@ -4,4 +4,4 @@ node_modules/
 .next/
 out/
 *.log
-.claude/worktrees/
+.claude/
