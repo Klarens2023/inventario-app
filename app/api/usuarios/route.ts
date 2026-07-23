@@ -21,16 +21,23 @@ const SELECT_CON_MODULOS = `
 
 // GET /api/usuarios
 // admin → todos; lider → solo su área
-export async function GET() {
+// ?rol=pvn_pvv → todos los usuarios pvn/pvv sin importar área (los trabajadores
+// de punto de venta viven en su propia área "puntos_venta", distinta a la de
+// cualquier líder; el filtro de usuario en Pagos QR necesita verlos igual).
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const rol = session.user?.rol
   if (!['admin', 'lider'].includes(rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
+  const soloPvnPvv = req.nextUrl.searchParams.get('rol') === 'pvn_pvv'
+
   let rows
   if (rol === 'admin') {
     rows = await sql(`${SELECT_CON_MODULOS} ORDER BY u.area, u.created_at DESC`, [])
+  } else if (soloPvnPvv) {
+    rows = await sql(`${SELECT_CON_MODULOS} WHERE u.rol IN ('pvn','pvv') ORDER BY u.area, u.created_at DESC`, [])
   } else {
     const area = session.user?.area ?? 'logistica'
     rows = await sql(`${SELECT_CON_MODULOS} WHERE u.area = $1 ORDER BY u.created_at DESC`, [area])

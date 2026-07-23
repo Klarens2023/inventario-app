@@ -13,7 +13,7 @@ export async function getPuntosVenta(): Promise<PuntoVenta[]> {
 }
 
 export async function getUsuariosPvnPvv(): Promise<Usuario[]> {
-  const data = await fetch('/api/usuarios').then(r => r.json())
+  const data = await fetch('/api/usuarios?rol=pvn_pvv').then(r => r.json())
   return Array.isArray(data) ? data.filter((u: Usuario) => ['pvn', 'pvv'].includes(u.rol)) : []
 }
 
