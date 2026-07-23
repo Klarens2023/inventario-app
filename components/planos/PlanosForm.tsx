@@ -13,6 +13,7 @@ import {
 import { leerExcelSaldos, generarExcelSaldos } from '@/lib/planos/excelSaldos'
 import { generarPlanoTxt } from '@/lib/planos/generarTxt'
 import { codificarLatin1 } from '@/lib/planos/formato'
+import { TablaEditable, descargarBlob, type ColumnaDef } from './compartido'
 
 type Tab = 'documentoContable' | 'movimientoContable' | 'movimientoCxP' | 'movimientoCxC' | 'diferidos'
 
@@ -23,13 +24,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'movimientoCxC', label: 'Movimiento CxC' },
   { key: 'diferidos', label: 'Diferidos' },
 ]
-
-interface ColumnaDef<T> {
-  campo: keyof T
-  etiqueta: string
-  numero?: boolean
-  ancho?: number
-}
 
 const filaVaciaDocumento = (): DocumentoContableRow => ({
   centroOperacion: '001', tipoDocumento: '', numeroDocumento: '', fecha: '', tercero: '', observaciones: '',
@@ -154,80 +148,6 @@ const COLS_DIFERIDOS: ColumnaDef<DiferidoRow>[] = [
   { campo: 'observacionesContrapartida', etiqueta: 'Obs. contrapartida', ancho: 220 },
 ]
 
-function TablaEditable<T extends object>({
-  columnas, filas, setFilas, filaVacia,
-}: {
-  columnas: ColumnaDef<T>[]
-  filas: T[]
-  setFilas: (filas: T[]) => void
-  filaVacia: () => T
-}) {
-  function cambiar(i: number, campo: keyof T, valor: string, esNumero?: boolean) {
-    const copia = filas.slice()
-    const fila = { ...copia[i] } as Record<string, string | number>
-    fila[campo as string] = esNumero ? Number(valor.replace(',', '.')) || 0 : valor
-    copia[i] = fila as T
-    setFilas(copia)
-  }
-  function agregar() { setFilas([...filas, filaVacia()]) }
-  function eliminar(i: number) { setFilas(filas.filter((_, idx) => idx !== i)) }
-
-  return (
-    <div>
-      <div style={{ overflow: 'auto', maxHeight: 480, border: '1px solid var(--border)', borderRadius: 8 }}>
-        <table className="inv-table">
-          <thead>
-            <tr>
-              {columnas.map((c) => (
-                <th key={String(c.campo)} style={{ minWidth: c.ancho ?? 120 }}>{c.etiqueta}</th>
-              ))}
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.length === 0 && (
-              <tr><td colSpan={columnas.length + 1} style={{ textAlign: 'center', color: 'var(--text2)', padding: 24 }}>
-                Sin filas. Importe un Excel de saldos o agregue filas manualmente.
-              </td></tr>
-            )}
-            {filas.map((fila, i) => (
-              <tr key={i}>
-                {columnas.map((c) => (
-                  <td key={String(c.campo)}>
-                    <input
-                      value={String(fila[c.campo] ?? '')}
-                      onChange={(e) => cambiar(i, c.campo, e.target.value, c.numero)}
-                    />
-                  </td>
-                ))}
-                <td>
-                  <button className="btn btn-danger" onClick={() => eliminar(i)}>Eliminar</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button className="btn" onClick={agregar}>+ Agregar fila</button>
-        <span style={{ color: 'var(--text2)', fontSize: 13 }}>{filas.length} fila(s)</span>
-      </div>
-    </div>
-  )
-}
-
-function descargarBlob(contenido: BlobPart | Uint8Array, nombre: string, tipo: string) {
-  const blob = new Blob([contenido as BlobPart], { type: tipo })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = nombre
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
 export function PlanosForm() {
   const [datos, setDatos] = useState<SaldosIniciales>(saldosVacios())
   const [tab, setTab] = useState<Tab>('documentoContable')
@@ -279,7 +199,8 @@ export function PlanosForm() {
 
   return (
     <div style={{ padding: 32, maxWidth: 1400, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Generación de Planos</h1>
+      <a href="/planos" style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>&larr; Generación de Planos</a>
+      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4, marginTop: 8 }}>Saldos Iniciales Contables</h1>
       <p style={{ color: 'var(--text2)', marginBottom: 24 }}>
         Cargue de saldos iniciales contables y generación del plano de ancho fijo para Siesa ERP.
       </p>
