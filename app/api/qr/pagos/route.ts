@@ -66,6 +66,9 @@ export async function POST(req: NextRequest) {
 
   if (!foto) return NextResponse.json({ error: 'La foto es obligatoria' }, { status: 400 })
   if (!valor || valor <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
+  if (!foto.type.startsWith('image/')) {
+    return NextResponse.json({ error: 'El archivo debe ser una imagen' }, { status: 400 })
+  }
   if (foto.size > MAX_BYTES) {
     return NextResponse.json({ error: 'La imagen es muy pesada (máx 8MB)' }, { status: 413 })
   }
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
     datos: { punto_venta: turno.punto_venta_nombre, valor },
   })
 
-  return NextResponse.json(registro, { status: 201 })
+  return NextResponse.json(aUrlProxy(registro, req.nextUrl.origin), { status: 201 })
 }
 
 export async function GET(req: NextRequest) {

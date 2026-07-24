@@ -1,6 +1,6 @@
 'use client'
 import type { CierreTurno } from '@/types/pvn-pagos-admin'
-import { fmtFechaHora } from './utils'
+import { fmtFechaHora, fmtFecha } from './utils'
 
 type Props = {
   cierres: CierreTurno[]
@@ -40,8 +40,15 @@ export function CierresTurnoTable({ cierres, loading, onSetLightbox }: Props) {
           ) : (
             <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f1f5f9', flexShrink: 0 }} />
           )}
-          <div style={{ minWidth: 150, fontSize: 13, color: '#0f172a', fontWeight: 600 }}>
-            {c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '—'}
+          <div style={{ minWidth: 150 }}>
+            <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 600 }}>
+              {c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '—'}
+            </div>
+            {c.fecha_cierre !== c.fecha && (
+              <div style={{ fontSize: 11, color: '#b45309', fontWeight: 600 }}>
+                Turno del {fmtFecha(c.fecha)}
+              </div>
+            )}
           </div>
           {c.punto_venta_nombre && (
             <span style={{ width: 140, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', whiteSpace: 'nowrap', boxSizing: 'border-box', display: 'inline-block', textAlign: 'center' }}>

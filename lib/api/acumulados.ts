@@ -12,6 +12,10 @@ export async function getAcumulados(params: { desde: string; hasta: string; modo
   return { rows: data.rows ?? [], totales: data.totales ?? null, error: data.error, ok: res.ok }
 }
 
-export async function reiniciarHistorial() {
-  return fetch('/api/reiniciar', { method: 'DELETE' })
+export async function reiniciarHistorial(rango?: { desde: string; hasta: string }) {
+  return fetch('/api/reiniciar', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmar: 'ELIMINAR', desde: rango?.desde, hasta: rango?.hasta }),
+  })
 }

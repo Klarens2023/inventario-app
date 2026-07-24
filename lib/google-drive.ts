@@ -24,12 +24,10 @@ export async function subirADrive(file: File, nombreArchivo: string): Promise<st
   })
 
   const fileId = res.data.id!
-  await drive.permissions.create({
-    fileId,
-    supportsAllDrives: true,
-    requestBody: { role: 'reader', type: 'anyone' },
-  })
-
+  // El archivo NO se comparte públicamente ("anyone"): app/api/qr/foto lo sirve
+  // mediante un proxy que lo descarga con las credenciales de esta misma cuenta
+  // de servicio (que ya tiene acceso por haberlo creado), así que no hace falta
+  // exponerlo en internet — solo un usuario autenticado en la app puede verlo.
   return `https://drive.google.com/uc?export=view&id=${fileId}`
 }
 

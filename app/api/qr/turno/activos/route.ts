@@ -5,6 +5,10 @@ import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
 
+function hoyBogota(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+}
+
 function puedeVer(rol: string, modulos: string[]) {
   return rol === 'admin' || tieneModulo(rol, modulos, 'pvn_pagos_qr')
 }
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const [turno] = await sql`
     UPDATE pvn_turnos
-    SET activo = FALSE, cerrado_at = NOW()
+    SET activo = FALSE, cerrado_at = NOW(), fecha_cierre = ${hoyBogota()}::date
     WHERE id = ${turnoId} AND activo = TRUE
     RETURNING id, usuario_id, usuario_nombre, punto_venta_nombre, fecha::text AS fecha
   `

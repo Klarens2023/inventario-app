@@ -29,6 +29,7 @@ export type CierreTurno = {
   punto_venta_id: number | null
   punto_venta_nombre: string | null
   fecha: string
+  fecha_cierre: string
   abierto_at: string
   cerrado_at: string | null
   foto_datafono_url: string | null

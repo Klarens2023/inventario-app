@@ -2,6 +2,7 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { sql } from './db'
+import { minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from './loginBruteForce'
 
 const SESION_PVN_PVV_SEGUNDOS = 24 * 60 * 60 // 24 horas
 const SESION_DEFAULT_SEGUNDOS = 8 * 60 * 60  // 8 horas (admin, lider, usuario)
@@ -26,7 +27,8 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.username || !credentials?.password) return null
 
         const rows = await sql`
-          SELECT id, username, password_hash, nombre, rol, area, debe_cambiar_password, punto_venta_id
+          SELECT id, username, password_hash, nombre, rol, area, debe_cambiar_password, punto_venta_id,
+                 bloqueado_hasta
           FROM usuarios
           WHERE username = ${credentials.username}
             AND activo = true
@@ -36,8 +38,18 @@ export const authOptions: NextAuthOptions = {
         if (rows.length === 0) return null
 
         const user = rows[0]
+
+        const minutosRestantes = minutosRestantesBloqueo({ bloqueado_hasta: user.bloqueado_hasta })
+        if (minutosRestantes > 0) {
+          throw new Error(`Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes} minuto(s).`)
+        }
+
         const valid = await bcrypt.compare(credentials.password, user.password_hash)
-        if (!valid) return null
+        if (!valid) {
+          await registrarIntentoFallido(user.id)
+          return null
+        }
+        await resetearIntentosFallidos(user.id)
 
         // try/catch: si la migración de usuario_modulos aún no se ha corrido,
         // no debe romper el login de nadie — simplemente no hay módulos extra.

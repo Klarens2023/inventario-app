@@ -3,9 +3,10 @@ type Props = {
   reiniciando: boolean
   confirm: number
   onReiniciar: () => void
+  rangoActivo: boolean
 }
 
-export function HeaderBar({ isAdmin, reiniciando, confirm, onReiniciar }: Props) {
+export function HeaderBar({ isAdmin, reiniciando, confirm, onReiniciar, rangoActivo }: Props) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
       <div>
@@ -14,7 +15,9 @@ export function HeaderBar({ isAdmin, reiniciando, confirm, onReiniciar }: Props)
       </div>
       {isAdmin && (
         <button onClick={onReiniciar} disabled={reiniciando} className="btn btn-danger" style={{ fontSize: 12 }}>
-          {confirm === 1 ? 'CONFIRMAR BORRADO TOTAL' : 'Reiniciar historial'}
+          {confirm === 1
+            ? (rangoActivo ? 'CONFIRMAR BORRADO DEL RANGO' : 'CONFIRMAR BORRADO TOTAL')
+            : (rangoActivo ? 'Reiniciar rango filtrado' : 'Reiniciar historial')}
         </button>
       )}
     </div>

@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 
 // PUT /api/cambiar-password — usado por web (sesión) y app móvil (Bearer token)
 export async function PUT(req: NextRequest) {
-  const user = await getAuthUser(req)
+  const user = await getAuthUser(req, { permitirCambioPassword: true })
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const { nueva_password } = await req.json()

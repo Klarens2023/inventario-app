@@ -40,7 +40,12 @@ export default function AcumuladosPage() {
   async function reiniciar() {
     if (confirm < 1) { setConfirm(1); return }
     setRein(true)
-    try { await reiniciarHistorial(); setRows([]); setTotales(null); setConfirm(0); alert('Historial eliminado.') }
+    try {
+      const rango = desde && hasta ? { desde, hasta } : undefined
+      await reiniciarHistorial(rango)
+      setRows([]); setTotales(null); setConfirm(0)
+      alert(rango ? `Historial eliminado entre ${desde} y ${hasta}.` : 'Historial eliminado.')
+    }
     catch { alert('Error al reiniciar.') }
     setRein(false)
   }
@@ -131,7 +136,7 @@ export default function AcumuladosPage() {
 
   return (
     <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <HeaderBar isAdmin={isAdmin} reiniciando={reiniciando} confirm={confirm} onReiniciar={reiniciar} />
+      <HeaderBar isAdmin={isAdmin} reiniciando={reiniciando} confirm={confirm} onReiniciar={reiniciar} rangoActivo={!!(desde && hasta)} />
 
       <FiltrosBar
         modo={modo} onModoChange={cambiarModo}

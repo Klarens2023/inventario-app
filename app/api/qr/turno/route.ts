@@ -144,6 +144,9 @@ export async function POST(req: NextRequest) {
       if (!/^\d+$/.test(numeroRaw)) {
         return NextResponse.json({ error: 'Ingresa un número de recogida válido (solo dígitos)' }, { status: 400 })
       }
+      if (!fotoDatafono.type.startsWith('image/')) {
+        return NextResponse.json({ error: 'El archivo debe ser una imagen' }, { status: 400 })
+      }
       if (fotoDatafono.size > MAX_BYTES) {
         return NextResponse.json({ error: 'La foto es muy pesada (máx 8MB)' }, { status: 413 })
       }
@@ -163,7 +166,7 @@ export async function POST(req: NextRequest) {
     const [turno] = turnoId
       ? await sql`
           UPDATE pvn_turnos
-          SET activo = FALSE, cerrado_at = NOW(),
+          SET activo = FALSE, cerrado_at = NOW(), fecha_cierre = ${hoy}::date,
               foto_datafono_url = COALESCE(${fotoDatafonoUrl}, foto_datafono_url),
               numero_recogida = COALESCE(${numeroRecogida}, numero_recogida)
           WHERE id = ${turnoId} AND usuario_id = ${parseInt(user.id)} AND activo = TRUE
@@ -171,7 +174,7 @@ export async function POST(req: NextRequest) {
         `
       : await sql`
           UPDATE pvn_turnos
-          SET activo = FALSE, cerrado_at = NOW(),
+          SET activo = FALSE, cerrado_at = NOW(), fecha_cierre = ${hoy}::date,
               foto_datafono_url = COALESCE(${fotoDatafonoUrl}, foto_datafono_url),
               numero_recogida = COALESCE(${numeroRecogida}, numero_recogida)
           WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE

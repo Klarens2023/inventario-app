@@ -33,7 +33,7 @@ const AREAS = [
     key: 'general', label: 'Administración', color: '#7c2d12', bg: '#fed7aa',
     roles_permitidos: ['admin', 'lider'],
     modulos_usuario: ['cargar', 'consulta', 'acumulados', 'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr', 'equipos', 'movimientos_tic'],
-    modulos_lider:   ['cargar', 'consulta', 'acumulados', 'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr', 'equipos', 'movimientos_tic', 'planos'],
+    modulos_lider:   ['cargar', 'consulta', 'acumulados', 'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr', 'equipos', 'movimientos_tic'],
     protegida: true,
   },
   {

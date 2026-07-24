@@ -153,12 +153,13 @@ export default function PagosQRPage() {
   }
 
   function exportarCierres() {
-    const columnas = ['Fecha cierre', 'Hora cierre', 'Punto de Venta', 'Usuario', 'N° de recogida', 'Foto cierre datafono']
+    const columnas = ['Fecha cierre', 'Hora cierre', 'Fecha turno', 'Punto de Venta', 'Usuario', 'N° de recogida', 'Foto cierre datafono']
     const filas = cierres.map(c => {
       const fechaObj = c.cerrado_at ? new Date(c.cerrado_at) : null
       return [
-        c.fecha,
+        c.fecha_cierre,
         fechaObj ? fechaObj.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '',
+        c.fecha,
         c.punto_venta_nombre ?? '',
         c.usuario_nombre,
         c.numero_recogida ?? '',

@@ -82,11 +82,20 @@ export async function POST(req: NextRequest) {
     RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
   `
 
+  const [areaInfo] = await sql`SELECT * FROM areas WHERE key = ${areaFinal}`
+
   let modulosFinal: string[]
   if (Array.isArray(modulosBody)) {
-    modulosFinal = modulosBody
+    // Un líder solo puede conceder módulos ya habilitados para el área del
+    // usuario nuevo (tabla `areas`); un admin puede darle cualquier módulo.
+    if (rol === 'lider') {
+      const info = areaInfo as AreaInfo | undefined
+      const permitido = new Set([...(info?.modulos_usuario ?? []), ...(info?.modulos_lider ?? [])])
+      modulosFinal = modulosBody.filter((m: string) => permitido.has(m))
+    } else {
+      modulosFinal = modulosBody
+    }
   } else {
-    const [areaInfo] = await sql`SELECT * FROM areas WHERE key = ${areaFinal}`
     modulosFinal = modulosPorDefecto(rolFinal, areaInfo as AreaInfo | undefined)
   }
   for (const m of modulosFinal) {

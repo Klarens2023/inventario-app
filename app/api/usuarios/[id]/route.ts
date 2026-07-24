@@ -83,9 +83,32 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     await sql`UPDATE usuarios SET password_hash = ${hash}, debe_cambiar_password = true WHERE id = ${id}`
   }
   if (Array.isArray(modulos)) {
-    await sql`DELETE FROM usuario_modulos WHERE usuario_id = ${id}`
-    for (const m of modulos) {
-      await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${id}, ${m}) ON CONFLICT DO NOTHING`
+    if (esSelf) {
+      // Solo un admin llega aquí siendo esSelf (a un líder ya se le bloqueó
+      // arriba cualquier auto-edición). El modal de edición siempre reenvía
+      // los módulos actuales aunque el admin solo esté cambiando su nombre,
+      // así que solo se rechaza si de verdad intenta cambiar la lista.
+      const actuales = await sql`SELECT modulo FROM usuario_modulos WHERE usuario_id = ${id}`
+      const actualesSet = new Set(actuales.map((r) => r.modulo))
+      const nuevosSet = new Set(modulos)
+      const huboCambio = actualesSet.size !== nuevosSet.size || Array.from(actualesSet).some((m) => !nuevosSet.has(m))
+      if (huboCambio) {
+        return NextResponse.json({ error: 'No puedes cambiar tus propios módulos' }, { status: 400 })
+      }
+    } else {
+      // Un líder solo puede conceder módulos que ya estén habilitados para el
+      // área del usuario objetivo (tabla `areas`), para que no pueda otorgar
+      // a otros usuarios módulos de otras áreas editando este campo.
+      let modulosPermitidos: string[] = modulos
+      if (sesionRol === 'lider') {
+        const [areaInfo] = await sql`SELECT modulos_usuario, modulos_lider FROM areas WHERE key = ${usuario.area}`
+        const permitido = new Set([...(areaInfo?.modulos_usuario ?? []), ...(areaInfo?.modulos_lider ?? [])])
+        modulosPermitidos = modulos.filter((m: string) => permitido.has(m))
+      }
+      await sql`DELETE FROM usuario_modulos WHERE usuario_id = ${id}`
+      for (const m of modulosPermitidos) {
+        await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${id}, ${m}) ON CONFLICT DO NOTHING`
+      }
     }
   }
 
