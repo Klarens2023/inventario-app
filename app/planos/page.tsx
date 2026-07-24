@@ -19,6 +19,12 @@ const PLANOS = [
     title: 'Adopción NIIF por Primera Vez',
     desc: 'Carga los valores NIIF de activos ya creados en Siesa.',
   },
+  {
+    href: '/planos/adiciones-af',
+    icon: '➕',
+    title: 'Adiciones de Activos Fijos',
+    desc: 'Adiciones (mejoras/ampliaciones) a activos fijos ya creados en Siesa.',
+  },
 ]
 
 export default function PlanosMenuPage() {

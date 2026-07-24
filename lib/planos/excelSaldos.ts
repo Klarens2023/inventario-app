@@ -12,6 +12,7 @@ import type {
   MovimientoCxCRow,
   DiferidoRow,
 } from './tipos'
+import { agregarNotasEncabezado } from './notasExcel'
 
 const HOJAS = {
   documentoContable: 'Documentocontable',
@@ -59,6 +60,100 @@ const ENCABEZADOS: Record<keyof typeof HOJAS, string[]> = {
     'Auxiliar de cuenta contable de la contrapartida', 'Tercero para el asiento contrapartida',
     'Centro de operación para el asiento contrapartida', 'Unidad de negocio para el asiento contrapartida',
     'Centro de costo para el asiento contrapartida', 'Observaciones del movimiento contrapartida',
+  ],
+}
+
+// Observaciones de la regla de Siesa para cada columna (mismo orden que ENCABEZADOS),
+// mostradas como nota de Excel al pasar el mouse sobre el encabezado.
+const NOTAS: Record<keyof typeof HOJAS, string[]> = {
+  documentoContable: [
+    'Valida en maestro, código de centro de operación del documento',
+    'Valida en maestro, código de tipo de documento',
+    'Numero de documento',
+    'El formato debe ser AAAAMMDD',
+    'Valida en maestro, código de tercero',
+    'Observaciones',
+  ],
+  movimientoContable: [
+    'Valida en maestro, código de centro de operación del documento',
+    'Valida en maestro, código de tipo de documento',
+    'Numero de documento',
+    'Valida en maestro, código de cuenta contable',
+    'Valida en maestro, código de tercero, solo se requiere si la auxiliar contable maneja tercero',
+    'Valida en maestro, código de centro de operación del movimiento, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valida en maestro, código de unidad de negocio, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valida en maestro, código de centro de costos, solo se requiere si la auxiliar contable maneja centro de costos',
+    'Solo si la cuenta es disponible, valida en maestro, código de concepto de flujo de efectivo.',
+    'Valor debito del asiento, si el asiento es crédito este debe ir en cero.',
+    'Valor crédito del asiento, si el asiento es debito este debe ir en cero.',
+    'Solo si la cuenta maneja tasa, es el valor que da origen al impuesto o retención.',
+    "Solo si la cuenta es de bancos: 'CH' cheques, 'CG' consignaciones, 'ND' notas débito, 'NC' notas crédito.",
+    "Solo si la cuenta es de bancos, corresponde al numero 'CH', 'CG', 'ND' o 'NC'.",
+    'Observaciones',
+  ],
+  movimientoCxP: [
+    'Valida en maestro, código de centro de operación del documento',
+    'Valida en maestro, código de tipo de documento',
+    'Numero de documento',
+    'Valida en maestro, código de cuenta contable',
+    'Valida en maestro, código de tercero, solo se requiere si la auxiliar contable maneja tercero',
+    'Valida en maestro, código de centro de operación del movimiento, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valida en maestro, código de unidad de negocio, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valor debito del asiento, si el asiento es crédito este debe ir en cero.',
+    'Valor crédito del asiento, si el asiento es debito este debe ir en cero.',
+    'Observaciones',
+    'Valida en maestro, código de sucursal del proveedor',
+    'Es el prefijo del documento del proveedor, no se valida contra nada y puede dejarse vacío.',
+    'Numero de documento de cruce, es un numero entre 1 y 99999999.',
+    'Numero de cuota de documento de cruce, es un numero entre 0 y 99.',
+    'Valida en maestro, código de flujo de efectivo que se va a usar para el pago programado de esta obligación.',
+    'Fecha de vencimiento del documento, el formato debe ser AAAAMMDD.',
+    'Fecha de pronto pago del documento, el formato debe ser AAAAMMDD.',
+    'Fecha de documento de cruce del proveedor, el formato debe ser AAAAMMDD.',
+    'Observaciones del movimiento de saldo abierto.',
+  ],
+  movimientoCxC: [
+    'Valida en maestro, código de centro de operación del documento',
+    'Valida en maestro, código de tipo de documento',
+    'Numero de documento',
+    'Valida en maestro, código de cuenta contable',
+    'Valida en maestro, código de tercero, solo se requiere si la auxiliar contable maneja tercero',
+    'Valida en maestro, código de centro de operación del movimiento, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valida en maestro, código de unidad de negocio, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valor debito del asiento, si el asiento es crédito este debe ir en cero.',
+    'Valor crédito del asiento, si el asiento es debito este debe ir en cero.',
+    'Observaciones',
+    'Valida en maestro, código de sucursal del cliente.',
+    'Valida en maestro, código de tipo de documento.',
+    'Numero de documento de cruce, es un numero entre 1 y 99999999.',
+    'Numero de cuota de documento de cruce, es un numero entre 0 y 99.',
+    'Fecha de vencimiento del documento, el formato debe ser AAAAMMDD.',
+    'Fecha de pronto pago del documento, el formato debe ser AAAAMMDD.',
+    'Valida en maestro, código de tercero del vendedor.',
+    'Observaciones del movimiento de saldo abierto.',
+  ],
+  diferidos: [
+    'Valida en maestro, código de centro de operación del documento',
+    'Valida en maestro, código de tipo de documento',
+    'Numero de documento',
+    'Valida en maestro, código de cuenta contable',
+    'Valida en maestro, código de tercero, solo se requiere si la auxiliar contable maneja tercero',
+    'Valida en maestro, código de centro de operación del movimiento, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valida en maestro, código de unidad de negocio, es obligatorio si la auxiliar no tiene uno por defecto.',
+    'Valida en maestro, código de centro de costos, solo se requiere si la auxiliar contable maneja centro de costos',
+    'Valor debito del asiento, si el asiento es crédito este debe ir en cero.',
+    'Valor crédito del asiento, si el asiento es debito este debe ir en cero.',
+    'Observaciones',
+    'Código identificador del diferido.',
+    'Numero de cuota del diferido, es un numero entre 0 y 99.',
+    'Fecha inicial de amortización del diferido, el formato debe ser AAAAMMDD.',
+    'Fecha final de amortización del diferido, el formato debe ser AAAAMMDD.',
+    'Valida en maestro, código de auxiliar contable contrapartida para el proceso de amortización de diferidos.',
+    'Valida en maestro, código de tercero para el asiento contrapartida, se requiere si la cuenta contrapartida maneja tercero.',
+    'Valida en maestro, código de centro de operación.',
+    'Valida en maestro, código de unidad de negocio.',
+    'Valida en maestro, código de centro de costo para el asiento contrapartida, se requiere si la cuenta contrapartida maneja centro de costos.',
+    'Observaciones del movimiento contrapartida',
   ],
 }
 
@@ -163,10 +258,11 @@ export async function leerExcelSaldos(datos: ArrayBuffer): Promise<SaldosInicial
   return resultado
 }
 
-function agregarHoja(wb: ExcelJS.Workbook, nombre: string, encabezados: string[], filas: unknown[][]) {
+function agregarHoja(wb: ExcelJS.Workbook, nombre: string, encabezados: string[], notas: string[], filas: unknown[][]) {
   const ws = wb.addWorksheet(nombre)
   ws.addRow(encabezados)
   ws.getRow(1).font = { bold: true }
+  agregarNotasEncabezado(ws, notas)
   for (const fila of filas) ws.addRow(fila)
   ws.columns.forEach((col) => {
     let max = 10
@@ -180,31 +276,31 @@ function agregarHoja(wb: ExcelJS.Workbook, nombre: string, encabezados: string[]
 export async function generarExcelSaldos(datos: SaldosIniciales): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook()
 
-  agregarHoja(wb, HOJAS.documentoContable, ENCABEZADOS.documentoContable, datos.documentoContable.map((r) => [
+  agregarHoja(wb, HOJAS.documentoContable, ENCABEZADOS.documentoContable, NOTAS.documentoContable, datos.documentoContable.map((r) => [
     r.centroOperacion, r.tipoDocumento, r.numeroDocumento, r.fecha, r.tercero, r.observaciones,
   ]))
 
-  agregarHoja(wb, HOJAS.movimientoContable, ENCABEZADOS.movimientoContable, datos.movimientoContable.map((r) => [
+  agregarHoja(wb, HOJAS.movimientoContable, ENCABEZADOS.movimientoContable, NOTAS.movimientoContable, datos.movimientoContable.map((r) => [
     r.centroOperacion, r.tipoDocumento, r.numeroDocumento, r.auxiliar, r.tercero, r.centroOperacionMov,
     r.unidadNegocio, r.centroCostos, r.conceptoFlujoEfectivo, r.valorDebito, r.valorCredito,
     r.valorBaseGravable, r.tipoDocumentoBanco, r.numeroDocumentoBanco, r.observaciones,
   ]))
 
-  agregarHoja(wb, HOJAS.movimientoCxP, ENCABEZADOS.movimientoCxP, datos.movimientoCxP.map((r) => [
+  agregarHoja(wb, HOJAS.movimientoCxP, ENCABEZADOS.movimientoCxP, NOTAS.movimientoCxP, datos.movimientoCxP.map((r) => [
     r.centroOperacion, r.tipoDocumento, r.numeroDocumento, r.auxiliar, r.tercero, r.centroOperacionMov,
     r.unidadNegocio, r.valorDebito, r.valorCredito, r.observaciones, r.sucursalProveedor, r.prefijoCruce,
     r.numeroDocumentoCruce, r.numeroCuotaCruce, r.conceptoFlujoEfectivo, r.fechaVencimiento,
     r.fechaProntoPago, r.fechaDocumentoCruce, r.observacionesSaldoAbierto,
   ]))
 
-  agregarHoja(wb, HOJAS.movimientoCxC, ENCABEZADOS.movimientoCxC, datos.movimientoCxC.map((r) => [
+  agregarHoja(wb, HOJAS.movimientoCxC, ENCABEZADOS.movimientoCxC, NOTAS.movimientoCxC, datos.movimientoCxC.map((r) => [
     r.centroOperacion, r.tipoDocumento, r.numeroDocumento, r.auxiliar, r.tercero, r.centroOperacionMov,
     r.unidadNegocio, r.valorDebito, r.valorCredito, r.observaciones, r.sucursalCliente,
     r.tipoDocumentoCruce, r.numeroDocumentoCruce, r.numeroCuotaCruce, r.fechaVencimiento,
     r.fechaProntoPago, r.terceroVendedor, r.observacionesSaldoAbierto,
   ]))
 
-  agregarHoja(wb, HOJAS.diferidos, ENCABEZADOS.diferidos, datos.diferidos.map((r) => [
+  agregarHoja(wb, HOJAS.diferidos, ENCABEZADOS.diferidos, NOTAS.diferidos, datos.diferidos.map((r) => [
     r.centroOperacion, r.tipoDocumento, r.numeroDocumento, r.auxiliar, r.tercero, r.centroOperacionMov,
     r.unidadNegocio, r.centroCostos, r.valorDebito, r.valorCredito, r.observaciones, r.documentoDiferido,
     r.numeroCuotaDiferido, r.fechaInicial, r.fechaFinal, r.auxiliarContrapartida, r.terceroContrapartida,

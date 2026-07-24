@@ -4,6 +4,7 @@
 import ExcelJS from 'exceljs'
 import { activosFijosVacio } from './tiposAF'
 import type { ActivosFijos, ActivoFijoRow } from './tiposAF'
+import { agregarNotasEncabezado } from './notasExcel'
 
 const HOJA = 'AF'
 
@@ -16,6 +17,35 @@ const ENCABEZADOS = [
   'VIDA UTIL NIIF PERIODOS DEPRECIAR NIIF', 'VALOR DE SALVAMENTO NIIF',
   'PORCENTAJE DE SALVAMENTO NIIF', 'VIDA UTIL REMANENTE', 'UNIDADES REMANENTE',
   'CALCULA DEPRECIACION A LA REVALORIZACION',
+]
+
+// Observaciones de la regla de Siesa para cada columna, en el mismo orden que ENCABEZADOS.
+const NOTAS = [
+  '0=No, 1=Si',
+  'Valida en maestro, no debe existir. Si los parámetros de la compañía manejan consecutivo automático, este código no se tiene en cuenta.',
+  'Valida en maestro, no debe existir. Código alterno único; si no tiene, use el mismo CODIGO-ACTIVO.',
+  'Descripción del activo fijo',
+  'Descripción corta del activo fijo',
+  'Valida en maestro, código de tipo de inventario/servicio, debe ser de clase activo fijo.',
+  'Valida en maestro, código de centro de operación al que pertenece el activo.',
+  'Valida en maestro, código de unidad de negocio al que pertenece el activo.',
+  'Valida en maestro, código de centro de costos al que pertenece el activo.',
+  'Valida en maestro, código de tercero responsable al que está asignado el activo.',
+  '0=No, 1=Si, debe ser igual que el del tipo de inventario',
+  '0=No, 1=Si, debe ser igual que el del tipo de inventario',
+  'El formato debe ser AAAAMMDD, debe ser una fecha menor o igual a la actual',
+  'Mayor a cero(0). El número de decimales según lo configurado en la moneda.',
+  '0=No depreciable; 1=Linea recta; 2=Reducción de saldos; 3=Unidades de producción',
+  'Si método 1 o 2: entre 1 y 9999. Si método 0 o 3: debe ser 0.',
+  'Si método=2 y porcentaje de salvamento=0, debe ser mayor a 0.',
+  'Mayor a cero(0). El número de decimales según lo configurado en la moneda.',
+  '0=No depreciable; 1=Linea recta; 2=Reducción de saldos; 3=Unidades de producción. Si método local=0, debe ser 0.',
+  'Si método NIIF 1 o 2: entre 1 y 9999. Si método 0 o 3: debe ser 0.',
+  'Si método NIIF=2 y porcentaje de salvamento NIIF=0, debe ser mayor a 0.',
+  'Si método NIIF=2 y valor de salvamento NIIF=0, debe ser mayor a 0. Formato: 3 enteros + punto + 6 decimales.',
+  'Debe estar entre 1 y 9999. Si método de depreciación es 0 o 3, debe ser 0.',
+  'Se debe dejar en cero por el momento.',
+  '0=No, 1=Si',
 ]
 
 function texto(v: ExcelJS.CellValue): string {
@@ -99,6 +129,7 @@ export async function generarExcelAF(datos: ActivosFijos): Promise<ExcelJS.Buffe
   const ws = wb.addWorksheet(HOJA)
   ws.addRow(ENCABEZADOS)
   ws.getRow(1).font = { bold: true }
+  agregarNotasEncabezado(ws, NOTAS)
 
   for (const r of datos.activos) {
     ws.addRow([
