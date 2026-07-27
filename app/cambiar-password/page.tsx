@@ -1,12 +1,10 @@
 'use client'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Image from 'next/image'
 
 export default function CambiarPasswordPage() {
   const { data: session, update } = useSession()
-  const router = useRouter()
 
   const [nueva, setNueva]         = useState('')
   const [confirmar, setConfirmar] = useState('')
@@ -40,7 +38,11 @@ export default function CambiarPasswordPage() {
 
       // Actualizar el token para que el middleware no siga redirigiendo
       await update({ debe_cambiar_password: false })
-      router.replace('/dashboard')
+      // Navegación completa (no router.replace) para que la petición a
+      // /dashboard salga garantizado con la cookie de sesión ya actualizada;
+      // con navegación suave el middleware a veces alcanzaba a leer la
+      // cookie vieja y devolvía otra vez a esta misma pantalla.
+      window.location.href = '/dashboard'
     } finally {
       setGuardando(false)
     }

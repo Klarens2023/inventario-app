@@ -1,14 +1,21 @@
 'use client'
+import { useState } from 'react'
 import type { CierreTurno } from '@/types/pvn-pagos-admin'
 import { fmtFechaHora, fmtFecha } from './utils'
+import { Lightbox } from './Lightbox'
 
 type Props = {
   cierres: CierreTurno[]
   loading: boolean
-  onSetLightbox: (url: string) => void
 }
 
-export function CierresTurnoTable({ cierres, loading, onSetLightbox }: Props) {
+export function CierresTurnoTable({ cierres, loading }: Props) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+
+  // Solo los cierres con foto entran al visor; el índice del lightbox se
+  // maneja sobre esta lista filtrada, no sobre `cierres` completo.
+  const conFoto = cierres.filter(c => !!c.foto_datafono_url)
+
   return (
     <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
       {!loading && cierres.length > 0 && (
@@ -34,7 +41,7 @@ export function CierresTurnoTable({ cierres, loading, onSetLightbox }: Props) {
         >
           {c.foto_datafono_url ? (
             <img
-              src={c.foto_datafono_url} alt="Cierre datafono" onClick={() => onSetLightbox(c.foto_datafono_url!)}
+              src={c.foto_datafono_url} alt="Cierre datafono" onClick={() => setLightboxIndex(conFoto.findIndex(x => x.id === c.id))}
               style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
             />
           ) : (
@@ -63,6 +70,24 @@ export function CierresTurnoTable({ cierres, loading, onSetLightbox }: Props) {
           </div>
         </div>
       ))}
+
+      {lightboxIndex !== null && (
+        <Lightbox
+          items={conFoto.map(c => ({
+            src: c.foto_datafono_url!,
+            info: [
+              { label: 'Cierre', value: c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '' },
+              { label: 'Turno del', value: fmtFecha(c.fecha) },
+              { label: 'Punto de venta', value: c.punto_venta_nombre ?? '' },
+              { label: 'Usuario', value: c.usuario_nombre },
+              { label: 'N° recogida', value: c.numero_recogida ?? '' },
+            ],
+          }))}
+          index={lightboxIndex}
+          onNavigate={setLightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </div>
   )
 }

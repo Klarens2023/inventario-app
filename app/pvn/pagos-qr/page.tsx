@@ -16,7 +16,6 @@ import { TurnosActivosPanel } from '@/components/pvn-pagos-admin/TurnosActivosPa
 import { ResumenCards } from '@/components/pvn-pagos-admin/ResumenCards'
 import { PagosTable } from '@/components/pvn-pagos-admin/PagosTable'
 import { CierresTurnoTable } from '@/components/pvn-pagos-admin/CierresTurnoTable'
-import { Lightbox } from '@/components/pvn-pagos-admin/Lightbox'
 
 export default function PagosQRPage() {
   const { data: session, status } = useSession()
@@ -35,7 +34,6 @@ export default function PagosQRPage() {
     const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
   })
   const [hasta, setHasta] = useState(new Date().toISOString().split('T')[0])
-  const [lightbox, setLightbox] = useState<string | null>(null)
   const [editandoId, setEditandoId]     = useState<number | null>(null)
   const [valorEdit,  setValorEdit]      = useState('')
   const [puntoEdit,  setPuntoEdit]      = useState('')
@@ -216,7 +214,6 @@ export default function PagosQRPage() {
             sortBy={sortBy}
             sortDir={sortDir}
             onToggleSort={toggleSort}
-            onSetLightbox={setLightbox}
             editandoId={editandoId}
             valorEdit={valorEdit}
             onValorEditChange={setValorEdit}
@@ -231,10 +228,8 @@ export default function PagosQRPage() {
           />
         </>
       ) : (
-        <CierresTurnoTable cierres={cierres} loading={loadingCierres} onSetLightbox={setLightbox} />
+        <CierresTurnoTable cierres={cierres} loading={loadingCierres} />
       )}
-
-      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   )
 }
