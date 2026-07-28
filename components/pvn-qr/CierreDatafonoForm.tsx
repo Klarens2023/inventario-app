@@ -72,7 +72,7 @@ export function CierreDatafonoForm({ cerrando, error, onCancelar, onConfirmar }:
               <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Desde cámara o galería</div>
             </div>
           )}
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={seleccionarFoto} style={{ display: 'none' }} />
+          <input ref={fileRef} type="file" accept="image/*" onChange={seleccionarFoto} style={{ display: 'none' }} />
           <button onClick={() => fileRef.current?.click()} style={{ ...btnSecondary, width: '100%' }}>
             📷 {preview ? 'Cambiar foto' : 'Tomar foto'}
           </button>
