@@ -21,7 +21,7 @@ export function CierresTurnoTable({ cierres, loading }: Props) {
       {!loading && cierres.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 14, background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
           <div style={{ width: 44, flexShrink: 0 }} />
-          <div style={{ minWidth: 150, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cierre</div>
+          <div style={{ minWidth: 150, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Turno</div>
           <div style={{ width: 140, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Punto de venta</div>
           <div style={{ flex: 1, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Usuario</div>
           <div style={{ width: 120, fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', textAlign: 'right' }}>N° recogida</div>
@@ -49,13 +49,11 @@ export function CierresTurnoTable({ cierres, loading }: Props) {
           )}
           <div style={{ minWidth: 150 }}>
             <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 600 }}>
-              {c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '—'}
+              Turno {fmtFecha(c.fecha)}
             </div>
-            {c.fecha_cierre !== c.fecha && (
-              <div style={{ fontSize: 11, color: '#b45309', fontWeight: 600 }}>
-                Turno del {fmtFecha(c.fecha)}
-              </div>
-            )}
+            <div style={{ fontSize: 11, color: c.fecha_cierre !== c.fecha ? '#b45309' : '#94a3b8', fontWeight: c.fecha_cierre !== c.fecha ? 600 : 400 }}>
+              Cerrado {c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '—'}
+            </div>
           </div>
           {c.punto_venta_nombre && (
             <span style={{ width: 140, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, color: '#1d4ed8', background: '#dbeafe', whiteSpace: 'nowrap', boxSizing: 'border-box', display: 'inline-block', textAlign: 'center' }}>
@@ -76,8 +74,8 @@ export function CierresTurnoTable({ cierres, loading }: Props) {
           items={conFoto.map(c => ({
             src: c.foto_datafono_url!,
             info: [
-              { label: 'Cierre', value: c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '' },
-              { label: 'Turno del', value: fmtFecha(c.fecha) },
+              { label: 'Fecha del turno', value: fmtFecha(c.fecha) },
+              { label: 'Cerrado', value: c.cerrado_at ? fmtFechaHora(c.cerrado_at) : '' },
               { label: 'Punto de venta', value: c.punto_venta_nombre ?? '' },
               { label: 'Usuario', value: c.usuario_nombre },
               { label: 'N° recogida', value: c.numero_recogida ?? '' },

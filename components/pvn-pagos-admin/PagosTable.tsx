@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { PagoAdmin, PuntoVenta, SortKey } from '@/types/pvn-pagos-admin'
-import { fmtFechaHora, fmtMoneda } from './utils'
+import { fmtFechaHora, fmtFecha, fmtMoneda } from './utils'
 import { inp, iconBtn, iconBtnConfirmar, iconBtnCancelar, colHeaderBtn } from './constants'
 import { Lightbox } from './Lightbox'
 
@@ -78,7 +78,10 @@ export function PagosTable({
             src={p.foto_url} alt="Comprobante" onClick={() => setLightboxIndex(i)}
             style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
           />
-          <div style={{ minWidth: 150, fontSize: 13, color: '#0f172a', fontWeight: 600 }}>{fmtFechaHora(p.created_at)}</div>
+          <div style={{ minWidth: 150 }}>
+            <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 600 }}>Turno {fmtFecha(p.fecha)}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8' }}>Subido {fmtFechaHora(p.created_at)}</div>
+          </div>
 
           {editandoId === p.id ? (
             <select value={puntoEdit} onChange={e => onPuntoEditChange(e.target.value)} style={{ ...inp, fontSize: 12, padding: '5px 8px' }}>
@@ -140,7 +143,8 @@ export function PagosTable({
           items={pagosOrdenados.map(p => ({
             src: p.foto_url,
             info: [
-              { label: 'Fecha', value: fmtFechaHora(p.created_at) },
+              { label: 'Fecha del turno', value: fmtFecha(p.fecha) },
+              { label: 'Subido', value: fmtFechaHora(p.created_at) },
               { label: 'Punto de venta', value: p.punto_venta_nombre ?? '' },
               { label: 'Usuario', value: p.usuario_nombre },
               { label: 'Valor', value: fmtMoneda(p.valor) },

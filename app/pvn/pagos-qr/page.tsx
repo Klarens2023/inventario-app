@@ -30,9 +30,9 @@ export default function PagosQRPage() {
   const [sortBy, setSortBy] = useState<SortKey>('fecha')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [eliminandoId, setEliminandoId] = useState<number | null>(null)
-  const [desde, setDesde]     = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]
-  })
+  // Por defecto solo el día de hoy; el usuario puede ampliar el rango con los
+  // selectores de fecha y "Filtrar" cuando necesite consultar otro período.
+  const [desde, setDesde] = useState(new Date().toISOString().split('T')[0])
   const [hasta, setHasta] = useState(new Date().toISOString().split('T')[0])
   const [editandoId, setEditandoId]     = useState<number | null>(null)
   const [valorEdit,  setValorEdit]      = useState('')
