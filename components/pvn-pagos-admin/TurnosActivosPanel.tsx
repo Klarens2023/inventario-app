@@ -9,9 +9,10 @@ type Props = {
   onToggleMostrar: () => void
   cerrandoTurnoId: number | null
   onCerrarTurno: (t: TurnoActivo) => void
+  puedeCerrar: boolean
 }
 
-export function TurnosActivosPanel({ turnosActivos, cargando, mostrar, onToggleMostrar, cerrandoTurnoId, onCerrarTurno }: Props) {
+export function TurnosActivosPanel({ turnosActivos, cargando, mostrar, onToggleMostrar, cerrandoTurnoId, onCerrarTurno, puedeCerrar }: Props) {
   return (
     <div style={{ background: '#fff', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.07)', marginBottom: 20, overflow: 'hidden' }}>
       <button
@@ -38,13 +39,15 @@ export function TurnosActivosPanel({ turnosActivos, cargando, mostrar, onToggleM
               <div style={{ flex: 1, fontSize: 12, color: '#64748b' }}>
                 Desde {new Date(t.abierto_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
               </div>
-              <button
-                onClick={() => onCerrarTurno(t)}
-                disabled={cerrandoTurnoId === t.id}
-                style={{ ...btnDanger, opacity: cerrandoTurnoId === t.id ? 0.6 : 1, cursor: cerrandoTurnoId === t.id ? 'not-allowed' : 'pointer' }}
-              >
-                {cerrandoTurnoId === t.id ? 'Cerrando...' : '⏹ Cerrar turno'}
-              </button>
+              {puedeCerrar && (
+                <button
+                  onClick={() => onCerrarTurno(t)}
+                  disabled={cerrandoTurnoId === t.id}
+                  style={{ ...btnDanger, opacity: cerrandoTurnoId === t.id ? 0.6 : 1, cursor: cerrandoTurnoId === t.id ? 'not-allowed' : 'pointer' }}
+                >
+                  {cerrandoTurnoId === t.id ? 'Cerrando...' : '⏹ Cerrar turno'}
+                </button>
+              )}
             </div>
           ))}
         </div>

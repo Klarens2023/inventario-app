@@ -49,6 +49,7 @@ export default function PagosQRPage() {
   const { rol, modulos } = (session?.user ?? {}) as { rol?: string; modulos?: string[] }
   const canView = tieneModulo(rol ?? '', modulos, 'pvn_pagos_qr')
   const isAdmin = rol === 'admin'
+  const puedeVerTurnosActivos = isAdmin || rol === 'lider'
 
   useEffect(() => {
     if (status === 'authenticated' && !canView) router.replace('/dashboard')
@@ -61,8 +62,8 @@ export default function PagosQRPage() {
   }, [])
 
   useEffect(() => {
-    if (status === 'authenticated' && isAdmin) cargarTurnosActivos()
-  }, [status, isAdmin, cargarTurnosActivos])
+    if (status === 'authenticated' && puedeVerTurnosActivos) cargarTurnosActivos()
+  }, [status, puedeVerTurnosActivos, cargarTurnosActivos])
 
   async function cerrarTurnoActivo(t: TurnoActivo) {
     if (!confirm(`¿Cerrar el turno de ${t.usuario_nombre} en ${t.punto_venta_nombre}?`)) return
@@ -193,7 +194,7 @@ export default function PagosQRPage() {
 
       {tab === 'pagos' ? (
         <>
-          {isAdmin && (
+          {puedeVerTurnosActivos && (
             <TurnosActivosPanel
               turnosActivos={turnosActivos}
               cargando={cargandoTurnos}
@@ -201,6 +202,7 @@ export default function PagosQRPage() {
               onToggleMostrar={() => setMostrarTurnos(v => !v)}
               cerrandoTurnoId={cerrandoTurnoId}
               onCerrarTurno={cerrarTurnoActivo}
+              puedeCerrar={isAdmin}
             />
           )}
 
