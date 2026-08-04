@@ -1,7 +1,7 @@
 'use client'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import type { MovimientoResumen, FiltrosMovimientos } from '@/types/movimientos'
 import type { EquipoBusqueda } from '@/types/movimientos'
 import { fetchMovimientos } from '@/lib/api/movimientos'
@@ -11,7 +11,21 @@ import { MovimientoDetalle } from '@/components/movimientos/MovimientoDetalle'
 
 type Vista = 'lista' | 'nuevo' | 'detalle'
 
+// useSearchParams() exige un límite de Suspense en build estático (Next.js
+// no puede prerenderizar la página si no lo tiene) — de ahí este envoltorio.
 export default function MovimientosTICPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <span style={{ color: '#94a3b8' }}>Cargando...</span>
+      </div>
+    }>
+      <MovimientosTICContent />
+    </Suspense>
+  )
+}
+
+function MovimientosTICContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
