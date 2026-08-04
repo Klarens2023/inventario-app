@@ -10,11 +10,24 @@ function hoy() { return new Date().toISOString().slice(0, 10) }
 
 type Props = {
   proximoId: string
+  equipoInicial?: EquipoBusqueda | null
   onCancelar: () => void
   onGuardado: () => void
 }
 
-export function MovimientoForm({ proximoId, onCancelar, onGuardado }: Props) {
+function filaDesdeEquipo(eq: EquipoBusqueda): FilaActivo {
+  return {
+    equipo_id: eq.id,
+    descripcion: `${eq.marca} ${eq.modelo}`.trim(),
+    tipo_activo: eq.tipo_equipo,
+    cantidad: 1,
+    _busqueda: eq.id,
+    _resultados: [],
+    _buscando: false,
+  }
+}
+
+export function MovimientoForm({ proximoId, equipoInicial, onCancelar, onGuardado }: Props) {
   const [fecha,         setFecha]         = useState(hoy())
   const [movimiento,    setMovimiento]    = useState('definitivo')
   const [tipoMov,       setTipoMov]       = useState('')
@@ -26,7 +39,7 @@ export function MovimientoForm({ proximoId, onCancelar, onGuardado }: Props) {
   const [destinoDoc,    setDestinoDoc]    = useState('')
   const [destinoArea,   setDestinoArea]   = useState('')
   const [observaciones, setObservaciones] = useState('')
-  const [activos,       setActivos]       = useState<FilaActivo[]>([FILA_VACIA()])
+  const [activos,       setActivos]       = useState<FilaActivo[]>(equipoInicial ? [filaDesdeEquipo(equipoInicial)] : [FILA_VACIA()])
   const [guardando,     setGuardando]     = useState(false)
   const [errorForm,     setErrorForm]     = useState('')
   const [exitoForm,     setExitoForm]     = useState('')
@@ -105,6 +118,7 @@ export function MovimientoForm({ proximoId, onCancelar, onGuardado }: Props) {
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0 }}>Nuevo Movimiento</h1>
           <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
             Consecutivo: <b style={{ color: '#0047BA' }}>{proximoId}</b>
+            {equipoInicial && <span> · Prellenado desde equipo <b style={{ color: '#0047BA', fontFamily: 'monospace' }}>{equipoInicial.id}</b></span>}
           </div>
         </div>
       </div>

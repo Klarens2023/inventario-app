@@ -33,3 +33,10 @@ export async function actualizarEstado(id: string, estado: string): Promise<bool
   })
   return res.ok
 }
+
+export async function subirFotoMovimiento(id: string, foto: File): Promise<{ foto_autorizacion_url?: string; error?: string }> {
+  const form = new FormData()
+  form.append('foto', foto)
+  const res = await fetch(`/api/sistemas/movimientos/${id}/foto`, { method: 'POST', body: form })
+  return res.json()
+}

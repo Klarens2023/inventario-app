@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
+import { aUrlProxy } from '@/lib/google-drive'
 
 function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
   if (!session?.user) return false
   return tieneModulo(session.user.rol ?? '', session.user.modulos, 'movimientos_tic')
 }
 
-// GET /api/sistemas/movimientos/[id]
+// GET /api/sistemas/movimientos/[id] — getAuthUser (no solo sesión web) para
+// que la app móvil también pueda consultar el movimiento antes de subir la foto.
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!tieneModulo(user.rol, user.modulos, 'movimientos_tic')) {
+    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  }
 
   const [mov] = await sql`
     SELECT *, fecha::text AS fecha FROM tic_movimientos WHERE id = ${params.id}
@@ -29,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     ORDER BY a.id
   `
 
-  return NextResponse.json({ ...mov, activos })
+  return NextResponse.json(aUrlProxy({ ...mov, activos }, req.nextUrl.origin, 'foto_autorizacion_url'))
 }
 
 // PATCH /api/sistemas/movimientos/[id] — actualizar estado

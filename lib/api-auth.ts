@@ -49,7 +49,7 @@ export async function getAuthUser(req: NextRequest, opciones: OpcionesAuth = {})
         rol: payload.rol,
         area: payload.area,
         punto_venta_id: payload.punto_venta_id ?? null,
-        modulos: [],
+        modulos: payload.modulos ?? [],
         debeCambiarPassword: payload.debe_cambiar_password ?? false,
       }
     } catch {

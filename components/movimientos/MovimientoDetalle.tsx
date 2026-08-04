@@ -1,10 +1,10 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MovimientoDetalle as TDetalle } from '@/types/movimientos'
-import { fetchMovimientoDetalle, actualizarEstado } from '@/lib/api/movimientos'
+import { fetchMovimientoDetalle, actualizarEstado, subirFotoMovimiento } from '@/lib/api/movimientos'
 import { imprimirMovimiento } from './imprimirMovimiento'
 import { Badge, SecCard, Item } from './shared'
-import { btnSec } from './styles'
+import { btnSec, btnPrimary } from './styles'
 
 type Props = {
   id: string
@@ -17,6 +17,9 @@ export function MovimientoDetalle({ id, isAdmin, onVolver, onEstadoCambiado }: P
   const [detalle,         setDetalle]         = useState<TDetalle | null>(null)
   const [cargando,        setCargando]        = useState(true)
   const [cambiandoEstado, setCambiandoEstado] = useState(false)
+  const [subiendoFoto,    setSubiendoFoto]    = useState(false)
+  const [errorFoto,       setErrorFoto]       = useState('')
+  const inputFotoRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setCargando(true)
@@ -24,6 +27,21 @@ export function MovimientoDetalle({ id, isAdmin, onVolver, onEstadoCambiado }: P
       .then(setDetalle)
       .finally(() => setCargando(false))
   }, [id])
+
+  async function handleSubirFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !detalle) return
+    setErrorFoto('')
+    setSubiendoFoto(true)
+    try {
+      const res = await subirFotoMovimiento(detalle.id, file)
+      if (res.error) { setErrorFoto(res.error); return }
+      setDetalle(prev => prev ? { ...prev, foto_autorizacion_url: res.foto_autorizacion_url ?? prev.foto_autorizacion_url } : prev)
+    } finally {
+      setSubiendoFoto(false)
+      if (inputFotoRef.current) inputFotoRef.current.value = ''
+    }
+  }
 
   async function handleCambiarEstado(estado: string) {
     if (!detalle) return
@@ -131,11 +149,33 @@ export function MovimientoDetalle({ id, isAdmin, onVolver, onEstadoCambiado }: P
       </div>
 
       {detalle.observaciones && (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '14px 16px' }}>
+        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '14px 16px', marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6, textTransform: 'uppercase' }}>Observaciones</div>
           <div style={{ fontSize: 13, color: '#334155' }}>{detalle.observaciones}</div>
         </div>
       )}
+
+      {/* Foto del formato firmado y autorizado */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '14px 16px' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 10, textTransform: 'uppercase' }}>
+          Foto del formato firmado y autorizado
+        </div>
+        {errorFoto && (
+          <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '8px 12px', marginBottom: 10, color: '#991b1b', fontSize: 12 }}>
+            {errorFoto}
+          </div>
+        )}
+        {detalle.foto_autorizacion_url && (
+          <a href={detalle.foto_autorizacion_url} target="_blank" rel="noreferrer">
+            <img src={detalle.foto_autorizacion_url} alt="Formato firmado y autorizado"
+              style={{ maxWidth: 280, maxHeight: 280, borderRadius: 10, border: '1px solid #e2e8f0', display: 'block', marginBottom: 12, objectFit: 'cover' }} />
+          </a>
+        )}
+        <input ref={inputFotoRef} type="file" accept="image/*" capture="environment" onChange={handleSubirFoto} style={{ display: 'none' }} id="input-foto-movimiento" />
+        <label htmlFor="input-foto-movimiento" style={{ ...btnPrimary, display: 'inline-block', opacity: subiendoFoto ? 0.7 : 1, cursor: subiendoFoto ? 'not-allowed' : 'pointer' }}>
+          {subiendoFoto ? 'Subiendo...' : detalle.foto_autorizacion_url ? '📷 Reemplazar foto' : '📷 Subir foto'}
+        </label>
+      </div>
     </div>
   )
 }

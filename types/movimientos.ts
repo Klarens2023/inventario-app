@@ -28,6 +28,7 @@ export type MovimientoDetalle = MovimientoResumen & {
   origen_documento: string
   destino_documento: string
   observaciones: string | null
+  foto_autorizacion_url: string | null
   activos: ActivoDetalle[]
 }
 

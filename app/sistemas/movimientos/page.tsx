@@ -1,8 +1,9 @@
 'use client'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import type { MovimientoResumen, FiltrosMovimientos } from '@/types/movimientos'
+import type { EquipoBusqueda } from '@/types/movimientos'
 import { fetchMovimientos } from '@/lib/api/movimientos'
 import { MovimientosList }   from '@/components/movimientos/MovimientosList'
 import { MovimientoForm }    from '@/components/movimientos/MovimientoForm'
@@ -13,6 +14,7 @@ type Vista = 'lista' | 'nuevo' | 'detalle'
 export default function MovimientosTICPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const rol     = session?.user?.rol ?? ''
   const isAdmin = rol === 'admin'
@@ -26,9 +28,32 @@ export default function MovimientosTICPage() {
   const [vista,      setVista]      = useState<Vista>('lista')
   const [detalleId,  setDetalleId]  = useState('')
   const [proximoId,  setProximoId]  = useState('')
+  const [equipoInicial, setEquipoInicial] = useState<EquipoBusqueda | null>(null)
   const [lista,      setLista]      = useState<MovimientoResumen[]>([])
   const [cargando,   setCargando]   = useState(false)
   const [filtros,    setFiltros]    = useState<FiltrosMovimientos>({ buscar: '', estado: '', desde: '', hasta: '' })
+
+  // Deep-link: "Hacer movimiento" desde el inventario de equipos (?equipo_id=...)
+  // o abrir el detalle de un movimiento puntual (?ver=TIC-0001)
+  useEffect(() => {
+    if (status !== 'authenticated') return
+    const ver = searchParams.get('ver')
+    if (ver) { setDetalleId(ver); setVista('detalle'); return }
+
+    const equipoId = searchParams.get('equipo_id')
+    if (equipoId) {
+      setEquipoInicial({
+        id: equipoId,
+        tipo_equipo: searchParams.get('tipo_equipo') ?? '',
+        marca: searchParams.get('marca') ?? '',
+        modelo: searchParams.get('modelo') ?? '',
+        numero_serie: searchParams.get('numero_serie') ?? '',
+        usuario_asignado: '',
+      })
+      setVista('nuevo')
+      router.replace('/sistemas/movimientos')
+    }
+  }, [status, searchParams, router])
 
   const cargarLista = useCallback(async () => {
     setCargando(true)
@@ -44,11 +69,21 @@ export default function MovimientosTICPage() {
     if (status === 'authenticated') cargarLista()
   }, [status, cargarLista])
 
-  function abrirNuevo() {
-    const next = lista.length > 0
+  function siguienteId() {
+    return lista.length > 0
       ? `TIC-${String(parseInt(lista[0].id.replace('TIC-', ''), 10) + 1).padStart(4, '0')}`
       : 'TIC-0001'
-    setProximoId(next)
+  }
+
+  // Si se llegó por deep-link (?equipo_id=...) antes de que cargarLista() terminara,
+  // el consecutivo aún no se había podido calcular — se completa aquí.
+  useEffect(() => {
+    if (vista === 'nuevo' && !proximoId && !cargando) setProximoId(siguienteId())
+  }, [vista, proximoId, cargando, lista])
+
+  function abrirNuevo() {
+    setEquipoInicial(null)
+    setProximoId(siguienteId())
     setVista('nuevo')
   }
 
@@ -75,8 +110,9 @@ export default function MovimientosTICPage() {
   if (vista === 'nuevo') return (
     <MovimientoForm
       proximoId={proximoId}
-      onCancelar={() => setVista('lista')}
-      onGuardado={() => { cargarLista(); setVista('lista') }}
+      equipoInicial={equipoInicial}
+      onCancelar={() => { setEquipoInicial(null); setVista('lista') }}
+      onGuardado={() => { setEquipoInicial(null); cargarLista(); setVista('lista') }}
     />
   )
 

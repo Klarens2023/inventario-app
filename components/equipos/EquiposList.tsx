@@ -28,12 +28,18 @@ export function EquiposList({ lista, cargando, filtros, canCreate, onFiltro, onB
             Klarens · Lácteos del Cesar SAS — {lista.length} equipos registrados
           </p>
         </div>
-        {canCreate && (
-          <Link href="/sistemas/equipos/nuevo" style={{
-            padding: '10px 20px', borderRadius: 8, background: '#0047BA', color: '#fff',
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Link href="/sistemas/mantenimientos" style={{
+            padding: '10px 20px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)',
             fontWeight: 700, fontSize: 14, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6
-          }}>+ Nuevo Equipo</Link>
-        )}
+          }}>🛠 Mantenimientos</Link>
+          {canCreate && (
+            <Link href="/sistemas/equipos/nuevo" style={{
+              padding: '10px 20px', borderRadius: 8, background: '#0047BA', color: '#fff',
+              fontWeight: 700, fontSize: 14, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6
+            }}>+ Nuevo Equipo</Link>
+          )}
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center' }}>
@@ -58,17 +64,17 @@ export function EquiposList({ lista, cargando, filtros, canCreate, onFiltro, onB
           <table className="inv-table">
             <thead>
               <tr>
-                {['ID','Tipo','Marca / Modelo','N° Serie','Ubicación','Asignado a','Estado','Próx. Mant.'].map(h => (
+                {['ID','Tipo','Marca / Modelo','N° Serie','Ubicación','Asignado a','Estado','Próx. Mant.',''].map(h => (
                   <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {cargando && (
-                <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Cargando...</td></tr>
+                <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>Cargando...</td></tr>
               )}
               {!cargando && lista.length === 0 && (
-                <tr><td colSpan={8} style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>No se encontraron equipos</td></tr>
+                <tr><td colSpan={9} style={{ padding: 40, textAlign: 'center', color: 'var(--text2)' }}>No se encontraron equipos</td></tr>
               )}
               {!cargando && lista.map(eq => {
                 const s = ESTADOS_COLOR[eq.estado] ?? { color: '#374151', bg: '#f3f4f6' }
@@ -95,6 +101,21 @@ export function EquiposList({ lista, cargando, filtros, canCreate, onFiltro, onB
                     </td>
                     <td style={{ fontSize: 12, color: mantVencido ? '#dc2626' : 'var(--text2)', fontWeight: mantVencido ? 700 : 400 }}>
                       {proxMant ? proxMant.toLocaleDateString('es-CO') : '—'}
+                    </td>
+                    <td>
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          const params = new URLSearchParams({
+                            equipo_id: eq.id, tipo_equipo: eq.tipo_equipo ?? '',
+                            marca: eq.marca ?? '', modelo: eq.modelo ?? '', numero_serie: eq.numero_serie ?? '',
+                          })
+                          router.push(`/sistemas/movimientos?${params}`)
+                        }}
+                        title="Hacer movimiento de este equipo"
+                        style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        🔀 Movimiento
+                      </button>
                     </td>
                   </tr>
                 )

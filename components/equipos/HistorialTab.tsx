@@ -1,11 +1,12 @@
 'use client'
 import React from 'react'
+import Link from 'next/link'
 import type { HistReg } from '@/types/equipos'
 import { fmtFecha } from './shared'
 
 type Props = {
   titulo: string
-  tipo: 'mantenimientos' | 'incidencias' | 'cambios'
+  tipo: 'mantenimientos' | 'incidencias' | 'cambios' | 'movimientos'
   rows: HistReg[]
   canAdd: boolean
   onAdd: () => void
@@ -35,6 +36,14 @@ const CONFIG = {
       fmtFecha(r.fecha as string), r.componente as string,
       r.descripcion_anterior as string, r.descripcion_nuevo as string,
       r.motivo as string, r.tecnico as string,
+    ],
+  },
+  movimientos: {
+    columnas: ['ID','Fecha','Movimiento','Motivo','Origen','Destino','Estado'],
+    getRow: (r: HistReg) => [
+      <Link key="id" href={`/sistemas/movimientos?ver=${r.id}`} style={{ color: '#0047BA', fontWeight: 700, fontFamily: 'monospace' }}>{r.id as string}</Link>,
+      fmtFecha(r.fecha as string), r.tipo_movimiento as string,
+      r.motivo as string, r.origen_nombre as string, r.destino_nombre as string, r.estado as string,
     ],
   },
 }
