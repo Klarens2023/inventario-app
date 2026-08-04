@@ -25,6 +25,12 @@ const PLANOS = [
     title: 'Adiciones de Activos Fijos',
     desc: 'Adiciones (mejoras/ampliaciones) a activos fijos ya creados en Siesa.',
   },
+  {
+    href: '/planos/impuestos-retenciones',
+    icon: '🧾',
+    title: 'Impuestos y Retenciones',
+    desc: 'Configuración de impuestos y retenciones de clientes y proveedores.',
+  },
 ]
 
 export default function PlanosMenuPage() {
