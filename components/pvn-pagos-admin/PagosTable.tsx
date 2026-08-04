@@ -75,7 +75,7 @@ export function PagosTable({
           onMouseLeave={e => e.currentTarget.style.background = '#fff'}
         >
           <img
-            src={p.foto_url} alt="Comprobante" onClick={() => setLightboxIndex(i)}
+            src={`${p.foto_url}&thumb=1`} alt="Comprobante" onClick={() => setLightboxIndex(i)}
             style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
           />
           <div style={{ minWidth: 150 }}>

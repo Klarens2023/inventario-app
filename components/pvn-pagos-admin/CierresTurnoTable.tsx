@@ -41,7 +41,7 @@ export function CierresTurnoTable({ cierres, loading }: Props) {
         >
           {c.foto_datafono_url ? (
             <img
-              src={c.foto_datafono_url} alt="Cierre datafono" onClick={() => setLightboxIndex(conFoto.findIndex(x => x.id === c.id))}
+              src={`${c.foto_datafono_url}&thumb=1`} alt="Cierre datafono" onClick={() => setLightboxIndex(conFoto.findIndex(x => x.id === c.id))}
               style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
             />
           ) : (
