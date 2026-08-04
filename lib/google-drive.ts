@@ -1,5 +1,19 @@
 import { google } from 'googleapis'
 import { Readable } from 'stream'
+import sharp from 'sharp'
+
+// Comprime antes de subir a Drive: fotos de cámara sin procesar pueden pesar
+// varios MB, y eso se paga cada vez que alguien la ve (Fast Origin Transfer
+// de Vercel). 1600px de ancho es de sobra para leer un formato firmado o un
+// comprobante en el visor ampliado.
+export async function comprimirImagen(file: File, maxWidth = 1600, calidad = 80): Promise<File> {
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const comprimido = await sharp(buffer)
+    .resize({ width: maxWidth, withoutEnlargement: true })
+    .jpeg({ quality: calidad })
+    .toBuffer()
+  return new File([new Uint8Array(comprimido)], file.name, { type: 'image/jpeg' })
+}
 
 export async function subirADrive(file: File, nombreArchivo: string): Promise<string> {
   const auth = new google.auth.GoogleAuth({

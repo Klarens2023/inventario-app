@@ -3,7 +3,7 @@ import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
-import { subirADrive, aUrlProxy, limpiarNombreArchivo } from '@/lib/google-drive'
+import { subirADrive, aUrlProxy, limpiarNombreArchivo, comprimirImagen } from '@/lib/google-drive'
 
 const MAX_BYTES = 8 * 1024 * 1024
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const nombreArchivo = `${params.id}_autorizacion_${Date.now()}_${limpiarNombreArchivo(user.name)}.jpg`
-  const fotoUrl = await subirADrive(foto, nombreArchivo)
+  const fotoUrl = await subirADrive(await comprimirImagen(foto), nombreArchivo)
 
   await sql`UPDATE tic_movimientos SET foto_autorizacion_url = ${fotoUrl} WHERE id = ${params.id}`
 

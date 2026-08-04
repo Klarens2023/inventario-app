@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { subirADrive, limpiarNombreArchivo, aUrlProxy } from '@/lib/google-drive'
+import { subirADrive, limpiarNombreArchivo, aUrlProxy, comprimirImagen } from '@/lib/google-drive'
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
       const ahora = new Date()
       const horaArchivo = ahora.toLocaleTimeString('en-GB', { timeZone: 'America/Bogota', hour12: false }).replace(/:/g, '-')
       const nombreArchivo = `${limpiarNombreArchivo(turnoInfo.punto_venta_nombre)}_RG1_${numeroRecogida}_${limpiarNombreArchivo(user.name)}_${turnoInfo.fecha}_${horaArchivo}.jpg`
-      fotoDatafonoUrl = await subirADrive(fotoDatafono, nombreArchivo)
+      fotoDatafonoUrl = await subirADrive(await comprimirImagen(fotoDatafono), nombreArchivo)
     }
 
     const [turno] = turnoId

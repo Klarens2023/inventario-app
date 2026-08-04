@@ -10,8 +10,16 @@ import { getAuthUser } from '@/lib/api-auth'
 // ?thumb=1 devuelve una miniatura comprimida en vez del archivo original: las
 // listas (Pagos QR, Cierres) muestran las fotos en 44x44px pero sin esto se
 // transfería el archivo completo (varios MB) por cada fila — eso es lo que más
-// pesaba en "Fast Origin Transfer" de Vercel. Las fotos no cambian una vez
-// subidas, así que se puede cachear por mucho tiempo sin riesgo.
+// pesaba en "Fast Origin Transfer" de Vercel.
+//
+// Cache-Control público (decisión consciente, no descuido): una vez que un
+// usuario autenticado carga la foto, la CDN de Vercel la guarda y la sirve
+// directo a cualquiera con esa URL exacta, sin volver a pasar por esta función
+// ni re-verificar sesión — el fileId de Drive funciona como el "secreto" (larga
+// cadena aleatoria, no es adivinable ni aparece listado en ningún lado público).
+// Se aceptó este trade-off para bajar el consumo del plan Hobby de Vercel; si
+// se necesita revocar acceso a una foto puntual, hay que rotar/borrar el archivo
+// en Drive, no basta con cambiar permisos en la app.
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -41,9 +49,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(buffer, {
       headers: {
         'Content-Type': 'image/jpeg',
-        // private: solo el navegador del usuario cachea, no la CDN de Vercel
-        // (el archivo sigue exigiendo sesión autenticada en cada miss real).
-        'Cache-Control': 'private, max-age=604800, immutable',
+        'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
       },
     })
   } catch {
