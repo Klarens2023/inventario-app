@@ -22,8 +22,16 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const mantenimientos = await sql`SELECT * FROM equipos_mantenimientos WHERE equipo_id = ${params.id} ORDER BY fecha DESC`
   const incidencias    = await sql`SELECT * FROM equipos_incidencias WHERE equipo_id = ${params.id} ORDER BY fecha_apertura DESC`
   const cambios        = await sql`SELECT * FROM equipos_cambios_componentes WHERE equipo_id = ${params.id} ORDER BY fecha DESC`
+  const movimientos    = await sql`
+    SELECT m.id, m.fecha::text AS fecha, m.movimiento, m.tipo_movimiento, m.motivo,
+           m.origen_nombre, m.destino_nombre, m.estado, a.descripcion, a.cantidad
+    FROM tic_movimientos m
+    JOIN tic_movimiento_activos a ON a.movimiento_id = m.id
+    WHERE a.equipo_id = ${params.id}
+    ORDER BY m.fecha DESC
+  `
 
-  return NextResponse.json({ equipo, mantenimientos, incidencias, cambios })
+  return NextResponse.json({ equipo, mantenimientos, incidencias, cambios, movimientos })
 }
 
 // PUT /api/sistemas/equipos/[id]
@@ -78,6 +86,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       tipo_conexion = ${body.tipo_conexion || null},
       hostname = ${body.hostname || null},
       dominio = ${body.dominio || null},
+      ip_asignada_2 = ${body.ip_asignada_2 || null},
+      mascara_subred_2 = ${body.mascara_subred_2 || null},
+      gateway_2 = ${body.gateway_2 || null},
+      dns_primario_2 = ${body.dns_primario_2 || null},
+      mac_address_2 = ${body.mac_address_2 || null},
+      tipo_conexion_2 = ${body.tipo_conexion_2 || null},
       sistema_operativo = ${body.sistema_operativo || null},
       version_so = ${body.version_so || null},
       licencia_so = ${body.licencia_so || null},

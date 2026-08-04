@@ -17,6 +17,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
   const [mantenimientos, setMantenimientos] = useState<HistReg[]>([])
   const [incidencias,    setIncidencias]    = useState<HistReg[]>([])
   const [cambios,        setCambios]        = useState<HistReg[]>([])
+  const [movimientos,    setMovimientos]    = useState<HistReg[]>([])
   const [loading,        setLoading]        = useState(true)
   const [tab,            setTab]            = useState<TabKey>('detalles')
   const [editMode,       setEditMode]       = useState(false)
@@ -36,6 +37,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
       setMantenimientos(data.mantenimientos ?? [])
       setIncidencias(data.incidencias ?? [])
       setCambios(data.cambios ?? [])
+      setMovimientos(data.movimientos ?? [])
     } catch {
       router.push('/sistemas/equipos')
     } finally {
@@ -91,6 +93,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
     ['mantenimientos', `Mantenimientos (${mantenimientos.length})`],
     ['incidencias',    `Incidencias (${incidencias.length})`],
     ['cambios',        `Cambios (${cambios.length})`],
+    ['movimientos',    `Movimientos (${movimientos.length})`],
   ]
 
   return (
@@ -109,7 +112,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
           {equipo.sede && (
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text2)' }}>
               {equipo.sede as string}{equipo.area_ubicacion ? ` · ${equipo.area_ubicacion}` : ''}
-              {equipo.usuario_asignado ? ` — Asignado a: ${equipo.usuario_asignado}` : ''}
+              {equipo.responsable ? ` — Asignado a: ${equipo.responsable}` : ''}
             </p>
           )}
         </div>
@@ -161,9 +164,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
             <Fila label="Marca"         campo="marca"         ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, marca: v}))} />
             <Fila label="Modelo"        campo="modelo"        ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, modelo: v}))} />
             <Fila label="N° Serie"      campo="numero_serie"  ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, numero_serie: v}))} />
-            <Fila label="N° Interno"    campo="numero_interno" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, numero_interno: v}))} />
             <Fila label="Placa Activo"  campo="placa_activo"  ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, placa_activo: v}))} />
-            <Fila label="Cód. Barras"   campo="cod_barras"    ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, cod_barras: v}))} />
           </CardDetalle>
 
           {(equipo.procesador || equipo.ram_capacidad || editMode) && (
@@ -179,13 +180,25 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
             </CardDetalle>
           )}
 
-          <CardDetalle titulo="Red">
+          <CardDetalle titulo="Red — Adaptador 1">
+            <Fila label="Tipo Conexión" campo="tipo_conexion" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, tipo_conexion: v}))} />
             <Fila label="IP Asignada"   campo="ip_asignada"   ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, ip_asignada: v}))} />
+            <Fila label="Máscara Subred" campo="mascara_subred" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, mascara_subred: v}))} />
+            <Fila label="Gateway"       campo="gateway"       ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, gateway: v}))} />
             <Fila label="MAC Address"   campo="mac_address"   ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, mac_address: v}))} />
             <Fila label="Hostname"      campo="hostname"      ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, hostname: v}))} />
-            <Fila label="Tipo Conexión" campo="tipo_conexion" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, tipo_conexion: v}))} />
             <Fila label="Dominio"       campo="dominio"       ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, dominio: v}))} />
           </CardDetalle>
+
+          {(equipo.ip_asignada_2 || equipo.mac_address_2 || equipo.tipo_conexion_2 || editMode) && (
+            <CardDetalle titulo="Red — Adaptador 2 (opcional)">
+              <Fila label="Tipo Conexión" campo="tipo_conexion_2" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, tipo_conexion_2: v}))} />
+              <Fila label="IP Asignada"   campo="ip_asignada_2"   ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, ip_asignada_2: v}))} />
+              <Fila label="Máscara Subred" campo="mascara_subred_2" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, mascara_subred_2: v}))} />
+              <Fila label="Gateway"       campo="gateway_2"       ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, gateway_2: v}))} />
+              <Fila label="MAC Address"   campo="mac_address_2"   ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, mac_address_2: v}))} />
+            </CardDetalle>
+          )}
 
           {(equipo.sistema_operativo || equipo.antivirus || editMode) && (
             <CardDetalle titulo="Software">
@@ -200,8 +213,8 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
             <Fila label="Sede"             campo="sede"             ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, sede: v}))} />
             <Fila label="Área / Dpto."     campo="area_ubicacion"   ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, area_ubicacion: v}))} />
             <Fila label="Responsable"      campo="responsable"      ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, responsable: v}))} />
-            <Fila label="Usuario Asignado" campo="usuario_asignado" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, usuario_asignado: v}))} />
-            <Fila label="Piso / Oficina"   campo="piso_oficina"     ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, piso_oficina: v}))} />
+            <Fila label="Cargo Responsable" campo="cargo_responsable" ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, cargo_responsable: v}))} />
+            <Fila label="Ext. Telefónica"  campo="ext_telefonica"   ed={ed} editMode={editMode} onChange={v => setEditData(p => ({...p, ext_telefonica: v}))} />
           </CardDetalle>
 
           <CardDetalle titulo="Estado y Garantía">
@@ -246,6 +259,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
       {tab === 'mantenimientos' && <HistorialTab titulo="Historial de Mantenimientos"        tipo="mantenimientos" rows={mantenimientos} canAdd={canEdit} onAdd={() => { setModalTipo('mantenimiento'); setModalData({}) }} />}
       {tab === 'incidencias'    && <HistorialTab titulo="Historial de Incidencias / Tickets" tipo="incidencias"    rows={incidencias}    canAdd={canEdit} onAdd={() => { setModalTipo('incidencia');    setModalData({}) }} />}
       {tab === 'cambios'        && <HistorialTab titulo="Cambios en Componentes"              tipo="cambios"        rows={cambios}        canAdd={canEdit} onAdd={() => { setModalTipo('cambio');        setModalData({}) }} />}
+      {tab === 'movimientos'    && <HistorialTab titulo="Historial de Movimientos TIC"        tipo="movimientos"    rows={movimientos}    canAdd={false}   onAdd={() => {}} />}
 
       {modalTipo && (
         <ModalHistorial

@@ -11,6 +11,12 @@ export function EquipoForm() {
   const [campos, setCampos] = useState(CAMPOS_INICIAL)
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+  const [mostrarAdaptador2, setMostrarAdaptador2] = useState(false)
+
+  function quitarAdaptador2() {
+    setMostrarAdaptador2(false)
+    setCampos(prev => ({ ...prev, tipo_conexion_2: '', ip_asignada_2: '', mascara_subred_2: '', gateway_2: '', dns_primario_2: '', mac_address_2: '' }))
+  }
 
   const tipo        = campos.tipo_equipo as string
   const esPC        = TIPOS_PC.includes(tipo)
@@ -66,11 +72,7 @@ export function EquipoForm() {
         <div style={grid3}>
           <Campo label="Modelo"    value={campos.modelo as string}       onChange={v => set('modelo', v)}       placeholder="Ej: ProBook 450 G8" />
           <Campo label="N° Serie"  value={campos.numero_serie as string} onChange={v => set('numero_serie', v)} placeholder="Ej: MXL0483R2K" />
-          <Campo label="N° Interno" value={campos.numero_interno as string} onChange={v => set('numero_interno', v)} />
-        </div>
-        <div style={grid3}>
-          <Campo label="Placa Activo Fijo" value={campos.placa_activo as string} onChange={v => set('placa_activo', v)} placeholder="Opcional" />
-          <Campo label="Cód. Barras / QR"  value={campos.cod_barras as string}   onChange={v => set('cod_barras', v)} />
+          <Campo label="Placa Activo Fijo" value={campos.placa_activo as string} onChange={v => set('placa_activo', v)} placeholder="Ej: KL-0452" />
         </div>
       </Seccion>
 
@@ -136,20 +138,45 @@ export function EquipoForm() {
       )}
 
       <Seccion titulo={esPC || esMonitor || esImpresora ? '3. Red' : '2. Red'} color="#0369a1">
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Adaptador 1</div>
         <div style={grid3}>
+          <Campo label="Tipo Conexión" value={campos.tipo_conexion as string} onChange={v => set('tipo_conexion', v)} placeholder="Ej: Ethernet, Wi-Fi" />
           <Campo label="IP Asignada"      value={campos.ip_asignada as string}    onChange={v => set('ip_asignada', v)}    placeholder="Ej: 192.168.1.100" />
           <Campo label="Máscara de Subred" value={campos.mascara_subred as string} onChange={v => set('mascara_subred', v)} placeholder="Ej: 255.255.255.0" />
-          <Campo label="Gateway"          value={campos.gateway as string}        onChange={v => set('gateway', v)}        placeholder="Ej: 192.168.1.1" />
         </div>
         <div style={grid3}>
+          <Campo label="Gateway"       value={campos.gateway as string}       onChange={v => set('gateway', v)}       placeholder="Ej: 192.168.1.1" />
           <Campo label="DNS Primario"  value={campos.dns_primario as string}  onChange={v => set('dns_primario', v)} />
           <Campo label="MAC Address"   value={campos.mac_address as string}   onChange={v => set('mac_address', v)}   placeholder="Ej: AA:BB:CC:DD:EE:FF" />
-          <Campo label="Tipo Conexión" value={campos.tipo_conexion as string} onChange={v => set('tipo_conexion', v)} placeholder="Ej: Ethernet, Wi-Fi" />
         </div>
         <div style={grid3}>
           <Campo label="Hostname" value={campos.hostname as string} onChange={v => set('hostname', v)} placeholder="Ej: PC-VENTAS-01" />
           <Campo label="Dominio"  value={campos.dominio as string}  onChange={v => set('dominio', v)}  placeholder="Ej: klarens.local" />
         </div>
+
+        {mostrarAdaptador2 ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Adaptador 2 (opcional)</div>
+              <button type="button" onClick={quitarAdaptador2} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Quitar</button>
+            </div>
+            <div style={grid3}>
+              <Campo label="Tipo Conexión" value={campos.tipo_conexion_2 as string} onChange={v => set('tipo_conexion_2', v)} placeholder="Ej: Wi-Fi" />
+              <Campo label="IP Asignada"      value={campos.ip_asignada_2 as string}    onChange={v => set('ip_asignada_2', v)} />
+              <Campo label="Máscara de Subred" value={campos.mascara_subred_2 as string} onChange={v => set('mascara_subred_2', v)} />
+            </div>
+            <div style={grid3}>
+              <Campo label="Gateway"      value={campos.gateway_2 as string}      onChange={v => set('gateway_2', v)} />
+              <Campo label="DNS Primario" value={campos.dns_primario_2 as string} onChange={v => set('dns_primario_2', v)} />
+              <Campo label="MAC Address"  value={campos.mac_address_2 as string}  onChange={v => set('mac_address_2', v)} placeholder="Ej: AA:BB:CC:DD:EE:FF" />
+            </div>
+          </>
+        ) : (
+          <button type="button" onClick={() => setMostrarAdaptador2(true)}
+            style={{ alignSelf: 'flex-start', padding: '8px 14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'transparent', color: '#0369a1', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+            + Agregar segundo adaptador de red (Wi-Fi / Ethernet)
+          </button>
+        )}
       </Seccion>
 
       {esSoftware && (
@@ -179,19 +206,13 @@ export function EquipoForm() {
 
       <Seccion titulo="5. Ubicación" color="#047857">
         <div style={grid3}>
-          <Campo label="Sede"         value={campos.sede as string}                    onChange={v => set('sede', v)}                    placeholder="Ej: Planta Valledupar" />
-          <Campo label="Área / Dpto." value={campos.area_ubicacion as string}          onChange={v => set('area_ubicacion', v)}          placeholder="Ej: Producción" />
-          <Campo label="Departamento" value={campos.departamento_ubicacion as string}  onChange={v => set('departamento_ubicacion', v)} />
+          <Campo label="Sede"         value={campos.sede as string}           onChange={v => set('sede', v)}           placeholder="Ej: Planta Valledupar" />
+          <Campo label="Área / Dpto." value={campos.area_ubicacion as string} onChange={v => set('area_ubicacion', v)} placeholder="Ej: Producción" />
+          <Campo label="Ext. Telefónica" value={campos.ext_telefonica as string} onChange={v => set('ext_telefonica', v)} />
         </div>
         <div style={grid3}>
-          <Campo label="Piso / Oficina"    value={campos.piso_oficina as string}   onChange={v => set('piso_oficina', v)}   placeholder="Ej: Piso 2, Oficina 204" />
-          <Campo label="Puesto de Trabajo" value={campos.puesto_trabajo as string} onChange={v => set('puesto_trabajo', v)} />
-          <Campo label="Ext. Telefónica"   value={campos.ext_telefonica as string} onChange={v => set('ext_telefonica', v)} />
-        </div>
-        <div style={grid3}>
-          <Campo label="Responsable del Equipo" value={campos.responsable as string}      onChange={v => set('responsable', v)}      placeholder="Nombre del responsable" />
+          <Campo label="Responsable del Equipo" value={campos.responsable as string}       onChange={v => set('responsable', v)}       placeholder="Nombre del responsable" />
           <Campo label="Cargo del Responsable"  value={campos.cargo_responsable as string} onChange={v => set('cargo_responsable', v)} />
-          <Campo label="Usuario Asignado"       value={campos.usuario_asignado as string}  onChange={v => set('usuario_asignado', v)}  placeholder="Nombre del usuario final" />
         </div>
       </Seccion>
 
@@ -233,7 +254,6 @@ export function EquipoForm() {
         <div style={grid3}>
           <Campo label="Último Mantenimiento"  type="date" value={campos.ultimo_mantenimiento as string}  onChange={v => set('ultimo_mantenimiento', v)} />
           <Campo label="Próximo Mantenimiento" type="date" value={campos.proximo_mantenimiento as string} onChange={v => set('proximo_mantenimiento', v)} />
-          <Campo label="Contrato Mantenimiento" value={campos.contrato_mantenimiento as string}           onChange={v => set('contrato_mantenimiento', v)} />
         </div>
       </Seccion>
 

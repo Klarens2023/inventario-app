@@ -1,4 +1,4 @@
-import type { Equipo, EquipoDetalle, HistReg, FiltrosEquipos, CamposNuevo } from '@/types/equipos'
+import type { Equipo, EquipoDetalle, HistReg, FiltrosEquipos, CamposNuevo, EquipoMantenimiento, RegistroMantenimiento } from '@/types/equipos'
 
 export async function fetchEquipos(filtros: FiltrosEquipos): Promise<Equipo[]> {
   const params = new URLSearchParams()
@@ -10,7 +10,7 @@ export async function fetchEquipos(filtros: FiltrosEquipos): Promise<Equipo[]> {
   return Array.isArray(data) ? data : []
 }
 
-export async function fetchEquipoDetalle(id: string): Promise<{ equipo: EquipoDetalle; mantenimientos: HistReg[]; incidencias: HistReg[]; cambios: HistReg[] }> {
+export async function fetchEquipoDetalle(id: string): Promise<{ equipo: EquipoDetalle; mantenimientos: HistReg[]; incidencias: HistReg[]; cambios: HistReg[]; movimientos: HistReg[] }> {
   const res = await fetch(`/api/sistemas/equipos/${id}`)
   if (!res.ok) throw new Error('Equipo no encontrado')
   return res.json()
@@ -43,6 +43,23 @@ export async function agregarHistorial(id: string, tipo: string, data: Record<st
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ tipo, ...data }),
+  })
+  return res.json()
+}
+
+export async function fetchMantenimientos(buscar = ''): Promise<EquipoMantenimiento[]> {
+  const params = new URLSearchParams()
+  if (buscar) params.set('buscar', buscar)
+  const res = await fetch(`/api/sistemas/mantenimientos?${params}`)
+  const data = await res.json()
+  return Array.isArray(data) ? data : []
+}
+
+export async function registrarMantenimiento(data: RegistroMantenimiento): Promise<{ error?: string }> {
+  const res = await fetch('/api/sistemas/mantenimientos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   })
   return res.json()
 }
