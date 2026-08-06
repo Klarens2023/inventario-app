@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   const rows = await sql`
     SELECT u.id, u.username, u.password_hash, u.nombre, u.rol, u.area, u.activo,
            u.punto_venta_id, pv.nombre AS punto_venta_nombre, u.debe_cambiar_password,
-           u.bloqueado_hasta
+           u.bloqueado_hasta, u.acceso_movil
     FROM usuarios u
     LEFT JOIN pvn_puntos_venta pv ON pv.id = u.punto_venta_id
     WHERE u.username = ${username} AND u.activo = true
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
   await resetearIntentosFallidos(user.id)
 
-  if (!['pvn', 'pvv', 'usuario', 'admin'].includes(user.rol)) {
+  if (!user.acceso_movil) {
     return NextResponse.json({ error: 'Este usuario no tiene acceso a la app móvil' }, { status: 403 })
   }
 

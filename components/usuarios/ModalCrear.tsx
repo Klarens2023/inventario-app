@@ -25,10 +25,16 @@ export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando,
   const [area, setArea]           = useState(areaInicial)
   const [puntoVenta, setPuntoVenta] = useState('')
   const [modulos, setModulos]     = useState<string[]>(() => modulosPorDefecto('usuario', areas.find(a => a.key === areaInicial)))
+  const [accesoMovil, setAccesoMovil] = useState(rol !== 'lider')
 
   useEffect(() => {
     if (['pvn', 'pvv'].includes(rol)) setArea('puntos_venta')
     else if (area === 'puntos_venta') setArea(areaInicial)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rol])
+
+  useEffect(() => {
+    setAccesoMovil(rol !== 'lider')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rol])
 
@@ -42,7 +48,7 @@ export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando,
   }
 
   function handleCrear() {
-    const body: Record<string, unknown> = { nombre, username, rol, area: esAdmin ? area : sesionArea }
+    const body: Record<string, unknown> = { nombre, username, rol, area: esAdmin ? area : sesionArea, acceso_movil: accesoMovil }
     if ((rol === 'pvn' || rol === 'pvv') && puntoVenta) body.punto_venta_id = parseInt(puntoVenta)
     if (!['pvn', 'pvv'].includes(rol)) body.modulos = modulos
     onCrear(body)
@@ -107,6 +113,23 @@ export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando,
           {!['pvn', 'pvv'].includes(rol) && (
             <ModulosChecklist seleccionados={modulos} onToggle={toggleModulo} />
           )}
+          <div
+            onClick={() => setAccesoMovil(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+              padding: '10px 12px', borderRadius: 8,
+              border: `1px solid ${accesoMovil ? '#93c5fd' : '#e2e8f0'}`,
+              background: accesoMovil ? '#eff6ff' : '#f8fafc',
+            }}
+          >
+            <input type="checkbox" checked={accesoMovil} onChange={e => setAccesoMovil(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer' }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: accesoMovil ? '#1d4ed8' : '#1e293b' }}>Acceso a la app móvil</div>
+              <div style={{ fontSize: 12, color: accesoMovil ? '#2563eb' : '#64748b', marginTop: 2 }}>
+                Permite iniciar sesión en la app móvil (PVN/PVV), sin importar el rol.
+              </div>
+            </div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
           <button onClick={onClose} style={btnSecondary}>Cancelar</button>

@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 
   const body = await req.json()
-  const { activo, rol, nombre, username, area, punto_venta_id, resetPassword, modulos } = body
+  const { activo, rol, nombre, username, area, punto_venta_id, resetPassword, modulos, acceso_movil } = body
 
   if (activo !== undefined) {
     if (esSelf && !activo) {
@@ -77,6 +77,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (punto_venta_id !== undefined) {
     const pvId = punto_venta_id === null ? null : parseInt(punto_venta_id)
     await sql`UPDATE usuarios SET punto_venta_id = ${pvId} WHERE id = ${id}`
+  }
+  if (typeof acceso_movil === 'boolean') {
+    await sql`UPDATE usuarios SET acceso_movil = ${acceso_movil} WHERE id = ${id}`
   }
   if (resetPassword === true) {
     const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
@@ -123,7 +126,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   })
 
   const [actualizado] = await sql`
-    SELECT id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
+    SELECT id, username, nombre, rol, area, activo, debe_cambiar_password, created_at, acceso_movil
     FROM usuarios WHERE id = ${id}
   `
   return NextResponse.json(actualizado)

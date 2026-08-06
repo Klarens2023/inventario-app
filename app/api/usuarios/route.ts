@@ -10,7 +10,7 @@ const PASSWORD_GENERICA = '123456'
 
 const SELECT_CON_MODULOS = `
   SELECT u.id, u.username, u.nombre, u.rol, u.area, u.activo, u.debe_cambiar_password, u.created_at,
-         u.punto_venta_id, pv.nombre AS punto_venta_nombre,
+         u.punto_venta_id, pv.nombre AS punto_venta_nombre, u.acceso_movil,
          COALESCE(
            (SELECT json_agg(m.modulo) FROM usuario_modulos m WHERE m.usuario_id = u.id),
            '[]'
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
   const rol = session.user?.rol
   if (!['admin', 'lider'].includes(rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
-  const { username, nombre, rol: rolNuevo, area: areaNueva, punto_venta_id: pvId, modulos: modulosBody } = await req.json()
+  const { username, nombre, rol: rolNuevo, area: areaNueva, punto_venta_id: pvId, modulos: modulosBody, acceso_movil: accesoMovilBody } = await req.json()
 
   if (!username?.trim() || !nombre?.trim()) {
     return NextResponse.json({ error: 'Usuario y nombre son obligatorios' }, { status: 400 })
@@ -66,6 +66,9 @@ export async function POST(req: NextRequest) {
 
   const areaFinal = rol === 'admin' ? (areaNueva ?? 'logistica') : (session.user?.area ?? 'logistica')
   const rolFinal  = ['admin', 'lider', 'usuario', 'pvn', 'pvv'].includes(rolNuevo) ? rolNuevo : 'usuario'
+  // Por defecto pvn/pvv/usuario/admin entran a la app móvil y lider no,
+  // pero el checkbox de Crear Usuario siempre puede sobreescribir esto.
+  const accesoMovilFinal = typeof accesoMovilBody === 'boolean' ? accesoMovilBody : rolFinal !== 'lider'
 
   const existe = await sql`SELECT id FROM usuarios WHERE username = ${username.trim()} LIMIT 1`
   if (existe.length > 0) {
@@ -77,9 +80,9 @@ export async function POST(req: NextRequest) {
   const puntoVentaId = (['pvn', 'pvv'].includes(rolFinal) && pvId) ? parseInt(pvId) : null
 
   const [nuevo] = await sql`
-    INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password, punto_venta_id)
-    VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true, ${puntoVentaId})
-    RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at
+    INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password, punto_venta_id, acceso_movil)
+    VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true, ${puntoVentaId}, ${accesoMovilFinal})
+    RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at, acceso_movil
   `
 
   const [areaInfo] = await sql`SELECT * FROM areas WHERE key = ${areaFinal}`

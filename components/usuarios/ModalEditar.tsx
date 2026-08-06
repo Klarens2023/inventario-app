@@ -25,6 +25,7 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVent
   const [area, setArea]               = useState(['pvn', 'pvv'].includes(usuario.rol) ? 'puntos_venta' : usuario.area)
   const [puntoVenta, setPuntoVenta]   = useState(usuario.punto_venta_id ? String(usuario.punto_venta_id) : '')
   const [modulos, setModulos]         = useState<string[]>(usuario.modulos ?? [])
+  const [accesoMovil, setAccesoMovil] = useState(usuario.acceso_movil ?? (usuario.rol !== 'lider'))
   const [resetPassword, setResetPassword] = useState(false)
   const [error, setError]             = useState('')
 
@@ -35,7 +36,7 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVent
   function handleGuardar() {
     if (!nombre.trim() || !username.trim()) { setError('Nombre y usuario son obligatorios'); return }
     setError('')
-    const body: Record<string, unknown> = { nombre, username }
+    const body: Record<string, unknown> = { nombre, username, acceso_movil: accesoMovil }
     if (!esYo) body.rol = rol
     if (esAdmin && !esYo) body.area = area
     if (rol === 'pvn' || rol === 'pvv') body.punto_venta_id = puntoVenta ? parseInt(puntoVenta) : null
@@ -111,6 +112,23 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVent
           {!['pvn', 'pvv'].includes(rol) && (
             <ModulosChecklist seleccionados={modulos} onToggle={toggleModulo} />
           )}
+          <div
+            onClick={() => setAccesoMovil(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+              padding: '10px 12px', borderRadius: 8,
+              border: `1px solid ${accesoMovil ? '#93c5fd' : '#e2e8f0'}`,
+              background: accesoMovil ? '#eff6ff' : '#f8fafc',
+            }}
+          >
+            <input type="checkbox" checked={accesoMovil} onChange={e => setAccesoMovil(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer' }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: accesoMovil ? '#1d4ed8' : '#1e293b' }}>Acceso a la app móvil</div>
+              <div style={{ fontSize: 12, color: accesoMovil ? '#2563eb' : '#64748b', marginTop: 2 }}>
+                Permite iniciar sesión en la app móvil (PVN/PVV), sin importar el rol.
+              </div>
+            </div>
+          </div>
           <div
             onClick={() => setResetPassword(v => !v)}
             style={{
