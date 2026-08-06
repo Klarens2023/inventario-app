@@ -7,6 +7,7 @@ import type { AreaInfo } from '@/lib/permissions'
 import { fetchUsuarios, crearUsuario, editarUsuario, toggleActivo } from '@/lib/api/usuarios'
 import { UsuariosList }  from '@/components/usuarios/UsuariosList'
 import { AreaFilterBar } from '@/components/usuarios/AreaFilterBar'
+import { BusquedaBar }   from '@/components/usuarios/BusquedaBar'
 import { ModalCrear }    from '@/components/usuarios/ModalCrear'
 import { ModalEditar }   from '@/components/usuarios/ModalEditar'
 import { ModalAreas }      from '@/components/usuarios/ModalAreas'
@@ -30,6 +31,9 @@ export default function GestionUsuariosPage() {
   const [loading,     setLoading]     = useState(false)
   const [puntosVenta, setPuntosVenta] = useState<PuntoVenta[]>([])
   const [filtroArea,  setFiltroArea]  = useState('todos')
+  const [busqueda,     setBusqueda]     = useState('')
+  const [filtroRol,    setFiltroRol]    = useState('todos')
+  const [filtroEstado, setFiltroEstado] = useState('todos')
   const [exito,       setExito]       = useState('')
 
   const [modalCrear,  setModalCrear]  = useState(false)
@@ -94,7 +98,13 @@ export default function GestionUsuariosPage() {
 
   if (status === 'loading' || !esLider) return null
 
-  const usuariosFiltrados = filtroArea === 'todos' ? usuarios : usuarios.filter(u => u.area === filtroArea)
+  const busquedaNorm = busqueda.trim().toLowerCase()
+  const usuariosFiltrados = usuarios.filter(u =>
+    (filtroArea === 'todos' || u.area === filtroArea) &&
+    (filtroRol === 'todos' || u.rol === filtroRol) &&
+    (filtroEstado === 'todos' || (filtroEstado === 'activo' ? u.activo : !u.activo)) &&
+    (!busquedaNorm || u.nombre.toLowerCase().includes(busquedaNorm) || u.username.toLowerCase().includes(busquedaNorm))
+  )
 
   return (
     <div style={{ padding: '32px 28px', background: '#f8fafc', minHeight: '100vh' }}>
@@ -139,6 +149,13 @@ export default function GestionUsuariosPage() {
               {exito}
               <button onClick={() => setExito('')} style={{ float: 'right', background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontSize: 18, lineHeight: 1 }}>×</button>
             </div>
+          )}
+          {usuarios.length > 0 && (
+            <BusquedaBar
+              busqueda={busqueda} onBusquedaChange={setBusqueda}
+              filtroRol={filtroRol} onFiltroRolChange={setFiltroRol}
+              filtroEstado={filtroEstado} onFiltroEstadoChange={setFiltroEstado}
+            />
           )}
           {esAdmin && usuarios.length > 0 && (
             <AreaFilterBar usuarios={usuarios} areas={areas} filtroArea={filtroArea} onChange={setFiltroArea} />
