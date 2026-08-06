@@ -12,7 +12,9 @@ const MAX_BYTES = 8 * 1024 * 1024
 
 // GET /api/qr/turno — turno abierto hoy para el usuario autenticado
 // Con ?pendiente=true también devuelve turno sin cerrar de días anteriores
-// Con ?historial=true devuelve todos los turnos de hoy (para "turnos anteriores")
+// Con ?historial=true devuelve los últimos 5 turnos del usuario (para "turnos
+// anteriores"), sin importar el día — antes se limitaba a "hoy", por lo que
+// casi nunca aparecía más de un turno anterior.
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -25,8 +27,9 @@ export async function GET(req: NextRequest) {
       SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at, cerrado_at, activo,
              foto_datafono_url, numero_recogida
       FROM pvn_turnos
-      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date
+      WHERE usuario_id = ${parseInt(user.id)}
       ORDER BY abierto_at DESC
+      LIMIT 5
     `
     return NextResponse.json(turnos.map(t => aUrlProxy(t, req.nextUrl.origin, 'foto_datafono_url')))
   }
