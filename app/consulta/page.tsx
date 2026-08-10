@@ -69,7 +69,7 @@ export default function ConsultaPage() {
     const current = edits[id]
     setEdits(prev => ({ ...prev, [id]: { ...current, [field]: value, status: 'saving' } }))
     // Para conteo solo autoguarda si NO tiene operadores (mientras escribe la expresión no guarda)
-    if (field === 'obs' || !/[+\-]/.test(value)) {
+    if (field === 'obs' || !/[+\-*]/.test(value)) {
       autoguardar(id, field === 'conteo' ? value : current.conteo, field === 'obs' ? value : current.obs)
     }
   }

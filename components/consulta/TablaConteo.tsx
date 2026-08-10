@@ -1,4 +1,5 @@
 'use client'
+import { useState } from 'react'
 import type { EditState, Row } from '@/types/consulta'
 import { fmt } from './utils'
 import { inputStyle } from './constants'
@@ -27,12 +28,58 @@ export function TablaConteo({
   onChangeConteo, onChangeObs, onBlurConteo, totals,
 }: Props) {
   const { totalCantidad, totalConteo, totalBodega, totalDif, totalDifCantidad, hayConteo } = totals
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<1 | -1>(1)
 
   const headers = esLotes
     ? ['Referencia', 'Descripcion', 'Lote', 'Loc', 'UM', 'Categoria', 'Subcategoria', 'Cant. Sis.', 'Conteo', 'Diferencia', 'C. Unit.', 'C. Dif.', 'C. Bodega', 'Observaciones']
     : ['Referencia', 'Descripcion', 'Loc', 'UM', 'Categoria', 'Subcategoria', 'Cant. Sis.', 'Conteo', 'Diferencia', 'C. Unit.', 'C. Dif.', 'C. Bodega', 'Observaciones']
   const numCols   = esLotes ? [7, 8, 9, 10, 11, 12] : [6, 7, 8, 9, 10, 11]
   const colspanGT = esLotes ? 7 : 6
+
+  // Valor de una fila para la columna `header`, usado para ordenar. El
+  // conteo/diferencia/costo-diferencia dependen de `edits` (no vienen listos
+  // en la fila), igual que en el resto del componente.
+  function valorOrden(r: Row, header: string): string | number {
+    const e      = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
+    const conteo = e.conteo !== '' ? Number(e.conteo) : 0
+    const dif    = conteo - Number(r.cantidad_sistema)
+    switch (header) {
+      case 'Referencia':    return r.referencia
+      case 'Descripcion':   return r.descripcion
+      case 'Lote':          return r.lote ?? ''
+      case 'Loc':           return r.localizacion
+      case 'UM':            return r.um
+      case 'Categoria':     return r.categoria
+      case 'Subcategoria':  return r.tipo
+      case 'Cant. Sis.':    return Number(r.cantidad_sistema)
+      case 'Conteo':        return conteo
+      case 'Diferencia':    return dif
+      case 'C. Unit.':      return Number(r.costo_unitario)
+      case 'C. Dif.':       return dif * Number(r.costo_unitario)
+      case 'C. Bodega':     return Number(r.costo_bodega)
+      case 'Observaciones': return e.obs ?? ''
+      default:              return ''
+    }
+  }
+
+  function ordenarPor(header: string) {
+    if (sortCol === header) {
+      setSortDir(d => d === 1 ? -1 : 1)
+    } else {
+      setSortCol(header)
+      setSortDir(1)
+    }
+  }
+
+  const rowsOrdenadas = sortCol
+    ? [...rowsMostradas].sort((a, b) => {
+        const va = valorOrden(a, sortCol)
+        const vb = valorOrden(b, sortCol)
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortDir
+        return String(va).localeCompare(String(vb), 'es') * sortDir
+      })
+    : rowsMostradas
 
   return (
     <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10 }}>
@@ -43,59 +90,26 @@ export function TablaConteo({
           No hay datos para este modo y fecha. <a href="/cargar" style={{ color: '#2563eb' }}>Cargar inventario</a>
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-          <colgroup>
-            {esLotes ? (
-              <>
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '4%' }} />
-                <col style={{ width: '4%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '9%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '14%' }} />
-              </>
-            ) : (
-              <>
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '13%' }} />
-                <col style={{ width: '4%' }} />
-                <col style={{ width: '4%' }} />
-                <col style={{ width: '7%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '6%' }} />
-                <col style={{ width: '5%' }} />
-                <col style={{ width: '8%' }} />
-                <col style={{ width: '10%' }} />
-                <col style={{ width: '12%' }} />
-                <col style={{ width: '13%' }} />
-              </>
-            )}
-          </colgroup>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'auto' }}>
           <thead>
             <tr style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 2 }}>
               {headers.map((h, i) => (
-                <th key={i} style={{
+                <th key={i} onClick={() => ordenarPor(h)} title="Ordenar por esta columna" style={{
                   padding: '10px 8px',
                   textAlign: numCols.includes(i) ? 'right' : 'left',
                   fontSize: 11, fontWeight: 700,
                   color: h === 'Conteo' || h === 'Observaciones' ? '#16a34a' : '#374151',
                   borderBottom: '2px solid #e5e7eb',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                }}>{h}</th>
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  cursor: 'pointer', userSelect: 'none',
+                }}>
+                  {h}{sortCol === h ? (sortDir === 1 ? ' ▲' : ' ▼') : ''}
+                </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rowsMostradas.map((r, idx) => {
+            {rowsOrdenadas.map((r, idx) => {
               const e        = edits[r.id] ?? { conteo: '', obs: '', status: 'idle' as const }
               const conteo   = e.conteo !== '' ? Number(e.conteo) : 0
               const dif      = conteo - Number(r.cantidad_sistema)
@@ -115,9 +129,9 @@ export function TablaConteo({
                   )}
                   <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.localizacion}</td>
                   <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.um}</td>
-                  <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.categoria}</td>
+                  <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.categoria}>{r.categoria}</td>
                   <td style={{ padding: '7px 8px', borderBottom: '1px solid #f0f0f0', overflow: 'hidden' }}>
-                    {r.tipo && <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 5px', borderRadius: 4, fontSize: 11, fontWeight: 600, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.tipo}</span>}
+                    {r.tipo && <span title={r.tipo} style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 5px', borderRadius: 4, fontSize: 11, fontWeight: 600, display: 'inline-block', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.tipo}</span>}
                   </td>
                   <td style={{ padding: '7px 8px', textAlign: 'right', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap', overflow: 'hidden' }}>{Number(r.cantidad_sistema).toLocaleString('es-CO')}</td>
 
@@ -137,11 +151,11 @@ export function TablaConteo({
                         placeholder="—"
                         style={{
                           ...inputStyle, textAlign: 'right',
-                          color: /[+\-]/.test(e.conteo) ? '#0047BA' : 'inherit',
-                          fontWeight: /[+\-]/.test(e.conteo) ? 600 : 'normal',
+                          color: /[+\-*]/.test(e.conteo) ? '#0047BA' : 'inherit',
+                          fontWeight: /[+\-*]/.test(e.conteo) ? 600 : 'normal',
                         }}
                         onFocus={ev => { ev.target.style.background = '#dcfce7'; ev.target.style.borderRadius = '4px' }}
-                        title="Puedes escribir sumas: ej. 4+6+97"
+                        title="Puedes escribir sumas y multiplicaciones: ej. 4+6+97 o 1+5+2*5"
                       />
                     )}
                   </td>
