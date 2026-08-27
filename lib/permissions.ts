@@ -2,7 +2,7 @@ export const MODULOS = [
   'cargar', 'consulta', 'acumulados',
   'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr',
   'equipos', 'movimientos_tic',
-  'planos',
+  'planos', 'conciliacion_facturas',
 ] as const
 
 export type Modulo = typeof MODULOS[number]
@@ -11,7 +11,7 @@ export const GRUPOS_MODULOS: Array<{ key: string; label: string; modulos: Modulo
   { key: 'logistica',    label: 'Logística',      modulos: ['cargar', 'consulta', 'acumulados'] },
   { key: 'puntos_venta', label: 'Puntos de Venta', modulos: ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr'] },
   { key: 'sistemas',     label: 'Sistemas',        modulos: ['equipos', 'movimientos_tic'] },
-  { key: 'contabilidad', label: 'Contabilidad',    modulos: ['planos'] },
+  { key: 'contabilidad', label: 'Contabilidad',    modulos: ['planos', 'conciliacion_facturas'] },
 ]
 
 export const MODULO_LABELS: Record<Modulo, string> = {
@@ -25,6 +25,7 @@ export const MODULO_LABELS: Record<Modulo, string> = {
   equipos: 'Equipos TI',
   movimientos_tic: 'Movimientos TIC',
   planos: 'Generación de Planos',
+  conciliacion_facturas: 'Conciliación de Facturas',
 }
 
 // Área tal como vive en la tabla `areas` (gestionable desde la UI de admin).
