@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
   const form = await req.formData()
   const foto = form.get('foto') as File | null
   const valor = parseFloat(String(form.get('valor') ?? ''))
+  const turnoIdForm = form.get('turno_id') as string | null
 
   if (!foto) return NextResponse.json({ error: 'La foto es obligatoria' }, { status: 400 })
   if (!valor || valor <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
@@ -73,20 +74,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'La imagen es muy pesada (máx 8MB)' }, { status: 413 })
   }
 
+  const hoy = hoyBogota()
+
   // Se exige turno abierto para TODOS (pvn, pvv fija y pvv rotativa): así el
   // pago siempre queda asociado a un turno_id y no se pueden colar registros
   // "huérfanos" que después no aparecen en "Mis pagos de hoy" de nadie.
-  const hoy = hoyBogota()
-  const [turno] = await sql`
-    SELECT id, punto_venta_id, punto_venta_nombre FROM pvn_turnos
-    WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
-    LIMIT 1
-  `
+  //
+  // Si viene `turno_id` explícito (carga tardía de QR de un turno pendiente
+  // de un día anterior, antes de cerrarlo), se usa ESE turno en vez de
+  // exigir que sea el de hoy — pero siempre validando que sea del mismo
+  // usuario y que siga abierto, para no dejar que alguien registre pagos en
+  // un turno ajeno o ya cerrado.
+  let turno
+  if (turnoIdForm) {
+    const turnoIdNum = parseInt(turnoIdForm)
+    const [t] = await sql`
+      SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha FROM pvn_turnos
+      WHERE id = ${turnoIdNum} AND usuario_id = ${parseInt(user.id)} AND activo = TRUE
+      LIMIT 1
+    `
+    turno = t
+  } else {
+    const [t] = await sql`
+      SELECT id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha FROM pvn_turnos
+      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
+      LIMIT 1
+    `
+    turno = t
+  }
   if (!turno) {
     return NextResponse.json({ error: 'Debes tener un turno abierto para registrar pagos. Si el problema persiste, cierra sesión y vuelve a entrar.' }, { status: 403 })
   }
 
-  const fecha = hoy
+  // El pago queda fechado en el día real del turno (no en el día de la
+  // subida), para que la carga tardía de un turno pendiente se refleje en
+  // su fecha original y no se mezcle con las ventas del turno nuevo.
+  const fecha = turno.fecha as string
   const ahora = new Date()
   const hora  = ahora.toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit' })
   const horaArchivo = hora.replace(/:/g, '-')

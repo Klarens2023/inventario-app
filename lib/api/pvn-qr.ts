@@ -58,10 +58,13 @@ export async function getPagosHoy(turnoId?: number | null): Promise<Pago[]> {
   return Array.isArray(data) ? data : []
 }
 
-export async function postPago(foto: File, valor: number): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function postPago(foto: File, valor: number, turnoId?: number): Promise<{ ok: true } | { ok: false; error: string }> {
   const form = new FormData()
   form.append('foto', foto)
   form.append('valor', String(valor))
+  // Carga tardía de QR de un turno pendiente (de un día anterior) antes de
+  // cerrarlo — sin esto, el backend siempre asocia el pago al turno de hoy.
+  if (turnoId) form.append('turno_id', String(turnoId))
   const res = await fetch('/api/qr/pagos', { method: 'POST', body: form })
   const data = await res.json()
   if (!res.ok) return { ok: false, error: data.error ?? 'Error al registrar' }

@@ -1,15 +1,16 @@
 'use client'
 import type { Turno } from '@/types/pvn-qr'
 import { fmtFecha } from './utils'
-import { btnDanger } from './constants'
+import { btnDanger, btnSecondary } from './constants'
 
 type Props = {
   turnoPendiente: Turno
   cerrando: boolean
   onCerrar: () => void
+  onPreguntarQR: () => void
 }
 
-export function TurnoPendienteScreen({ turnoPendiente, cerrando, onCerrar }: Props) {
+export function TurnoPendienteScreen({ turnoPendiente, cerrando, onCerrar, onPreguntarQR }: Props) {
   return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
@@ -25,6 +26,13 @@ export function TurnoPendienteScreen({ turnoPendiente, cerrando, onCerrar }: Pro
           <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
             Punto: <strong>{turnoPendiente.punto_venta_nombre}</strong>
           </p>
+          <button
+            onClick={onPreguntarQR}
+            disabled={cerrando}
+            style={{ ...btnSecondary, width: '100%', padding: '11px 0', fontSize: 13, marginBottom: 10 }}
+          >
+            ❓ ¿Tienes ventas QR de ese turno sin subir?
+          </button>
           <button
             onClick={onCerrar}
             disabled={cerrando}

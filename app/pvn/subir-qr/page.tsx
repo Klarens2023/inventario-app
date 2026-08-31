@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/pvn-qr'
 import { comprimirImagen, fmtMoneda } from '@/components/pvn-qr/utils'
 import { TurnoPendienteScreen } from '@/components/pvn-qr/TurnoPendienteScreen'
+import { CargarQRPendienteForm } from '@/components/pvn-qr/CargarQRPendienteForm'
 import { AbrirTurnoScreen } from '@/components/pvn-qr/AbrirTurnoScreen'
 import { ComprobanteForm } from '@/components/pvn-qr/ComprobanteForm'
 import { MisPagosPanel } from '@/components/pvn-qr/MisPagosPanel'
@@ -43,6 +44,12 @@ export default function SubirQRPage() {
   const [mostrarCierreDatafono, setMostrarCierreDatafono] = useState(false)
   const [turnoIdACerrar, setTurnoIdACerrar] = useState<number | undefined>(undefined)
   const [errorCierreDatafono, setErrorCierreDatafono]     = useState('')
+
+  // Carga tardía de QR del turno pendiente: primero se pregunta la cantidad,
+  // luego se exige registrar exactamente esa cantidad (ni más, para no dejar
+  // colar ventas del turno nuevo) antes de poder continuar con el cierre.
+  const [cantidadQRPendientes, setCantidadQRPendientes] = useState<number | null>(null)
+  const [qrPendientesCargados, setQrPendientesCargados] = useState(0)
 
   // Formulario de pago
   const [foto,      setFoto]      = useState<File | null>(null)
@@ -152,6 +159,19 @@ export default function SubirQRPage() {
     setTurnoHoy(null)
     setTurnoPendiente(null)
     setMostrarHoy(false)
+    setCantidadQRPendientes(null)
+    setQrPendientesCargados(0)
+  }
+
+  function preguntarQRPendientes() {
+    const tiene = confirm('¿Tienes pagos QR de ese turno que no alcanzaste a subir?')
+    if (!tiene) return
+    const respuesta = prompt('¿Cuántos pagos QR pendientes tienes?')
+    if (respuesta === null) return
+    const n = parseInt(respuesta, 10)
+    if (!n || n <= 0) { alert('Ingresa un número válido (mínimo 1)'); return }
+    setCantidadQRPendientes(n)
+    setQrPendientesCargados(0)
   }
 
   async function seleccionarFoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -230,9 +250,27 @@ export default function SubirQRPage() {
 
   // ── Turno pendiente de día anterior ──────────────────────────────────────
   if (necesitaTurno && turnoPendiente && !turnoHoy) {
+    // Ya dijo cuántos QR pendientes tiene y todavía le faltan por subir —
+    // solo puede registrar esa cantidad exacta, del turno anterior.
+    if (cantidadQRPendientes !== null && qrPendientesCargados < cantidadQRPendientes) {
+      return (
+        <CargarQRPendienteForm
+          turnoPendiente={turnoPendiente}
+          numero={qrPendientesCargados + 1}
+          total={cantidadQRPendientes}
+          onRegistrado={() => setQrPendientesCargados(n => n + 1)}
+          onCancelarTanda={() => { setCantidadQRPendientes(null); setQrPendientesCargados(0) }}
+        />
+      )
+    }
     return (
       <>
-        <TurnoPendienteScreen turnoPendiente={turnoPendiente} cerrando={cerrando} onCerrar={() => handleCerrarTurno(turnoPendiente.id)} />
+        <TurnoPendienteScreen
+          turnoPendiente={turnoPendiente}
+          cerrando={cerrando}
+          onCerrar={() => handleCerrarTurno(turnoPendiente.id)}
+          onPreguntarQR={preguntarQRPendientes}
+        />
         {datafonoModal}
       </>
     )
