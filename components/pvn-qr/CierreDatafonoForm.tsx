@@ -72,10 +72,24 @@ export function CierreDatafonoForm({ cerrando, error, onCancelar, onConfirmar }:
               <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Desde cámara o galería</div>
             </div>
           )}
-          <input ref={fileRef} type="file" accept="image/*" onChange={seleccionarFoto} style={{ display: 'none' }} />
-          <button onClick={() => fileRef.current?.click()} style={{ ...btnSecondary, width: '100%' }}>
-            📷 {preview ? 'Cambiar foto' : 'Tomar foto'}
-          </button>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={seleccionarFoto} style={{ display: 'none' }} />
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => fileRef.current?.click()} style={{ ...btnSecondary, flex: 1 }}>
+              📷 {preview ? 'Cambiar foto' : 'Tomar foto'}
+            </button>
+            <button
+              onClick={() => {
+                if (fileRef.current) {
+                  fileRef.current.removeAttribute('capture')
+                  fileRef.current.click()
+                  setTimeout(() => fileRef.current?.setAttribute('capture', 'environment'), 500)
+                }
+              }}
+              style={{ ...btnSecondary, flex: 1 }}
+            >
+              🖼 Galería
+            </button>
+          </div>
         </div>
 
         <div style={card}>
