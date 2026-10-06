@@ -3,6 +3,13 @@ import type { Pago, TurnoHist } from '@/types/pvn-qr'
 import { fmtMoneda, fmtHora } from './utils'
 import { btnDanger, iconBtn, iconBtnConfirmar, iconBtnCancelar, linkBtn, filaTurno } from './constants'
 
+// Fecha corta del turno (ej. "lun. 5 oct."), tomada de abierto_at en hora de
+// Bogotá: la lista de turnos anteriores trae turnos de varios días y sin la
+// fecha no se distinguían entre sí.
+function fmtFechaTurno(s: string) {
+  return new Date(s).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'short', day: 'numeric', month: 'short' })
+}
+
 type Props = {
   nombrePunto?: string
   necesitaTurno: boolean
@@ -42,6 +49,7 @@ export function MisPagosPanel({
   cerrando, onCerrarTurno, onClose,
 }: Props) {
   const totalHoy = pagosHoy.reduce((s, p) => s + Number(p.valor), 0)
+  const turnoVisto = verTurnoId ? turnosHist.find(t => t.id === verTurnoId) : undefined
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -49,11 +57,13 @@ export function MisPagosPanel({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 20px 12px' }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-              {mostrarListaTurnos ? 'Turnos de hoy' : verTurnoId ? 'Turno anterior' : 'Mis pagos de hoy'}
+              {mostrarListaTurnos ? 'Turnos anteriores' : verTurnoId ? 'Turno anterior' : 'Mis pagos de hoy'}
             </div>
             {!mostrarListaTurnos && (
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                {verTurnoId ? `🔒 ${turnosHist.find(t => t.id === verTurnoId)?.punto_venta_nombre} · solo lectura` : nombrePunto}
+                {verTurnoId
+                  ? `🔒 ${turnoVisto?.punto_venta_nombre ?? ''}${turnoVisto ? ` · ${fmtFechaTurno(turnoVisto.abierto_at)}` : ''} · solo lectura`
+                  : nombrePunto}
               </div>
             )}
           </div>
@@ -65,7 +75,7 @@ export function MisPagosPanel({
             {verTurnoId ? (
               <button onClick={onVerTurnoActual} style={linkBtn}>← Volver al turno actual</button>
             ) : (
-              <button onClick={onMostrarListaTurnos} style={linkBtn}>🕐 Turnos anteriores de hoy</button>
+              <button onClick={onMostrarListaTurnos} style={linkBtn}>🕐 Turnos anteriores</button>
             )}
           </div>
         )}
@@ -73,13 +83,14 @@ export function MisPagosPanel({
         {mostrarListaTurnos ? (
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
             {cargandoTurnosHist && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 20 }}>Cargando...</div>}
-            {!cargandoTurnosHist && turnosHist.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin turnos hoy</div>}
+            {!cargandoTurnosHist && turnosHist.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin turnos anteriores</div>}
             {!cargandoTurnosHist && turnosHist.map(t => (
               <button key={t.id} onClick={() => onVerTurnoAnterior(t)} style={filaTurno}>
                 <div>
                   <div style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>{t.punto_venta_nombre}</div>
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                    {fmtHora(t.abierto_at)} – {t.cerrado_at ? fmtHora(t.cerrado_at) : (t.activo ? 'en curso' : '—')}
+                    <span style={{ fontWeight: 600, color: '#334155' }}>{fmtFechaTurno(t.abierto_at)}</span>
+                    {' · '}{fmtHora(t.abierto_at)} – {t.cerrado_at ? fmtHora(t.cerrado_at) : (t.activo ? 'en curso' : '—')}
                   </div>
                 </div>
                 <span style={{ color: '#94a3b8', fontSize: 18 }}>›</span>

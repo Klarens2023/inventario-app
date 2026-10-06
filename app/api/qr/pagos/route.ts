@@ -143,32 +143,40 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   // pvn/pvv solo ven los pagos de su turno actual (o de un turno específico
-  // de hoy vía ?turno_id=, para "turnos anteriores" si trabajaron en más de
-  // un punto el mismo día) — no el historial completo.
+  // vía ?turno_id=, para "turnos anteriores") — no el historial completo.
   if (['pvn', 'pvv'].includes(user.rol)) {
-    const hoy = hoyBogota()
     const turnoIdParam = req.nextUrl.searchParams.get('turno_id')
 
-    let turnoId: number | null
+    // Con turno_id se filtra solo por turno (y usuario, para no ver turnos
+    // ajenos), sin fecha: "turnos anteriores" trae los últimos 5 turnos de
+    // cualquier día, y un turno puede tener pagos de carga tardía con fecha
+    // distinta a la de apertura. Antes se exigía fecha = hoy y los turnos de
+    // días anteriores salían siempre "Sin pagos".
     if (turnoIdParam) {
-      turnoId = parseInt(turnoIdParam)
-    } else {
-      const [turnoActivo] = await sql`
-        SELECT id FROM pvn_turnos
-        WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
-        LIMIT 1
-      `
-      turnoId = turnoActivo?.id ?? null
+      const rows = await sql(
+        `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, foto_url, created_at
+         FROM pvn_pagos_qr
+         WHERE usuario_id = $1 AND turno_id = $2
+         ORDER BY created_at DESC`,
+        [parseInt(user.id), parseInt(turnoIdParam)]
+      )
+      return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin)))
     }
 
-    if (!turnoId) return NextResponse.json([])
+    const hoy = hoyBogota()
+    const [turnoActivo] = await sql`
+      SELECT id FROM pvn_turnos
+      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${hoy}::date AND activo = TRUE
+      LIMIT 1
+    `
+    if (!turnoActivo) return NextResponse.json([])
 
     const rows = await sql(
       `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, foto_url, created_at
        FROM pvn_pagos_qr
        WHERE usuario_id = $1 AND fecha = $2::date AND turno_id = $3
        ORDER BY created_at DESC`,
-      [parseInt(user.id), hoy, turnoId]
+      [parseInt(user.id), hoy, turnoActivo.id]
     )
     return NextResponse.json(rows.map(r => aUrlProxy(r, req.nextUrl.origin)))
   }
