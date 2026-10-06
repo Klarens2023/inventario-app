@@ -28,7 +28,8 @@ function lineaControl(numeroReg: number, tipoReg: string): string {
   return num(numeroReg, 7) + tipoReg + '0001001'
 }
 
-function lineaDocumentoContable(reg: number, cia: string, r: DocumentoContableRow): string {
+// Exportada para reutilizarla en el plano de Saldos Iniciales NIIF (mismo registro 350 v02).
+export function lineaDocumentoContable(reg: number, cia: string, r: DocumentoContableRow): string {
   return (
     num(reg, 7) +
     num(350, 4) + // F_TIPO_REG - fijo

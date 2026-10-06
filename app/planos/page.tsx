@@ -8,6 +8,12 @@ const PLANOS = [
     desc: 'Documento contable, movimiento contable, CxC, CxP y diferidos en un solo plano.',
   },
   {
+    href: '/planos/saldos-niif',
+    icon: '📘',
+    title: 'Saldos Iniciales NIIF',
+    desc: 'Documento contable con movimiento por libros: PCGA y NIIF.',
+  },
+  {
     href: '/planos/activos-fijos',
     icon: '🏗️',
     title: 'Creación de Activos Fijos',
