@@ -37,6 +37,12 @@ const PLANOS = [
     title: 'Impuestos y Retenciones',
     desc: 'Configuración de impuestos y retenciones de clientes y proveedores.',
   },
+  {
+    href: '/planos/puntos-envio',
+    icon: '🚚',
+    title: 'Puntos de Envío',
+    desc: 'Creación y actualización de puntos de envío de clientes.',
+  },
 ]
 
 export default function PlanosMenuPage() {
