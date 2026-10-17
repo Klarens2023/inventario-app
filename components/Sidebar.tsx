@@ -24,6 +24,7 @@ const Icons = {
   PVNPagosQR: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="21" y1="14" x2="21" y2="21"/><line x1="17.5" y1="14" x2="17.5" y2="17.5"/><line x1="14" y1="17.5" x2="21" y2="17.5"/></svg>,
   MovTIC:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/><rect x="2" y="4" width="4" height="4" rx="1"/><rect x="18" y="16" width="4" height="4" rx="1"/></svg>,
   Planos:     () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="8" y1="7" x2="15" y2="7"/><line x1="8" y1="11" x2="15" y2="11"/><line x1="8" y1="15" x2="12" y2="15"/></svg>,
+  OrdenesCen: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>,
   Conciliacion: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>,
   Collapse:   ({ open }: { open: boolean }) => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -40,6 +41,7 @@ const MODULO_ITEM: Record<Modulo, NavItem> = {
   cargar:        { href: '/cargar',           icon: <Icons.Cargar />,     label: 'Cargar Inventario' },
   consulta:      { href: '/consulta',         icon: <Icons.Conteo />,     label: 'Conteo Físico' },
   acumulados:    { href: '/acumulados',       icon: <Icons.Acumulados />, label: 'Acumulados' },
+  ordenes_cen:   { href: '/logistica/ordenes-cen', icon: <Icons.OrdenesCen />, label: 'Órdenes EDI (CEN)' },
   pvn_historial: { href: '/pvn/historial',    icon: <Icons.PVNHist />,    label: 'Historial PVN' },
   pvn_analisis:  { href: '/pvn/analisis',     icon: <Icons.PVNAnal />,    label: 'Análisis PVN' },
   pvn_catalogo:  { href: '/pvn/catalogo',     icon: <Icons.PVNCat />,     label: 'Catálogo PVN' },

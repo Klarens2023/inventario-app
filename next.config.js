@@ -17,7 +17,8 @@ const securityHeaders = [
 
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['bcryptjs'],
+    // ssh2 trae módulos nativos opcionales que webpack no puede empaquetar
+    serverComponentsExternalPackages: ['bcryptjs', 'ssh2', 'ssh2-sftp-client'],
   },
   async headers() {
     return [

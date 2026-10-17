@@ -5,3 +5,6 @@ node_modules/
 out/
 *.log
 .claude/
+
+# Muestras descargadas del SFTP de CEN (datos reales de órdenes)
+muestras-cen/

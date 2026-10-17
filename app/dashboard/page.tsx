@@ -9,6 +9,7 @@ const MODULO_CARD: Record<Modulo, Card> = {
   cargar:        { href: '/cargar',           icon: '📂',  title: 'Cargar Inventario', desc: 'Importa un archivo inv[XX].txt desde tu equipo' },
   consulta:      { href: '/consulta',         icon: '📋',  title: 'Conteo Físico',     desc: 'Registra conteos y observaciones por referencia' },
   acumulados:    { href: '/acumulados',       icon: '📊',  title: 'Acumulados',        desc: 'Consulta el informe histórico con filtros' },
+  ordenes_cen:   { href: '/logistica/ordenes-cen', icon: '🚚', title: 'Órdenes EDI (CEN)', desc: 'Órdenes de compra de las cadenas (Carvajal y Subrik) organizadas por punto de venta' },
   pvn_historial: { href: '/pvn/historial',    icon: '🕐',  title: 'Historial PVN',     desc: 'Consulta los registros de ventas de todos los puntos' },
   pvn_analisis:  { href: '/pvn/analisis',     icon: '📈',  title: 'Análisis PVN',      desc: 'Consumo de ingredientes y tendencias de venta' },
   pvn_catalogo:  { href: '/pvn/catalogo',     icon: '📚',  title: 'Catálogo PVN',      desc: 'Gestiona productos y puntos de venta nacionales' },
