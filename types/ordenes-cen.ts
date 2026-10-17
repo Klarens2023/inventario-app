@@ -33,7 +33,7 @@ export type LineaOrdenCen = {
   cantidad: number
   precio: number
   iva: number | null
-  item_siesa: string | null
+  item_siesa: number | null // f120_id del ítem en Siesa
   descripcion_maestro: string | null
   peso_kg: number | null
   und_caja: number | null

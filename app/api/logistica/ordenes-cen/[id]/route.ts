@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const lineas = await sql`
     SELECT l.id, l.nro_linea, l.ean_item, l.cod_comprador, l.descripcion,
            l.cantidad::float AS cantidad, l.precio::float AS precio, l.iva::float AS iva,
-           p.item AS item_siesa, p.descripcion AS descripcion_maestro, p.peso_kg::float AS peso_kg, p.und_caja
+           p.f120_id AS item_siesa, p.descripcion AS descripcion_maestro, p.peso_kg::float AS peso_kg, p.und_caja
     FROM cen_orden_lineas l
     LEFT JOIN cen_productos p ON p.ean = l.ean_item
     WHERE l.orden_id = ${id}

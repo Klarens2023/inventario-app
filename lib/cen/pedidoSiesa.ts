@@ -133,7 +133,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
       console.error('Precios Siesa:', e)
     }
     if (sinVerificar.length) {
-      alerta(`No se pudo verificar contra la lista ${listaPrecio} el precio de: ${sinVerificar.join(' · ')}. Revisa que el precio de la orden sea el pactado antes de enviar.`)
+      alerta(`Siesa no tiene precio consultable en la lista ${listaPrecio} para: ${sinVerificar.join(' · ')}. La consulta de precios de Siesa no trae los productos terminados (o el producto no tiene ítem de Siesa asignado en Productos). Revisa que el precio de la orden sea el pactado antes de enviar.`)
     }
   }
 

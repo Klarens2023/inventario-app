@@ -107,7 +107,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                       <td>{l.nro_linea}</td>
                       <td style={{ fontFamily: 'monospace' }}>{l.ean_item}</td>
                       <td>{l.descripcion_maestro || l.descripcion || '—'}</td>
-                      <td>{l.item_siesa ?? <span style={{ color: '#B45309' }}>No está</span>}</td>
+                      <td>{l.item_siesa ?? <a href="/logistica/ordenes-cen/productos" style={{ color: '#B45309' }}>Sin asignar</a>}</td>
                       <td>{l.cod_comprador}</td>
                       <td style={{ textAlign: 'right' }}>{fmtNumero(l.cantidad)}</td>
                       <td style={{ textAlign: 'right' }}>{fmtMoneda(l.precio)}</td>
