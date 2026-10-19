@@ -33,7 +33,7 @@ export interface PreparacionPedido {
   documento: Record<string, Record<string, string>[]>
   avisos: Aviso[]
   puedeEnviar: boolean
-  resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; tipoDocto: string; fechaEntrega: string; diasEntrega: number }
+  resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; fechaEntrega: string; diasEntrega: number }
 }
 
 const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) // AAAA-MM-DD
@@ -66,8 +66,15 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   if (!orden.nit) bloqueo('El punto de entrega no está asociado a una sucursal de Siesa.')
 
   const [config] = orden.nit ? await sql`SELECT * FROM cen_config_clientes WHERE nit = ${orden.nit}` : []
-  if (orden.nit && !config) alerta(`El cliente ${orden.nit} no tiene configuración propia: se usan bodega 00110, CO 001, tipo PVK y precio de la orden.`)
-  const co = config?.id_co ?? '001', tipoDocto = config?.tipo_docto ?? 'PVK', bodega = config?.bodega ?? '00110', indPrecio = config?.ind_precio ?? '2'
+  if (orden.nit && !config) alerta(`El cliente ${orden.nit} no tiene configuración propia: se usan CO 001, tipo PVK y precio de la orden.`)
+  const co = config?.id_co ?? '001', tipoDocto = config?.tipo_docto ?? 'PVK', indPrecio = config?.ind_precio ?? '2'
+
+  // La bodega se amarra a la sucursal. Prioridad: la que traiga Siesa en el maestro del
+  // cliente/sucursal > la asignada a la sucursal en la app > la del cliente > 00110.
+  const [punto] = orden.nit ? await sql`SELECT bodega FROM cen_puntos_ean WHERE nit = ${orden.nit} AND sucursal = ${orden.sucursal} AND bodega IS NOT NULL LIMIT 1` : []
+  let bodega = '00110', origenBodega = 'por defecto'
+  if (config?.bodega && config.bodega !== '00110') { bodega = config.bodega; origenBodega = 'configuración del cliente' }
+  if (punto?.bodega) { bodega = punto.bodega; origenBodega = 'sucursal (app)' }
 
   // ── Cliente en Siesa ──
   let listaPrecio = config?.lista_precio ?? '', condPago = config?.cond_pago ?? '', tipoCli = ''
@@ -82,11 +89,15 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
         listaPrecio ||= String(cli.f201_id_lista_precio ?? '').trim()
         condPago ||= String(cli.f201_id_cond_pago ?? '').trim()
         tipoCli = String(cli.f201_id_tipo_cli ?? '').trim()
+        // Si el maestro de clientes de Siesa trae la bodega de la sucursal, esa manda.
+        const campoBodega = Object.keys(cli).find(k => /bodega/i.test(k) && String(cli[k] ?? '').trim())
+        if (campoBodega) { bodega = String(cli[campoBodega]).trim(); origenBodega = `Siesa (${campoBodega})` }
       }
     } catch (e) {
       bloqueo(`No se pudo consultar el cliente en Siesa: ${e instanceof Error ? e.message : e}`)
     }
   }
+  if (orden.nit && origenBodega === 'por defecto') alerta(`La sucursal ${orden.nit}/${orden.sucursal} no tiene bodega asignada: se usa 00110. Asígnala en Sucursales si despacha desde otra bodega.`)
   if (!condPago) bloqueo('No hay condición de pago (ni en Siesa ni en la configuración del cliente).')
   if (indPrecio !== '0' && !listaPrecio) bloqueo('No hay lista de precios (obligatoria con indicador de precio 1 o 2).')
 
@@ -182,7 +193,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
     puedeEnviar: !avisos.some(a => a.nivel === 'bloqueo'),
     resumen: {
       cliente: orden.razon_social ? `${orden.razon_social} (${orden.nit}/${orden.sucursal})` : 'Sin asociar',
-      listaPrecio, condPago, bodega, tipoDocto, fechaEntrega, diasEntrega: dias,
+      listaPrecio, condPago, bodega, origenBodega, tipoDocto, fechaEntrega, diasEntrega: dias,
     },
   }
 }

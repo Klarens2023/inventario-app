@@ -100,6 +100,7 @@ export default function OrdenesCenPage() {
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Órdenes de compra de las cadenas que llegan por Carvajal y Subrik, organizadas por punto de venta.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/logistica/ordenes-cen/sucursales" className="btn">Sucursales</Link>
           <Link href="/logistica/ordenes-cen/productos" className="btn">Productos</Link>
           <Link href="/logistica/ordenes-cen/clientes" className="btn">Configuración de clientes</Link>
           <Link href="/logistica/ordenes-cen/reglas" className="btn">Reglas de ruta</Link>
