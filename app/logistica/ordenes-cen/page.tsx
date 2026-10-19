@@ -26,7 +26,8 @@ export default function OrdenesCenPage() {
   const [hasta, setHasta] = useState('')
   const [buscar, setBuscar] = useState('')
   const [ruta, setRuta] = useState('')
-  const [vista, setVista] = useState<'punto' | 'ruta'>('punto')
+  const [vista, setVista] = useState<'punto' | 'ruta'>('ruta')
+  const [recogidos, setRecogidos] = useState<Set<string>>(new Set())
   const [rutas, setRutas] = useState<string[]>([])
 
   const [detalleId, setDetalleId] = useState<number | null>(null)
@@ -78,8 +79,8 @@ export default function OrdenesCenPage() {
       if (vista === 'ruta') {
         const rel = relacion(o.ruta, o.fecha_entrega)
         clave = rel ?? 'sin-ruta'
-        titulo = rel ?? 'Sin ruta asignada'
-        subtitulo = rel ? `Ruta ${o.ruta}` : 'Asigna la ruta desde el detalle de cada orden o crea una regla'
+        titulo = o.ruta ? `Ruta ${o.ruta}` : 'Sin ruta asignada'
+        subtitulo = rel ? `Relación ${rel}` : 'Asigna la ruta desde el detalle de cada orden o crea una regla'
       } else {
         clave = o.nit ? `${o.nit}/${o.sucursal}` : `ean:${o.ean_entrega}`
         titulo = o.razon_social ?? `Punto sin homologar · ${nombreComprador(o.ean_comprador)}`
@@ -92,12 +93,16 @@ export default function OrdenesCenPage() {
     return Array.from(m.values()).sort((a, b) => Number(b.sinPunto) - Number(a.sinPunto) || a.titulo.localeCompare(b.titulo))
   }, [ordenes, vista])
 
+  const alternar = (clave: string) => setRecogidos(prev => {
+    const n = new Set(prev); if (n.has(clave)) n.delete(clave); else n.add(clave); return n
+  })
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 1500, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>Órdenes EDI (CEN)</h1>
-          <p style={{ color: 'var(--text2)', fontSize: 14 }}>Órdenes de compra de las cadenas que llegan por Carvajal y Subrik, organizadas por punto de venta.</p>
+          <p style={{ color: 'var(--text2)', fontSize: 14 }}>Órdenes de compra de las cadenas que llegan por Carvajal y Subrik, organizadas por ruta y punto de venta.</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Link href="/logistica/ordenes-cen/sucursales" className="btn">Sucursales</Link>
@@ -121,6 +126,7 @@ export default function OrdenesCenPage() {
                     {r.nuevas} nuevas · {r.actualizadas} actualizadas
                     {r.omitidas > 0 && ` · ${r.omitidas} ya enviadas a Siesa (sin cambios)`}
                     {r.pendientesPorTraer > 0 && ` · faltan ${r.pendientesPorTraer}, vuelve a traer`}
+                    {r.porRevisar.length > 0 && <span style={{ color: '#B45309', fontWeight: 600 }}> · ⚠ {r.porRevisar.length} quedaron por revisar (sin sucursal asociada): {r.porRevisar.join(', ')}</span>}
                     {r.errores.length > 0 && <span style={{ color: 'var(--danger)' }}> · {r.errores.length} archivo(s) con error: {r.errores.map(e => `${e.archivo} (${e.error})`).join('; ')}</span>}
                   </>}
             </div>
@@ -130,11 +136,21 @@ export default function OrdenesCenPage() {
       {aviso && <div className="card" style={{ marginBottom: 16, color: 'var(--accent2)', fontSize: 13 }}>{aviso}</div>}
       {error && <div className="card" style={{ marginBottom: 16, color: 'var(--danger)', fontSize: 13 }}>{error}</div>}
 
+      {resumen && resumen.sin_punto > 0 && (
+        <div className="card" style={{ marginBottom: 16, borderColor: '#F59E0B', background: '#FFFBEB', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 260, fontSize: 14, color: '#92400E' }}>
+            <strong>⚠ {resumen.sin_punto} orden(es) por revisar.</strong> Su punto de entrega no está asociado a una sucursal de Siesa,
+            así que no se puede crear el pedido. Asigna la sucursal (o descarta la orden si no aplica).
+          </div>
+          <button className="btn btn-primary" onClick={() => { setEstado('sin_punto'); setVista('punto') }}>Ver órdenes por revisar</button>
+        </div>
+      )}
+
       {resumen && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 16 }}>
           {([
             ['pendiente', 'Pendientes de pedido', resumen.pendientes],
-            ['sin_punto', 'Sin punto asociado', resumen.sin_punto],
+            ['sin_punto', 'Por revisar', resumen.sin_punto],
             ['enviado', 'Pedidos en Siesa', resumen.enviadas],
             ['error', 'Rechazadas por Siesa', resumen.con_error],
           ] as [EstadoOrdenCen, string, number][]).map(([k, label, n]) => (
@@ -170,13 +186,18 @@ export default function OrdenesCenPage() {
         </select>
         <input placeholder="Buscar OC, punto, NIT o EAN" value={buscar} onChange={e => setBuscar(e.target.value)} style={{ ...sel, flex: 1, minWidth: 200 }} />
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-          {(['punto', 'ruta'] as const).map(v => (
+          {(['ruta', 'punto'] as const).map(v => (
             <button key={v} onClick={() => setVista(v)} style={{ padding: '8px 12px', fontSize: 13, border: 'none', cursor: 'pointer', fontWeight: 600,
               background: vista === v ? 'var(--accent)' : '#fff', color: vista === v ? '#fff' : 'var(--text)' }}>
               {v === 'punto' ? 'Por punto de venta' : 'Por ruta'}
             </button>
           ))}
         </div>
+        {grupos.length > 0 && (
+          <button className="btn" onClick={() => setRecogidos(recogidos.size === grupos.length ? new Set() : new Set(grupos.map(g => g.clave)))}>
+            {recogidos.size === grupos.length ? 'Expandir todas' : 'Recoger todas'}
+          </button>
+        )}
       </div>
 
       {cargando && <div style={{ textAlign: 'center', padding: 30, color: 'var(--text2)' }}>Cargando órdenes...</div>}
@@ -191,22 +212,29 @@ export default function OrdenesCenPage() {
         const valor = g.ordenes.reduce((s, o) => s + o.valor_total, 0)
         const pesoCompleto = g.ordenes.every(o => o.peso_kg !== null)
         const peso = g.ordenes.reduce((s, o) => s + (o.peso_kg ?? 0), 0)
+        const recogido = recogidos.has(g.clave)
+        const porRevisar = g.ordenes.filter(o => o.motivos.length > 0).length
         return (
           <div key={g.clave} className="card" style={{ marginBottom: 12, padding: 0, overflow: 'hidden', borderColor: g.sinPunto ? '#F59E0B' : undefined }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, padding: '12px 16px', background: g.sinPunto ? '#FFFBEB' : 'var(--bg)' }}>
-              <div>
+            <div onClick={() => alternar(g.clave)} title={recogido ? 'Expandir' : 'Recoger'}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', background: g.sinPunto ? '#FFFBEB' : 'var(--bg)' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--text2)', display: 'inline-block', transition: 'transform .15s', transform: recogido ? 'rotate(-90deg)' : 'none' }}>▼</span>
+                <div>
                 <div style={{ fontWeight: 800, fontSize: 15 }}>{g.titulo}</div>
                 <div style={{ fontSize: 12, color: 'var(--text2)' }}>{g.subtitulo}</div>
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 13, flexWrap: 'wrap' }}>
                 <span><strong>{g.ordenes.length}</strong> OC</span>
+                {porRevisar > 0 && <span style={{ color: '#B45309', fontWeight: 700 }}>⚠ {porRevisar} por revisar</span>}
                 <span><strong>{fmtNumero(unidades)}</strong> und</span>
                 <span><strong>{pesoCompleto ? `${fmtNumero(peso, 1)} kg` : 'peso incompleto'}</strong></span>
                 <span><strong>{fmtMoneda(valor)}</strong></span>
-                {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={() => setAsignarEan(g.ean)}>Asignar sucursal</button>}
+                {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={e => { e.stopPropagation(); setAsignarEan(g.ean) }}>Asignar sucursal</button>}
               </div>
             </div>
-            <div style={{ overflowX: 'auto' }}>
+            {!recogido && <div style={{ overflowX: 'auto' }}>
               <table className="inv-table">
                 <thead>
                   <tr><th>OC</th><th>Cadena</th>{vista === 'ruta' && <th>Punto de venta</th>}<th>Ruta</th><th>Fecha OC</th><th>Entrega</th><th>Productos</th><th>Unidades</th><th>Peso</th><th>Valor</th><th>Estado</th></tr>
@@ -228,12 +256,15 @@ export default function OrdenesCenPage() {
                         <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
                           {ESTADOS[o.estado].label}
                         </span>
+                        {o.motivos.length > 0 && (
+                          <div style={{ fontSize: 11, color: '#B45309', marginTop: 4, maxWidth: 260 }}>⚠ {o.motivos.join(' · ')}</div>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </div>}
           </div>
         )
       })}

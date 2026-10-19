@@ -1,7 +1,7 @@
 // Trae las órdenes nuevas de los SFTP, las guarda y las cruza con los maestros:
 //   - cen_puntos_ean: EAN del punto de entrega → NIT, sucursal y razón social de Siesa
 //   - cen_productos: EAN del ítem → peso, para calcular el peso de la orden
-// Una orden cuyo punto de entrega no está homologado queda en estado "sin_punto".
+// Una orden cuyo punto de entrega no está homologado queda en estado "sin_punto" (en pantalla: "Por revisar").
 import { sql } from '@/lib/db'
 import { parsearOrden, type FuenteEdi, type OrdenEdi } from './parser'
 import { conSftp, fuenteConfigurada, FUENTES } from './sftp'
@@ -19,17 +19,18 @@ export interface ResultadoFuente {
   nuevas: number
   actualizadas: number
   omitidas: number // la orden ya se envió a Siesa: no se toca
+  porRevisar: string[] // órdenes que quedaron sin sucursal asociada
   errores: { archivo: string; error: string }[]
   pendientesPorTraer: number
   error?: string
 }
 
-async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): Promise<'nueva' | 'actualizada' | 'omitida'> {
+async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): Promise<{ resultado: 'nueva' | 'actualizada' | 'omitida'; porRevisar: boolean }> {
   const [existente] = await sql`
     SELECT id, estado FROM cen_ordenes WHERE ean_comprador = ${o.eanComprador} AND numero_orden = ${o.numeroOrden}
   `
   // Si el pedido ya se creó en Siesa, una nueva versión de la orden no lo modifica.
-  if (existente?.estado === 'enviado') return 'omitida'
+  if (existente?.estado === 'enviado') return { resultado: 'omitida', porRevisar: false }
 
   const [punto] = await sql`SELECT nit, sucursal, razon_social FROM cen_puntos_ean WHERE ean = ${o.eanEntrega} AND activo = TRUE`
   const eans = o.lineas.map(l => l.eanItem)
@@ -88,11 +89,11 @@ async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): 
       SELECT * FROM unnest(${reparto.map(r => r.lineaId)}::int[], ${reparto.map(r => r.eanLocal)}::text[], ${reparto.map(r => r.cantidad)}::numeric[])
     `
   }
-  return existente ? 'actualizada' : 'nueva'
+  return { resultado: existente ? 'actualizada' : 'nueva', porRevisar: !punto }
 }
 
 async function sincronizarFuente(fuente: FuenteEdi): Promise<ResultadoFuente> {
-  const r: ResultadoFuente = { fuente, configurada: fuenteConfigurada(fuente), nuevas: 0, actualizadas: 0, omitidas: 0, errores: [], pendientesPorTraer: 0 }
+  const r: ResultadoFuente = { fuente, configurada: fuenteConfigurada(fuente), nuevas: 0, actualizadas: 0, omitidas: 0, porRevisar: [], errores: [], pendientesPorTraer: 0 }
   if (!r.configurada) return r
 
   try {
@@ -113,10 +114,11 @@ async function sincronizarFuente(fuente: FuenteEdi): Promise<ResultadoFuente> {
             VALUES (${fuente}, ${a.nombre}, ${a.tamano}, ${a.fecha.toISOString()}, 'ok', ${contenido})
             RETURNING id
           `
-          const res = await guardarOrden(fuente, archivo.id, orden)
-          if (res === 'nueva') r.nuevas++
-          else if (res === 'actualizada') r.actualizadas++
+          const { resultado, porRevisar } = await guardarOrden(fuente, archivo.id, orden)
+          if (resultado === 'nueva') r.nuevas++
+          else if (resultado === 'actualizada') r.actualizadas++
           else r.omitidas++
+          if (porRevisar) r.porRevisar.push(`OC ${orden.numeroOrden} (EAN ${orden.eanEntrega})`)
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e)
           r.errores.push({ archivo: a.nombre, error })

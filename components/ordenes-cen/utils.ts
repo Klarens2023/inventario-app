@@ -16,7 +16,7 @@ export function fmtFecha(s: string | null) {
 
 export const ESTADOS: Record<EstadoOrdenCen, { label: string; color: string; bg: string }> = {
   pendiente:  { label: 'Pendiente',     color: '#0047BA', bg: '#E0ECFF' },
-  sin_punto:  { label: 'Sin punto',     color: '#B45309', bg: '#FEF3C7' },
+  sin_punto:  { label: 'Por revisar',   color: '#B45309', bg: '#FEF3C7' },
   enviado:    { label: 'En Siesa',      color: '#047857', bg: '#D1FAE5' },
   error:      { label: 'Error Siesa',   color: '#B91C1C', bg: '#FEE2E2' },
   descartada: { label: 'Descartada',    color: '#475569', bg: '#E2E8F0' },

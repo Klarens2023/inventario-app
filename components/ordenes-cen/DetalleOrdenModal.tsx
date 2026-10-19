@@ -4,12 +4,15 @@ import type { DetalleOrdenCen } from '@/types/ordenes-cen'
 import { nombreComprador } from '@/lib/cen/compradores'
 import { fmtFecha, fmtMoneda, fmtNumero, ESTADOS, relacion } from './utils'
 import { PedidoSiesa } from './PedidoSiesa'
+import { AsignarPuntoModal } from './AsignarPuntoModal'
+import { ClienteSiesa } from './ClienteSiesa'
 
 export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClose: () => void; onCambio: () => void }) {
   const [detalle, setDetalle] = useState<DetalleOrdenCen | null>(null)
   const [error, setError] = useState('')
   const [verReparto, setVerReparto] = useState(false)
   const [rutaNueva, setRutaNueva] = useState('')
+  const [asignando, setAsignando] = useState(false)
   const [rutas, setRutas] = useState<string[]>([])
 
   useEffect(() => {
@@ -90,6 +93,19 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
               )}
             </div>
 
+            <ClienteSiesa ordenId={o.id} nit={o.nit} sucursal={o.sucursal} />
+
+            {!o.nit && (
+              <div style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                ⚠ <strong>Orden por revisar:</strong> el punto de entrega {o.ean_entrega} no está asociado a una sucursal de Siesa.
+                {detalle.distribucion.length > 0 && ' Es un CEDI o plataforma: revisa abajo el reparto por tienda para decidir a qué sucursal se factura.'}
+              </div>
+            )}
+            {detalle.lineas.some(l => l.peso_kg !== null && l.item_siesa === null) && (
+              <div style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
+                ⚠ Hay productos sin ítem de Siesa asignado: asígnalo en <a href="/logistica/ordenes-cen/productos">Productos</a> para poder verificar su precio.
+              </div>
+            )}
             {sinMaestro > 0 && (
               <div style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
                 {sinMaestro} producto(s) no están en el maestro de productos: no se puede calcular el peso completo de la orden.
@@ -146,7 +162,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
             )}
 
             <div style={{ marginTop: 16 }}>
-              <PedidoSiesa orden={o} onEnviado={onCambio} />
+              <PedidoSiesa orden={o} onEnviado={onCambio} onAsignarPunto={() => setAsignando(true)} />
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>
@@ -159,6 +175,13 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
           </>
         )}
       </div>
+      {asignando && o && (
+        // Evita que un clic en el fondo de este modal cierre también el detalle de la orden
+        <div onClick={e => e.stopPropagation()}>
+          <AsignarPuntoModal ean={o.ean_entrega} onClose={() => setAsignando(false)}
+            onGuardado={() => { setAsignando(false); onCambio(); onClose() }} />
+        </div>
+      )}
     </div>
   )
 }

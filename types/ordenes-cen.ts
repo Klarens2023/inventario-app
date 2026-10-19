@@ -21,6 +21,7 @@ export type OrdenCen = {
   estado: EstadoOrdenCen
   lineas: number
   locales: number // tiendas del reparto (órdenes a CEDI); 0 si es entrega directa
+  motivos: string[] // por qué hay que revisar la orden antes de crear el pedido
   created_at: string
 }
 
@@ -53,6 +54,7 @@ export type ResultadoSincronizacion = {
   nuevas: number
   actualizadas: number
   omitidas: number
+  porRevisar: string[]
   errores: { archivo: string; error: string }[]
   pendientesPorTraer: number
   error?: string

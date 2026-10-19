@@ -23,7 +23,15 @@ export async function GET(req: NextRequest) {
            o.ruta, o.ruta_manual, o.estado, o.created_at, pe.ciudad,
            (SELECT COUNT(*)::int FROM cen_orden_lineas l WHERE l.orden_id = o.id) AS lineas,
            (SELECT COUNT(DISTINCT d.ean_local)::int FROM cen_orden_distribucion d
-              JOIN cen_orden_lineas l ON l.id = d.linea_id WHERE l.orden_id = o.id) AS locales
+              JOIN cen_orden_lineas l ON l.id = d.linea_id WHERE l.orden_id = o.id) AS locales,
+           -- Motivos para revisar la orden antes de crear el pedido (solo órdenes abiertas)
+           CASE WHEN o.estado IN ('pendiente', 'sin_punto', 'error') THEN array_remove(ARRAY[
+             CASE WHEN o.nit IS NULL THEN 'Punto de entrega ' || o.ean_entrega || ' sin sucursal de Siesa asociada' END,
+             CASE WHEN EXISTS (SELECT 1 FROM cen_orden_lineas l LEFT JOIN cen_productos p ON p.ean = l.ean_item
+                               WHERE l.orden_id = o.id AND p.ean IS NULL) THEN 'Productos que no están en el maestro (sin peso)' END,
+             CASE WHEN EXISTS (SELECT 1 FROM cen_orden_lineas l JOIN cen_productos p ON p.ean = l.ean_item
+                               WHERE l.orden_id = o.id AND p.f120_id IS NULL) THEN 'Productos sin ítem de Siesa asignado' END
+           ], NULL) ELSE '{}' END AS motivos
     FROM cen_ordenes o
     LEFT JOIN cen_puntos_ean pe ON pe.ean = o.ean_entrega
     WHERE (${estado} = '' OR o.estado = ${estado})

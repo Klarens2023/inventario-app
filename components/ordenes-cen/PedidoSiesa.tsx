@@ -17,7 +17,7 @@ const COLOR: Record<Aviso['nivel'], { bg: string; fg: string; icono: string }> =
 }
 
 // Sección del detalle de la orden: valida y crea el pedido de venta en Siesa.
-export function PedidoSiesa({ orden, onEnviado }: { orden: OrdenCen & { siesa_consecutivo?: string | null; siesa_respuesta?: unknown; enviado_at?: string | null }; onEnviado: () => void }) {
+export function PedidoSiesa({ orden, onEnviado, onAsignarPunto }: { orden: OrdenCen & { siesa_consecutivo?: string | null; siesa_respuesta?: unknown; enviado_at?: string | null }; onEnviado: () => void; onAsignarPunto: () => void }) {
   const [prep, setPrep] = useState<Prep | null>(null)
   const [cargando, setCargando] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -53,6 +53,20 @@ export function PedidoSiesa({ orden, onEnviado }: { orden: OrdenCen & { siesa_co
       <div style={{ background: '#D1FAE5', color: '#065F46', borderRadius: 8, padding: '10px 12px', fontSize: 13 }}>
         ✓ Pedido creado en Siesa{orden.siesa_consecutivo ? <>: <strong>{orden.siesa_consecutivo}</strong></> : ''}
         {orden.enviado_at && <> · {new Date(orden.enviado_at).toLocaleString('es-CO')}</>}
+      </div>
+    )
+  }
+
+  // Sin sucursal de Siesa no se puede consultar el cliente (lista de precios, condición de pago):
+  // primero se asigna la sucursal.
+  if (!orden.nit) {
+    return (
+      <div style={{ border: '1px solid #F59E0B', background: '#FFFBEB', borderRadius: 8, padding: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13, color: '#92400E', flex: 1, minWidth: 260 }}>
+          <strong>Pedido en Siesa:</strong> el punto de entrega (EAN {orden.ean_entrega}) no está asociado a una sucursal de Siesa.
+          Asígnala para traer del cliente la lista de precios, la condición de pago y la bodega.
+        </div>
+        <button className="btn btn-primary" onClick={onAsignarPunto}>Asignar sucursal</button>
       </div>
     )
   }
