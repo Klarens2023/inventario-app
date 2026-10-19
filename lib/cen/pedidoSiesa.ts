@@ -16,8 +16,8 @@
 //     para revisar antes de montar, no bloquea. Esa consulta no trae los precios de los productos
 //     terminados (están por extensión FN): si no encuentra el precio, también queda como alerta.
 //
-// La relación código de barras → ítem de Siesa (f120_id) se aprende de cada pedido creado
-// (cen_productos.f120_id), porque Siesa no expone una consulta de ítems por código de barras.
+// Las líneas van por ítem de Siesa (f431_id_item = cen_productos.f120_id, asignado desde
+// API_v2_Items o a mano en Productos), no por código de barras: sin ítem la orden no se envía.
 import { sql } from '@/lib/db'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
 import { asignarItemsAutomaticamente } from './itemsSiesa'
@@ -179,7 +179,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   }
   const movimientos = lineas.map((l, i) => ({
     F_CIA: CIA(), f431_id_co: co, f431_id_tipo_docto: tipoDocto, f431_consec_docto: '1', f431_nro_registro: String(i + 1),
-    f431_id_item: '', f431_referencia_item: '', f431_codigo_barras: l.ean_item, f431_id_ext1_detalle: '', f431_id_ext2_detalle: '',
+    f431_id_item: l.f120_id ? String(l.f120_id) : '', f431_referencia_item: '', f431_codigo_barras: '', f431_id_ext1_detalle: '', f431_id_ext2_detalle: '',
     f431_id_bodega: bodega, f431_id_concepto: '501', f431_id_motivo: '01', f431_ind_obsequio: '0', f431_id_co_movto: co,
     f431_id_un_movto: '', f431_id_ccosto_movto: '', f431_id_proyecto: '',
     f431_fecha_entrega: aaaammdd(fechaEntrega), f431_num_dias_entrega: String(dias), f431_id_lista_precio: listaPrecio,
@@ -187,6 +187,8 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
     f431_ind_impto_asumido: '0', f431_notas: l.cod_comprador ? `Cod. comprador ${l.cod_comprador}` : '', f431_detalle: '',
     f431_ind_backorder: '5', f431_ind_precio: indPrecio, f431_id_punto_envio: PUNTO_ENVIO,
   }))
+  const sinItem = lineas.filter(l => !l.f120_id)
+  if (sinItem.length) bloqueo(`Sin ítem de Siesa asignado: ${sinItem.map(l => `línea ${l.nro_linea} (${l.ean_item})`).join(' · ')}. Asígnalo en Productos: el pedido se ingresa por ítem.`)
   if (indPrecio === '2' && lineas.some(l => !(l.precio > 0))) bloqueo('Con indicador de precio 2 todas las líneas deben traer precio mayor que 0.')
 
   return {
@@ -227,7 +229,6 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
       const motivos = [['cupo', p.f430_ind_retenido_cupo], ['mora', p.f430_ind_retenido_mora], ['margen', p.f430_ind_retenido_margen],
         ['bloqueo', p.f430_ind_retenido_bloqueo], ['anticipo', p.f430_ind_retenido_anticipo]].filter(([, v]) => Number(v) === 1).map(([m]) => m)
       if (motivos.length) retenido = `Siesa dejó el pedido retenido por: ${motivos.join(', ')}.`
-      await aprenderItems(prep, pedidos.filter(x => x.f430_consec_docto === p.f430_consec_docto))
     }
   } catch { /* el pedido sí se creó; el consecutivo se puede ver en Siesa */ }
 
@@ -238,16 +239,4 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
   `
   const mensaje = (consecutivo ? `Pedido ${consecutivo} creado en Siesa.` : 'Pedido creado en Siesa.') + (retenido ? ` ${retenido}` : '')
   return { ok: true, mensaje, consecutivo, retenido, respuesta: r.cuerpo, prep }
-}
-
-// Las líneas del pedido en Siesa quedan en el mismo orden en que se enviaron (f431_rowid
-// creciente = f431_nro_registro): de ahí sale la relación código de barras → f120_id.
-async function aprenderItems(prep: PreparacionPedido, lineasSiesa: Record<string, unknown>[]) {
-  const enviadas = prep.documento.MovtoPedidoscomercial
-  const creadas = [...lineasSiesa].sort((a, b) => Number(a.f431_rowid) - Number(b.f431_rowid))
-  if (creadas.length !== enviadas.length) return
-  for (let i = 0; i < enviadas.length; i++) {
-    const ean = enviadas[i].f431_codigo_barras, f120 = Number(creadas[i].f120_id)
-    if (ean && f120) await sql`UPDATE cen_productos SET f120_id = ${f120}, updated_at = NOW() WHERE ean = ${ean} AND f120_id IS DISTINCT FROM ${f120}`
-  }
 }
