@@ -7,7 +7,7 @@ type Prep = {
   documento: unknown
   avisos: Aviso[]
   puedeEnviar: boolean
-  resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; tipoDocto: string; fechaEntrega: string; diasEntrega: number }
+  resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; fechaEntrega: string; diasEntrega: number }
 }
 
 const COLOR: Record<Aviso['nivel'], { bg: string; fg: string; icono: string }> = {
@@ -78,7 +78,7 @@ export function PedidoSiesa({ orden, onEnviado }: { orden: OrdenCen & { siesa_co
       {prep && (
         <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-            {prep.resumen.cliente} · {prep.resumen.tipoDocto} · bodega {prep.resumen.bodega} · lista {prep.resumen.listaPrecio || '—'} ·
+            {prep.resumen.cliente} · {prep.resumen.tipoDocto} · bodega {prep.resumen.bodega} ({prep.resumen.origenBodega}) · lista {prep.resumen.listaPrecio || '—'} ·
             cond. pago {prep.resumen.condPago || '—'} · entrega {prep.resumen.fechaEntrega} ({prep.resumen.diasEntrega} días)
           </div>
           {prep.avisos.length === 0 && <div style={{ ...estiloAviso('info') }}>✓ Sin observaciones: el pedido está listo para enviar.</div>}

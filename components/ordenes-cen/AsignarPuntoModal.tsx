@@ -9,6 +9,7 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
   const [nit, setNit] = useState('')
   const [sucursal, setSucursal] = useState('')
   const [razon, setRazon] = useState('')
+  const [bodega, setBodega] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -18,7 +19,7 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
       const res = await fetch('/api/logistica/ordenes-cen/puntos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ean, nit, sucursal, razon_social: razon }),
+        body: JSON.stringify({ ean, nit, sucursal, razon_social: razon, bodega }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'No se pudo guardar'); return }
@@ -44,6 +45,9 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
           </label>
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>RAZÓN SOCIAL DE LA SUCURSAL
             <input value={razon} onChange={e => setRazon(e.target.value)} maxLength={100} style={inp} placeholder="ALMACENES EXITO CEDI VEGAS" />
+          </label>
+          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>BODEGA DE DESPACHO (opcional)
+            <input value={bodega} onChange={e => setBodega(e.target.value)} maxLength={5} style={inp} placeholder="00110" />
           </label>
         </div>
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 12 }}>{error}</div>}
