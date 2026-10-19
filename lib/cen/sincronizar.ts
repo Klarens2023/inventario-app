@@ -6,6 +6,8 @@ import { sql } from '@/lib/db'
 import { parsearOrden, type FuenteEdi, type OrdenEdi } from './parser'
 import { conSftp, fuenteConfigurada, FUENTES } from './sftp'
 import { recalcularRutas } from './rutas'
+import { actualizarItemsSiNecesario } from './itemsSiesa'
+import { siesaConfigurado } from '@/lib/siesa/connekta'
 
 // Tope por ejecución para no pasar el tiempo máximo de la función en Vercel;
 // lo que quede se trae en la siguiente sincronización.
@@ -137,5 +139,7 @@ export async function sincronizarOrdenes(): Promise<ResultadoFuente[]> {
   const resultados: ResultadoFuente[] = []
   for (const f of FUENTES) resultados.push(await sincronizarFuente(f))
   await recalcularRutas()
+  // Ítems de Siesa (cada 12 h) para asignar el f120_id de productos nuevos; si Siesa falla, la sincronización sigue.
+  if (siesaConfigurado()) await actualizarItemsSiNecesario().catch(e => console.error('Ítems Siesa:', e))
   return resultados
 }

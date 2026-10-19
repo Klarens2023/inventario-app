@@ -9,10 +9,11 @@ export async function GET(req: NextRequest) {
   if ('respuesta' in acceso) return acceso.respuesta
   const rows = await sql`
     SELECT p.ean, p.f120_id, p.item AS codigo_bd, p.descripcion, p.peso_kg::float AS peso_kg, p.und_caja, TRUE AS en_maestro,
-           (SELECT COUNT(DISTINCT l.orden_id)::int FROM cen_orden_lineas l WHERE l.ean_item = p.ean) AS ordenes
+           (SELECT COUNT(DISTINCT l.orden_id)::int FROM cen_orden_lineas l WHERE l.ean_item = p.ean) AS ordenes,
+           (SELECT i.descripcion FROM cen_items_siesa i WHERE i.f120_id = p.f120_id) AS descripcion_siesa
     FROM cen_productos p
     UNION ALL
-    SELECT l.ean_item, NULL, NULL, MAX(l.descripcion), NULL, NULL, FALSE, COUNT(DISTINCT l.orden_id)::int
+    SELECT l.ean_item, NULL, NULL, MAX(l.descripcion), NULL, NULL, FALSE, COUNT(DISTINCT l.orden_id)::int, NULL
     FROM cen_orden_lineas l
     WHERE NOT EXISTS (SELECT 1 FROM cen_productos p WHERE p.ean = l.ean_item)
     GROUP BY l.ean_item

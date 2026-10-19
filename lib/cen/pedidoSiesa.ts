@@ -20,6 +20,7 @@
 // (cen_productos.f120_id), porque Siesa no expone una consulta de ítems por código de barras.
 import { sql } from '@/lib/db'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
+import { asignarItemsAutomaticamente } from './itemsSiesa'
 
 const ID_DOCUMENTO = () => process.env.SIESA_ID_DOCUMENTO_PEDIDO || '142900'
 const NOMBRE_DOCUMENTO = () => process.env.SIESA_NOMBRE_DOCUMENTO_PEDIDO || 'API_v1_Ventas_Comercial_PedidoVenta'
@@ -56,6 +57,7 @@ async function cargarOrden(ordenId: number) {
 }
 
 export async function prepararPedido(ordenId: number): Promise<PreparacionPedido> {
+  await asignarItemsAutomaticamente()
   const { orden, lineas } = await cargarOrden(ordenId)
   const avisos: Aviso[] = []
   const bloqueo = (m: string) => avisos.push({ nivel: 'bloqueo', mensaje: m })
