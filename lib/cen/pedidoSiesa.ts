@@ -18,6 +18,7 @@
 //
 // Las líneas van por ítem de Siesa (f431_id_item = cen_productos.f120_id, asignado desde
 // API_v2_Items o a mano en Productos), no por código de barras: sin ítem la orden no se envía.
+// Los ítems con extensión 1 (f120_id_extension1 = "FB") llevan f431_id_ext1_detalle = "FN".
 import { sql } from '@/lib/db'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
 import { asignarItemsAutomaticamente } from './itemsSiesa'
@@ -26,6 +27,8 @@ const ID_DOCUMENTO = () => process.env.SIESA_ID_DOCUMENTO_PEDIDO || '142900'
 const NOMBRE_DOCUMENTO = () => process.env.SIESA_NOMBRE_DOCUMENTO_PEDIDO || 'API_v1_Ventas_Comercial_PedidoVenta'
 const CIA = () => process.env.SIESA_CIA || '1'
 const PUNTO_ENVIO = '001'
+// Detalle de extensión con que se piden los ítems que manejan extensión 1 (todos los pedidos de Siesa usan FN).
+const EXT1_DETALLE = () => process.env.SIESA_EXT1_DETALLE || 'FN'
 
 export type NivelAviso = 'bloqueo' | 'alerta' | 'info'
 export interface Aviso { nivel: NivelAviso; mensaje: string }
@@ -49,8 +52,9 @@ async function cargarOrden(ordenId: number) {
   `
   if (!orden) throw new Error('Orden no encontrada')
   const lineas = await sql`
-    SELECT l.nro_linea, l.ean_item, l.cod_comprador, l.cantidad::float AS cantidad, l.precio::float AS precio, p.f120_id
+    SELECT l.nro_linea, l.ean_item, l.cod_comprador, l.cantidad::float AS cantidad, l.precio::float AS precio, p.f120_id, i.extension1
     FROM cen_orden_lineas l LEFT JOIN cen_productos p ON p.ean = l.ean_item
+    LEFT JOIN cen_items_siesa i ON i.f120_id = p.f120_id
     WHERE l.orden_id = ${ordenId} ORDER BY l.nro_linea
   `
   return { orden, lineas }
@@ -179,7 +183,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   }
   const movimientos = lineas.map((l, i) => ({
     F_CIA: CIA(), f431_id_co: co, f431_id_tipo_docto: tipoDocto, f431_consec_docto: '1', f431_nro_registro: String(i + 1),
-    f431_id_item: l.f120_id ? String(l.f120_id) : '', f431_referencia_item: '', f431_codigo_barras: '', f431_id_ext1_detalle: '', f431_id_ext2_detalle: '',
+    f431_id_item: l.f120_id ? String(l.f120_id) : '', f431_referencia_item: '', f431_codigo_barras: '', f431_id_ext1_detalle: l.extension1 ? EXT1_DETALLE() : '', f431_id_ext2_detalle: '',
     f431_id_bodega: bodega, f431_id_concepto: '501', f431_id_motivo: '01', f431_ind_obsequio: '0', f431_id_co_movto: co,
     f431_id_un_movto: '', f431_id_ccosto_movto: '', f431_id_proyecto: '',
     f431_fecha_entrega: aaaammdd(fechaEntrega), f431_num_dias_entrega: String(dias), f431_id_lista_precio: listaPrecio,

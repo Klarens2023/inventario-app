@@ -14,14 +14,15 @@ export async function actualizarItemsSiesa(): Promise<number> {
   const venta = items.filter(i => Number(i.f120_ind_venta) === 1)
   if (!venta.length) return 0
   await sql`
-    INSERT INTO cen_items_siesa (f120_id, referencia, descripcion, codigo_anterior, unidad, actualizado_at)
-    SELECT id, ref, des, ant, und, NOW() FROM unnest(
+    INSERT INTO cen_items_siesa (f120_id, referencia, descripcion, codigo_anterior, unidad, extension1, actualizado_at)
+    SELECT id, ref, des, ant, und, ext, NOW() FROM unnest(
       ${venta.map(i => Number(i.f120_id))}::int[], ${venta.map(i => String(i.f120_referencia ?? '').trim())}::text[],
       ${venta.map(i => String(i.f120_descripcion ?? '').trim().slice(0, 200))}::text[], ${venta.map(i => codigoAnterior(i.f120_notas))}::text[],
-      ${venta.map(i => String(i.f120_id_unidad_inventario ?? '').trim().slice(0, 4))}::text[]
-    ) AS t(id, ref, des, ant, und)
+      ${venta.map(i => String(i.f120_id_unidad_inventario ?? '').trim().slice(0, 4))}::text[],
+      ${venta.map(i => String(i.f120_id_extension1 ?? '').trim().slice(0, 10) || null)}::text[]
+    ) AS t(id, ref, des, ant, und, ext)
     ON CONFLICT (f120_id) DO UPDATE SET referencia = EXCLUDED.referencia, descripcion = EXCLUDED.descripcion,
-      codigo_anterior = EXCLUDED.codigo_anterior, unidad = EXCLUDED.unidad, actualizado_at = NOW()
+      codigo_anterior = EXCLUDED.codigo_anterior, unidad = EXCLUDED.unidad, extension1 = EXCLUDED.extension1, actualizado_at = NOW()
   `
   await asignarItemsAutomaticamente()
   return venta.length
