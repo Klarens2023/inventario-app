@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { BodegaSelect } from '@/components/ordenes-cen/BodegaSelect'
 
 type Sucursal = { ean: string; nit: string; sucursal: string; razon_social: string; ciudad: string | null; bodega: string | null; ordenes: number }
 
@@ -41,8 +42,8 @@ export default function SucursalesCenPage() {
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: '8px 0 4px' }}>Sucursales</h1>
       <p style={{ color: 'var(--text2)', fontSize: 14, maxWidth: 880, marginBottom: 12 }}>
         Bodega de despacho de cada sucursal. Al armar el pedido se usa, en este orden: la bodega que traiga Siesa en el maestro del cliente,
-        la de la sucursal aquí, la configurada para el cliente y, si no hay ninguna, 00110. También se pueden cargar desde Excel con
-        <code> scripts/import-cen-bodegas.js</code> (columnas NIT, Sucursal, Bodega).
+        la de la sucursal aquí, la configurada para el cliente y, si no hay ninguna, 00110. La bodega se escoge de la lista de bodegas
+        de Siesa (instalación 001).
       </p>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
         <input placeholder="Buscar NIT, sucursal, ciudad o EAN" value={buscar} onChange={e => setBuscar(e.target.value)} style={{ ...inp, minWidth: 280, padding: '8px 10px' }} />
@@ -64,8 +65,7 @@ export default function SucursalesCenPage() {
                 <td style={{ textAlign: 'right' }}>{f.ordenes}</td>
                 <td>
                   {editando?.ean === f.ean
-                    ? <input autoFocus style={{ ...inp, width: 90 }} maxLength={5} value={editando.bodega}
-                        onChange={e => setEditando({ ean: f.ean, bodega: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') guardar(); if (e.key === 'Escape') setEditando(null) }} />
+                    ? <BodegaSelect value={editando.bodega} onChange={v => setEditando({ ean: f.ean, bodega: v })} style={{ ...inp, maxWidth: 320 }} />
                     : <strong>{f.bodega ?? <span style={{ color: 'var(--text2)', fontWeight: 400 }}>Sin asignar</span>}</strong>}
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>

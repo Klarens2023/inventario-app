@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { BodegaSelect } from './BodegaSelect'
 
 const inp: React.CSSProperties = { padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, width: '100%' }
 
@@ -9,7 +10,7 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
   const [nit, setNit] = useState('')
   const [sucursal, setSucursal] = useState('')
   const [razon, setRazon] = useState('')
-  const [bodega, setBodega] = useState('')
+  const [bodega, setBodega] = useState('00110')
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
@@ -46,8 +47,8 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
           <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>RAZÓN SOCIAL DE LA SUCURSAL
             <input value={razon} onChange={e => setRazon(e.target.value)} maxLength={100} style={inp} placeholder="ALMACENES EXITO CEDI VEGAS" />
           </label>
-          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>BODEGA DE DESPACHO (opcional)
-            <input value={bodega} onChange={e => setBodega(e.target.value)} maxLength={5} style={inp} placeholder="00110" />
+          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>BODEGA DE DESPACHO
+            <BodegaSelect value={bodega} onChange={setBodega} style={inp} />
           </label>
         </div>
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 12 }}>{error}</div>}

@@ -3,6 +3,7 @@
  * La bodega del pedido se amarra a la sucursal del cliente (no al NIT): agrega
  * cen_puntos_ean.bodega. Prioridad al armar el pedido: bodega que traiga Siesa en
  * API_v2_Clientes > bodega de la sucursal > bodega del cliente (cen_config_clientes) > 00110.
+ * La bodega se asigna a mano desde la pantalla Sucursales (lista de API_v2_Bodegas, instalación 001).
  * Uso: node --env-file=.env.local scripts/migrate-add-cen-bodega-sucursal.js
  */
 const { neon } = require('@neondatabase/serverless')

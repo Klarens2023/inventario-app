@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { BodegaSelect } from '@/components/ordenes-cen/BodegaSelect'
 
 type Config = { nit: string; nombre: string | null; id_co: string; tipo_docto: string; bodega: string; ind_precio: string; lista_precio: string | null; cond_pago: string | null }
 
@@ -75,7 +76,7 @@ export default function ConfigClientesPage() {
               <label>NOMBRE{campo('nombre', 'Almacenes Éxito', 80)}</label>
               <label>CENTRO DE OPERACIÓN{campo('id_co', '001', 3)}</label>
               <label>TIPO DE DOCUMENTO{campo('tipo_docto', 'PVK', 3)}</label>
-              <label>BODEGA{campo('bodega', '00110', 5)}</label>
+              <label>BODEGA (si la sucursal no tiene una)<BodegaSelect value={editando.bodega} onChange={v => setEditando({ ...editando, bodega: v })} style={inp} /></label>
               <label>INDICADOR DE PRECIO
                 <select style={inp} value={editando.ind_precio} onChange={e => setEditando({ ...editando, ind_precio: e.target.value })}>
                   {Object.entries(IND_PRECIO).map(([k, l]) => <option key={k} value={k}>{l}</option>)}

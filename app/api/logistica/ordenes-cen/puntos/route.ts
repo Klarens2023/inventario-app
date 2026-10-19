@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const sucursal = /^\d+$/.test(sucursalTxt) ? sucursalTxt.padStart(3, '0') : sucursalTxt
   const razon = (body.razon_social ?? '').trim()
   const bodegaTxt = (body.bodega ?? '').trim()
-  const bodega = bodegaTxt ? (/^\d+$/.test(bodegaTxt) ? bodegaTxt.padStart(5, '0') : bodegaTxt.toUpperCase()).slice(0, 5) : null
+  const bodega = bodegaTxt ? (/^\d+$/.test(bodegaTxt) ? bodegaTxt.padStart(5, '0') : bodegaTxt.toUpperCase()).slice(0, 5) : '00110' // por ahora todas despachan desde 00110 salvo que se escoja otra
 
   if (!/^\d{8,14}$/.test(ean)) return NextResponse.json({ error: 'EAN inválido' }, { status: 400 })
   if (!nit || nit.length > 15) return NextResponse.json({ error: 'NIT inválido' }, { status: 400 })
