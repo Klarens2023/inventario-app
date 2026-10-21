@@ -31,12 +31,13 @@ export function sugerirRuta(
 ): ReglaRuta | null {
   const ciudad = normalizarLugar(o.ciudad)
   const depto = normalizarLugar(o.departamento)
-  // Sin punto homologado no se conoce la ciudad: no se sugiere ruta.
-  if (!ciudad && !depto) return null
+  // Sin punto homologado no se conoce la ciudad: solo aplican las reglas de una cadena sin lugar (ej. ARA, D1).
+  const sinLugar = !ciudad && !depto
   for (const r of reglas) {
     if (!r.activo) continue
     if (r.ean_comprador && r.ean_comprador !== o.ean_comprador) continue
     const tieneLugar = r.ciudades.length > 0 || r.departamentos.length > 0
+    if (sinLugar && (tieneLugar || !r.ean_comprador)) continue
     if (tieneLugar && !(coincide(ciudad, r.ciudades) || coincide(depto, r.departamentos))) continue
     if (r.peso_min !== null && (o.peso_kg === null || o.peso_kg < r.peso_min)) continue
     if (r.peso_max !== null && (o.peso_kg === null || o.peso_kg > r.peso_max)) continue
