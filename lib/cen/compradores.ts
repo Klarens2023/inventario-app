@@ -6,6 +6,7 @@ export const COMPRADORES: Record<string, string> = {
   '7707185370005': 'Cencosud',
   '7700304892105': 'D1',
   '7704269000018': 'Ara',
+  '7709990310344': 'Megatiendas',
 }
 
 export function nombreComprador(ean: string): string {

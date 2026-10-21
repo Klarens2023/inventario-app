@@ -59,15 +59,18 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(rows)
 }
 
-// PATCH /api/logistica/ordenes-cen/puntos — cambia la bodega de una sucursal (vacía = sin bodega propia)
+// PATCH /api/logistica/ordenes-cen/puntos — cambia la bodega de una o varias sucursales (vacía = sin bodega propia).
+// Body: { ean, bodega } o { eans: [...], bodega }
 export async function PATCH(req: NextRequest) {
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
-  const { ean, bodega } = await req.json() as { ean?: string; bodega?: string }
+  const { ean, eans, bodega } = await req.json() as { ean?: string; eans?: string[]; bodega?: string }
+  const lista = (Array.isArray(eans) ? eans : [ean]).map(e => String(e ?? '').trim()).filter(Boolean)
+  if (!lista.length) return NextResponse.json({ error: 'No se indicó ninguna sucursal' }, { status: 400 })
   const txt = String(bodega ?? '').trim()
   const valor = txt ? (/^\d+$/.test(txt) ? txt.padStart(5, '0') : txt.toUpperCase()) : null
   if (valor && valor.length > 5) return NextResponse.json({ error: 'La bodega tiene máximo 5 caracteres' }, { status: 400 })
-  const r = await sql`UPDATE cen_puntos_ean SET bodega = ${valor}, updated_at = NOW() WHERE ean = ${String(ean ?? '')} RETURNING ean`
+  const r = await sql`UPDATE cen_puntos_ean SET bodega = ${valor}, updated_at = NOW() WHERE ean = ANY(${lista}) RETURNING ean`
   if (!r.length) return NextResponse.json({ error: 'Sucursal no encontrada' }, { status: 404 })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, actualizadas: r.length })
 }
