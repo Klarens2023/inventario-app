@@ -146,13 +146,13 @@ export default function OrdenesCenPage() {
   })
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1500, margin: '0 auto' }}>
+    <div className="cen-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>Órdenes EDI (CEN)</h1>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Órdenes de compra de las cadenas que llegan por Carvajal y Subrik, organizadas por ruta y punto de venta.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="cen-acciones" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link href="/logistica/ordenes-cen/sucursales" className="btn">Sucursales</Link>
           <Link href="/logistica/ordenes-cen/productos" className="btn">Productos</Link>
           <Link href="/logistica/ordenes-cen/clientes" className="btn">Configuración de clientes</Link>
@@ -319,38 +319,54 @@ export default function OrdenesCenPage() {
                 {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={e => { e.stopPropagation(); setAsignarEan(g.ean) }}>Asignar sucursal</button>}
               </div>
             </div>
-            {!recogido && <div style={{ overflowX: 'auto' }}>
-              <table className="inv-table">
+            {!recogido && <div className="cen-scroll">
+              <table className="inv-table cen-tabla cen-tarjetas">
                 <thead>
-                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Cadena</th>{vista === 'ruta' && <th>Punto de venta</th>}<th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th><th>Fecha OC</th><th>Entrega</th><th>Productos</th><th>Unidades</th><th>Peso</th><th>Valor</th><th>Estado</th><th>Pedido Siesa</th></tr>
+                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Punto de venta</th><th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th><th>Entrega</th><th style={{ textAlign: 'right' }}>Unidades</th><th style={{ textAlign: 'right' }}>Peso</th><th style={{ textAlign: 'right' }}>Valor</th><th>Estado</th><th>Pedido</th></tr>
                 </thead>
                 <tbody>
                   {g.ordenes.map(o => (
                     <tr key={o.id} onClick={() => setDetalleId(o.id)} style={{ cursor: 'pointer', background: seleccion.has(o.id) ? '#EFF6FF' : undefined }}>
-                      <td onClick={e => e.stopPropagation()}>
+                      <td className="sel" data-label="" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" disabled={!enviable(o) || envio?.enCurso} checked={seleccion.has(o.id)}
                           title={enviable(o) ? 'Seleccionar para enviar a Siesa' : o.estado === 'enviado' ? 'Ya tiene pedido en Siesa' : !o.nit ? 'Sin sucursal asociada' : 'No se puede enviar'}
-                          onChange={e => marcar([o.id], e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                          onChange={e => marcar([o.id], e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
                       </td>
-                      <td style={{ fontWeight: 700 }}>{o.numero_orden}</td>
-                      <td>{nombreComprador(o.ean_comprador)}{o.locales > 0 && <span style={{ color: 'var(--text2)', fontSize: 12 }}> · CEDI, {o.locales} tiendas</span>}</td>
-                      {vista === 'ruta' && <td>{o.razon_social ?? `EAN ${o.ean_entrega}`}{o.ciudad && <span style={{ color: 'var(--text2)', fontSize: 12 }}> · {o.ciudad}</span>}</td>}
-                      <td>{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_entrega) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
-                      <td>{fmtFecha(o.fecha_orden)}</td>
-                      <td>{fmtFecha(o.fecha_entrega)}</td>
-                      <td style={{ textAlign: 'right' }}>{o.lineas}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtNumero(o.total_unidades)}</td>
-                      <td style={{ textAlign: 'right' }}>{o.peso_kg === null ? '—' : `${fmtNumero(o.peso_kg, 1)} kg`}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtMoneda(o.valor_total)}</td>
-                      <td>
-                        <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
-                          {ESTADOS[o.estado].label}
-                        </span>
-                        {o.motivos.length > 0 && (
-                          <div style={{ fontSize: 11, color: '#B45309', marginTop: 4, maxWidth: 260 }}>⚠ {o.motivos.join(' · ')}</div>
-                        )}
+                      <td data-label="OC" className="nw">
+                        <div>
+                          <strong>{o.numero_orden}</strong>
+                          <span className="sub">{nombreComprador(o.ean_comprador)}{o.locales > 0 && ` · CEDI, ${o.locales} tiendas`}</span>
+                        </div>
                       </td>
-                      <td style={{ fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>{o.siesa_consecutivo ?? ''}</td>
+                      <td data-label="Punto" className="ancho">
+                        <div>
+                          {o.razon_social ?? <span style={{ color: '#B45309' }}>Sin sucursal asociada</span>}
+                          <span className="sub">
+                            {o.nit && `${o.nit}/${o.sucursal}`}{o.ciudad && ` · ${o.ciudad}`}
+                          </span>
+                          <span className="sub mono">EAN {o.ean_entrega}</span>
+                        </div>
+                      </td>
+                      <td data-label={vista === 'ruta' ? 'Relación' : 'Ruta'} className="nw">{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_entrega) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
+                      <td data-label="Entrega" className="nw">
+                        <div>{fmtFecha(o.fecha_entrega)}<span className="sub">OC {fmtFecha(o.fecha_orden)}</span></div>
+                      </td>
+                      <td data-label="Unidades" className="num">
+                        <div>{fmtNumero(o.total_unidades)}<span className="sub">{o.lineas} producto(s)</span></div>
+                      </td>
+                      <td data-label="Peso" className="num">{o.peso_kg === null ? '—' : `${fmtNumero(o.peso_kg, 1)} kg`}</td>
+                      <td data-label="Valor" className="num">{fmtMoneda(o.valor_total)}</td>
+                      <td data-label="Estado">
+                        <div>
+                          <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {ESTADOS[o.estado].label}
+                          </span>
+                          {o.motivos.length > 0 && (
+                            <div style={{ fontSize: 11, color: '#B45309', marginTop: 4, maxWidth: 240 }}>⚠ {o.motivos.join(' · ')}</div>
+                          )}
+                        </div>
+                      </td>
+                      <td data-label="Pedido" className="nw" style={{ fontWeight: 700, color: '#047857' }}>{o.siesa_consecutivo ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -53,7 +53,7 @@ export default function ReglasRutaPage() {
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1400, margin: '0 auto' }}>
+    <div className="cen-page" style={{ maxWidth: 1400 }}>
       <Link href="/logistica/ordenes-cen" style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>&larr; Órdenes EDI</Link>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', margin: '8px 0 16px' }}>
         <div>
@@ -69,7 +69,7 @@ export default function ReglasRutaPage() {
       {aviso && <div className="card" style={{ marginBottom: 12, color: 'var(--accent2)', fontSize: 13 }}>{aviso}</div>}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="inv-table">
+        <table className="inv-table cen-tabla">
           <thead><tr><th>Prioridad</th><th>Ruta</th><th>Cadena</th><th>Ciudades / departamentos</th><th>Peso (kg)</th><th>Descripción</th><th>Activa</th><th></th></tr></thead>
           <tbody>
             {reglas.map(r => (

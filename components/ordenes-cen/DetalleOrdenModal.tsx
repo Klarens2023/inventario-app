@@ -44,8 +44,8 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
   const sinMaestro = detalle?.lineas.filter(l => l.peso_kg === null).length ?? 0
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 980, maxHeight: '90vh', overflowY: 'auto' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 1080, maxHeight: '94vh', overflowY: 'auto' }}>
         {!detalle && !error && <div style={{ padding: 30, textAlign: 'center', color: 'var(--text2)' }}>Cargando...</div>}
         {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         {o && detalle && (
@@ -55,7 +55,8 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                 <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>{nombreComprador(o.ean_comprador).toUpperCase()} · {o.fuente === 'carvajal' ? 'Carvajal (CEN)' : 'Subrik'}</div>
                 <h2 style={{ fontSize: 20, fontWeight: 800 }}>OC {o.numero_orden}</h2>
                 <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>
-                  {o.razon_social ? `${o.razon_social} · ${o.nit}/${o.sucursal}` : `Punto sin homologar · EAN ${o.ean_entrega}`}
+                  {o.razon_social ? `${o.razon_social} · ${o.nit}/${o.sucursal}` : 'Punto sin sucursal asociada'}
+                  {' · '}<span style={{ fontFamily: 'monospace' }}>EAN punto {o.ean_entrega}</span>
                 </div>
               </div>
               <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
@@ -113,24 +114,27 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
               </div>
             )}
 
-            <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="inv-table">
+            <div className="cen-scroll" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+              <table className="inv-table cen-tabla cen-tarjetas">
                 <thead>
-                  <tr><th>#</th><th>EAN</th><th>Producto</th><th>Ítem Siesa</th><th>Cód. comprador</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th><th>IVA</th><th>Peso</th></tr>
+                  <tr><th>#</th><th>Producto</th><th>Ítem Siesa</th><th style={{ textAlign: 'right' }}>Cantidad</th><th style={{ textAlign: 'right' }}>Precio</th><th style={{ textAlign: 'right' }}>Subtotal</th><th style={{ textAlign: 'right' }}>IVA</th><th style={{ textAlign: 'right' }}>Peso</th></tr>
                 </thead>
                 <tbody>
                   {detalle.lineas.map(l => (
                     <tr key={l.id}>
-                      <td>{l.nro_linea}</td>
-                      <td style={{ fontFamily: 'monospace' }}>{l.ean_item}</td>
-                      <td>{l.descripcion_maestro || l.descripcion || '—'}</td>
-                      <td>{l.item_siesa ?? <a href="/logistica/ordenes-cen/productos" style={{ color: '#B45309' }}>Sin asignar</a>}</td>
-                      <td>{l.cod_comprador}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtNumero(l.cantidad)}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtMoneda(l.precio)}</td>
-                      <td style={{ textAlign: 'right' }}>{fmtMoneda(l.cantidad * l.precio)}</td>
-                      <td style={{ textAlign: 'right' }}>{l.iva === null ? '—' : `${l.iva}%`}</td>
-                      <td style={{ textAlign: 'right' }}>{l.peso_kg === null ? '—' : `${fmtNumero(l.cantidad * l.peso_kg, 1)} kg`}</td>
+                      <td data-label="#">{l.nro_linea}</td>
+                      <td data-label="Producto" className="ancho">
+                        <div>
+                          {l.descripcion_maestro || l.descripcion || '—'}
+                          <span className="sub mono">EAN {l.ean_item}{l.cod_comprador && ` · cód. comprador ${l.cod_comprador}`}</span>
+                        </div>
+                      </td>
+                      <td data-label="Ítem Siesa" className="nw">{l.item_siesa ?? <a href="/logistica/ordenes-cen/productos" style={{ color: '#B45309' }}>Sin asignar</a>}</td>
+                      <td data-label="Cantidad" className="num">{fmtNumero(l.cantidad)}</td>
+                      <td data-label="Precio" className="num">{fmtMoneda(l.precio)}</td>
+                      <td data-label="Subtotal" className="num">{fmtMoneda(l.cantidad * l.precio)}</td>
+                      <td data-label="IVA" className="num">{l.iva === null ? '—' : `${l.iva}%`}</td>
+                      <td data-label="Peso" className="num">{l.peso_kg === null ? '—' : `${fmtNumero(l.cantidad * l.peso_kg, 1)} kg`}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -143,16 +147,16 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                   {verReparto ? 'Ocultar' : 'Ver'} reparto por tienda ({repartoPorLocal.length} tiendas)
                 </button>
                 {verReparto && (
-                  <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8, marginTop: 8, maxHeight: 320 }}>
-                    <table className="inv-table">
+                  <div className="cen-scroll" style={{ border: '1px solid var(--border)', borderRadius: 8, marginTop: 8, maxHeight: 320, overflowY: 'auto' }}>
+                    <table className="inv-table cen-tabla cen-tarjetas">
                       <thead><tr><th>EAN tienda</th><th>Tienda</th><th>Productos</th><th>Unidades</th></tr></thead>
                       <tbody>
                         {repartoPorLocal.map(([ean, r]) => (
                           <tr key={ean}>
-                            <td style={{ fontFamily: 'monospace' }}>{ean}</td>
-                            <td>{r.nombre}</td>
-                            <td style={{ textAlign: 'right' }}>{r.items}</td>
-                            <td style={{ textAlign: 'right' }}>{fmtNumero(r.unidades)}</td>
+                            <td data-label="EAN tienda" className="mono nw">{ean}</td>
+                            <td data-label="Tienda">{r.nombre}</td>
+                            <td data-label="Productos" className="num">{r.items}</td>
+                            <td data-label="Unidades" className="num">{fmtNumero(r.unidades)}</td>
                           </tr>
                         ))}
                       </tbody>

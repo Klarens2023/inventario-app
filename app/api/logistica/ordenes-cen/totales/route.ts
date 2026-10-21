@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   if (!ids.length) return NextResponse.json({ modo: 'item', filas: [] })
 
   const filas = await sql`
-    SELECT COALESCE(o.razon_social, 'Punto sin homologar · EAN ' || o.ean_entrega) AS punto, o.nit, o.sucursal,
+    SELECT COALESCE(o.razon_social, 'Punto sin homologar · EAN ' || o.ean_entrega) AS punto, o.nit, o.sucursal, o.ean_entrega AS ean_punto,
            l.ean_item, p.f120_id, COALESCE(p.descripcion, MAX(l.descripcion)) AS descripcion,
            SUM(l.cantidad)::float AS cantidad, SUM(l.cantidad * l.precio)::float AS valor,
            CASE WHEN p.peso_kg IS NULL THEN NULL ELSE SUM(l.cantidad * p.peso_kg)::float END AS peso
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
     JOIN cen_orden_lineas l ON l.orden_id = o.id
     JOIN cen_lineas_producto p ON p.linea_id = l.id -- producto de la cadena o del maestro
     WHERE o.id = ANY(${ids}) AND o.estado <> 'descartada'
-    GROUP BY 1, o.nit, o.sucursal, l.ean_item, p.f120_id, p.descripcion, p.peso_kg
-    ORDER BY 1, 6
+    GROUP BY 1, o.nit, o.sucursal, o.ean_entrega, l.ean_item, p.f120_id, p.descripcion, p.peso_kg
+    ORDER BY 1, 7
   `
   const [r] = ruta ? await sql`SELECT totales FROM cen_rutas WHERE ruta = ${ruta}` : []
   return NextResponse.json({ modo: r?.totales ?? 'item', filas })

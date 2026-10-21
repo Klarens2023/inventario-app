@@ -37,7 +37,7 @@ export default function SucursalesCenPage() {
     (!q || f.ean.includes(q) || f.nit.includes(q) || f.razon_social.toLowerCase().includes(q) || (f.ciudad ?? '').toLowerCase().includes(q)))
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1300, margin: '0 auto' }}>
+    <div className="cen-page" style={{ maxWidth: 1300 }}>
       <Link href="/logistica/ordenes-cen" style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>&larr; Órdenes EDI</Link>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: '8px 0 4px' }}>Sucursales</h1>
       <p style={{ color: 'var(--text2)', fontSize: 14, maxWidth: 880, marginBottom: 12 }}>
@@ -55,7 +55,7 @@ export default function SucursalesCenPage() {
       {error && <div className="card" style={{ marginBottom: 12, color: 'var(--danger)', fontSize: 13 }}>{error}</div>}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="inv-table">
+        <table className="inv-table cen-tabla">
           <thead><tr><th>NIT</th><th>Suc.</th><th>Sucursal</th><th>Ciudad</th><th>EAN entrega</th><th>Órdenes</th><th>Bodega</th><th></th></tr></thead>
           <tbody>
             {visibles.map(f => (

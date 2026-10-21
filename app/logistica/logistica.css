@@ -1,0 +1,35 @@
+/* Módulo Logística (órdenes EDI): tablas compactas y responsive. */
+
+.cen-page { padding: 28px 32px; max-width: 1500px; margin: 0 auto; }
+
+/* Tabla compacta: menos relleno y sin cortes de línea en fechas, números y códigos */
+.cen-tabla th { padding: 10px 12px; }
+.cen-tabla td { padding: 10px 12px; vertical-align: middle; }
+.cen-tabla .nw { white-space: nowrap; }
+.cen-tabla .num { text-align: right; white-space: nowrap; }
+.cen-tabla .sub { display: block; font-size: 11px; color: var(--text2); white-space: nowrap; }
+.cen-tabla .ancho { min-width: 200px; max-width: 280px; }
+.cen-tabla .mono { font-family: monospace; }
+
+/* Tablas que se desplazan dentro de su caja, nunca la página */
+.cen-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+@media (max-width: 900px) {
+  .cen-page { padding: 16px; }
+  .cen-acciones { width: 100%; }
+  .cen-acciones > * { flex: 1 1 auto; }
+}
+
+/* En pantallas angostas cada fila es una tarjeta: el encabezado se oculta y cada celda muestra su etiqueta */
+@media (max-width: 768px) {
+  .cen-tarjetas thead { display: none; }
+  .cen-tarjetas, .cen-tarjetas tbody, .cen-tarjetas tr, .cen-tarjetas td { display: block; width: 100%; }
+  .cen-tarjetas tr { border-bottom: 2px solid var(--border); padding: 8px 4px; position: relative; }
+  .cen-tarjetas td { border: none; padding: 4px 10px; display: flex; justify-content: space-between; gap: 12px; text-align: right; }
+  .cen-tarjetas td::before { content: attr(data-label); font-weight: 700; font-size: 11px; color: var(--text2); text-transform: uppercase; text-align: left; flex-shrink: 0; }
+  .cen-tarjetas td.ancho { max-width: none; }
+  .cen-tarjetas td[data-label=""]::before { content: none; }
+  .cen-tarjetas td.sel { position: absolute; top: 10px; right: 0; width: auto; }
+  .cen-tarjetas .sub { white-space: normal; }
+  .cen-tarjetas tfoot td { font-weight: 800; }
+}

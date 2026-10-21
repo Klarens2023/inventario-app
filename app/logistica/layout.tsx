@@ -1,4 +1,5 @@
 import Sidebar from '@/components/Sidebar'
+import './logistica.css'
 
 export default function LogisticaLayout({ children }: { children: React.ReactNode }) {
   return (

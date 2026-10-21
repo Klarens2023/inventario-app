@@ -36,7 +36,7 @@ export default function ConfigClientesPage() {
   )
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1300, margin: '0 auto' }}>
+    <div className="cen-page" style={{ maxWidth: 1300 }}>
       <Link href="/logistica/ordenes-cen" style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>&larr; Órdenes EDI</Link>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', margin: '8px 0 16px' }}>
         <div>
@@ -51,7 +51,7 @@ export default function ConfigClientesPage() {
       {aviso && <div className="card" style={{ marginBottom: 12, color: 'var(--accent2)', fontSize: 13 }}>{aviso}</div>}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="inv-table">
+        <table className="inv-table cen-tabla">
           <thead><tr><th>NIT</th><th>Cliente</th><th>C.O.</th><th>Tipo docto</th><th>Bodega</th><th>Indicador de precio</th><th>Lista de precios</th><th>Cond. pago</th><th></th></tr></thead>
           <tbody>
             {filas.map(f => (

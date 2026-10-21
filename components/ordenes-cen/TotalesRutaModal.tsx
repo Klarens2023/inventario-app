@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { fmtMoneda, fmtNumero } from './utils'
 
-type Fila = { punto: string; nit: string | null; sucursal: string | null; ean_item: string; f120_id: number | null; descripcion: string | null; cantidad: number; valor: number; peso: number | null }
+type Fila = { punto: string; nit: string | null; sucursal: string | null; ean_punto: string; ean_item: string; f120_id: number | null; descripcion: string | null; cantidad: number; valor: number; peso: number | null }
 type Modo = 'item' | 'cliente'
 type Total = { cantidad: number; valor: number; peso: number; pesoCompleto: boolean }
 type Columna = 'nombre' | 'ean' | 'cantidad' | 'valor' | 'peso'
@@ -59,6 +59,7 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
     const ordenItems = orden.col === 'ean' ? { ...orden, col: 'nombre' as const } : orden
     return ordenar(Array.from(m.entries()).map(([cliente, fs]) => ({
       nombre: cliente,
+      ean: Array.from(new Set(fs.map(f => f.ean_punto))).join(', '),
       items: ordenar(fs.map(f => ({ ...f, nombre: nombreItem(f), ean: f.ean_item, peso: f.peso ?? 0, pesoCompleto: f.peso !== null })), ordenItems),
       ...sumar(fs),
     })), ordenItems)
@@ -84,10 +85,9 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
     </th>
   )
 
-  const td: React.CSSProperties = { textAlign: 'right' }
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 900, maxHeight: '90vh', overflowY: 'auto' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
+      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 900, maxHeight: '94vh', overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800 }}>Totales · {titulo}</h2>
@@ -115,15 +115,15 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
         {!filas && !error && <div style={{ padding: 30, textAlign: 'center', color: 'var(--text2)' }}>Calculando...</div>}
 
         {filas && (
-          <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
-            <table className="inv-table">
+          <div className="cen-scroll" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
+            <table className="inv-table cen-tabla cen-tarjetas">
               {modo === 'item' ? (
                 <>
                   <thead><tr><Th col="nombre">Descripción</Th><Th col="ean">EAN</Th><Th col="cantidad" derecha>Cant. despacho</Th><Th col="valor" derecha>$ Total</Th><Th col="peso" derecha>Peso</Th></tr></thead>
                   <tbody>
                     {porItem.map(i => (
-                      <tr key={i.ean}><td>{etiquetaItem(i)}</td><td style={{ fontFamily: 'monospace' }}>{i.ean}</td>
-                        <td style={td}>{fmtNumero(i.cantidad)}</td><td style={td}>{fmtMoneda(i.valor)}</td><td style={td}>{peso(i)}</td></tr>
+                      <tr key={i.ean}><td data-label="Descripción">{etiquetaItem(i)}</td><td data-label="EAN" className="mono nw">{i.ean}</td>
+                        <td data-label="Cant." className="num">{fmtNumero(i.cantidad)}</td><td data-label="$ Total" className="num">{fmtMoneda(i.valor)}</td><td data-label="Peso" className="num">{peso(i)}</td></tr>
                     ))}
                   </tbody>
                 </>
@@ -136,16 +136,17 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
                       return (
                         <Fragment key={c.nombre}>
                           <tr onClick={() => alternar(c.nombre)} style={{ background: 'var(--bg)', fontWeight: 700, cursor: 'pointer' }} title={abierto ? 'Recoger' : 'Ver ítems'}>
-                            <td>
+                            <td data-label="">
                               <span style={{ display: 'inline-block', width: 14, fontSize: 11, color: 'var(--text2)', transition: 'transform .15s', transform: abierto ? 'none' : 'rotate(-90deg)' }}>▼</span>
                               {c.nombre} <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text2)' }}>· {c.items.length} ítem(s)</span>
+                              {c.ean && <span className="sub mono" style={{ paddingLeft: 14 }}>EAN punto {c.ean}</span>}
                             </td>
-                            <td style={td}>{fmtNumero(c.cantidad)}</td><td style={td}>{fmtMoneda(c.valor)}</td><td style={td}>{peso(c)}</td>
+                            <td data-label="Cant." className="num">{fmtNumero(c.cantidad)}</td><td data-label="$ Total" className="num">{fmtMoneda(c.valor)}</td><td data-label="Peso" className="num">{peso(c)}</td>
                           </tr>
                           {abierto && c.items.map(f => (
                             <tr key={c.nombre + f.ean_item}>
-                              <td style={{ paddingLeft: 36 }}>{etiquetaItem(f)}</td><td style={td}>{fmtNumero(f.cantidad)}</td>
-                              <td style={td}>{fmtMoneda(f.valor)}</td><td style={td}>{f.pesoCompleto ? `${fmtNumero(f.peso, 1)} kg` : '—'}</td>
+                              <td data-label="Ítem" style={{ paddingLeft: 36 }}>{etiquetaItem(f)}</td><td data-label="Cant." className="num">{fmtNumero(f.cantidad)}</td>
+                              <td data-label="$ Total" className="num">{fmtMoneda(f.valor)}</td><td data-label="Peso" className="num">{f.pesoCompleto ? `${fmtNumero(f.peso, 1)} kg` : '—'}</td>
                             </tr>
                           ))}
                         </Fragment>
@@ -156,8 +157,8 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
               )}
               <tfoot>
                 <tr style={{ fontWeight: 800 }}>
-                  <td colSpan={modo === 'item' ? 2 : 1}>Total general</td>
-                  <td style={td}>{fmtNumero(total.cantidad)}</td><td style={td}>{fmtMoneda(total.valor)}</td><td style={td}>{peso(total)}</td>
+                  <td data-label="" colSpan={modo === 'item' ? 2 : 1}>Total general</td>
+                  <td data-label="Cant." className="num">{fmtNumero(total.cantidad)}</td><td data-label="$ Total" className="num">{fmtMoneda(total.valor)}</td><td data-label="Peso" className="num">{peso(total)}</td>
                 </tr>
               </tfoot>
             </table>

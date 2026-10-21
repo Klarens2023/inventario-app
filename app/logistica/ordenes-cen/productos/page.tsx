@@ -48,7 +48,7 @@ export default function ProductosCenPage() {
   const fuera = productos.filter(p => !p.en_maestro).length
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 1300, margin: '0 auto' }}>
+    <div className="cen-page" style={{ maxWidth: 1300 }}>
       <Link href="/logistica/ordenes-cen" style={{ color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>&larr; Órdenes EDI</Link>
       <h1 style={{ fontSize: 24, fontWeight: 800, margin: '8px 0 4px' }}>Productos</h1>
       <p style={{ color: 'var(--text2)', fontSize: 14, maxWidth: 860, marginBottom: 12 }}>
@@ -65,7 +65,7 @@ export default function ProductosCenPage() {
       {aviso && <div className="card" style={{ marginBottom: 12, color: 'var(--accent2)', fontSize: 13 }}>{aviso}</div>}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
-        <table className="inv-table">
+        <table className="inv-table cen-tabla">
           <thead><tr><th>EAN</th><th>Descripción</th><th>Ítem Siesa</th><th>Cód. BD 2026</th><th>Peso (kg)</th><th>Und/caja</th><th>Órdenes</th><th></th></tr></thead>
           <tbody>
             {visibles.map(p => (
