@@ -6,6 +6,7 @@ import { recalcularRutas } from '@/lib/cen/rutas'
 // POST /api/logistica/ordenes-cen/puntos — homologa un EAN de punto de entrega con
 // una sucursal de Siesa (cen_puntos_ean) y asocia todas las órdenes que estaban
 // "sin punto" con ese EAN. Las siguientes órdenes de esa tienda ya entran solas.
+// Una sucursal puede tener varios EAN (la tienda y el CEDI donde se le entrega); cada EAN, una sola sucursal.
 export async function POST(req: NextRequest) {
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
@@ -23,11 +24,6 @@ export async function POST(req: NextRequest) {
   if (!nit || nit.length > 15) return NextResponse.json({ error: 'NIT inválido' }, { status: 400 })
   if (!sucursal || sucursal.length > 3) return NextResponse.json({ error: 'Sucursal inválida (máx. 3 caracteres)' }, { status: 400 })
   if (!razon) return NextResponse.json({ error: 'La razón social es obligatoria' }, { status: 400 })
-
-  const [otro] = await sql`SELECT ean FROM cen_puntos_ean WHERE nit = ${nit} AND sucursal = ${sucursal} AND ean <> ${ean}`
-  if (otro) {
-    return NextResponse.json({ error: `La sucursal ${nit}/${sucursal} ya tiene el EAN ${otro.ean}. Un EAN por sucursal.` }, { status: 409 })
-  }
 
   await sql`
     INSERT INTO cen_puntos_ean (nit, sucursal, razon_social, ean, bodega)

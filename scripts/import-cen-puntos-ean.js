@@ -57,8 +57,8 @@ async function main() {
     await sql`
       INSERT INTO cen_puntos_ean (nit, sucursal, razon_social, ean)
       VALUES (${f.nit}, ${f.sucursal}, ${f.razonSocial}, ${f.ean})
-      ON CONFLICT (nit, sucursal) DO UPDATE
-        SET razon_social = EXCLUDED.razon_social, ean = EXCLUDED.ean, updated_at = NOW()
+      ON CONFLICT (ean) DO UPDATE
+        SET nit = EXCLUDED.nit, sucursal = EXCLUDED.sucursal, razon_social = EXCLUDED.razon_social, updated_at = NOW()
     `
   }
 

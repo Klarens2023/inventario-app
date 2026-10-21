@@ -52,7 +52,7 @@ const txt = (v: number) => String(Math.round(v * 10000) / 10000)
 
 async function cargarOrden(ordenId: number) {
   const [orden] = await sql`
-    SELECT id, numero_orden, fecha_orden::text, fecha_entrega::text, nit, sucursal, razon_social, estado
+    SELECT id, numero_orden, fecha_orden::text, fecha_entrega::text, ean_entrega, nit, sucursal, razon_social, estado
     FROM cen_ordenes WHERE id = ${ordenId}
   `
   if (!orden) throw new Error('Orden no encontrada')
@@ -96,7 +96,10 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
 
   // La bodega se amarra a la sucursal. Prioridad: la que traiga Siesa en el maestro del
   // cliente/sucursal > la asignada a la sucursal en la app > la del cliente > 00110.
-  const [punto] = orden.nit ? await sql`SELECT bodega FROM cen_puntos_ean WHERE nit = ${orden.nit} AND sucursal = ${orden.sucursal} AND bodega IS NOT NULL LIMIT 1` : []
+  // Una sucursal puede tener varios EAN (tienda y CEDI): manda la bodega del EAN por el que llegó la orden.
+  const [punto] = orden.nit ? await sql`
+    SELECT bodega FROM cen_puntos_ean WHERE nit = ${orden.nit} AND sucursal = ${orden.sucursal} AND bodega IS NOT NULL
+    ORDER BY (ean = ${orden.ean_entrega}) DESC LIMIT 1` : []
   let bodega = '00110', origenBodega = 'por defecto'
   if (config?.bodega && config.bodega !== '00110') { bodega = config.bodega; origenBodega = 'configuración del cliente' }
   if (punto?.bodega) { bodega = punto.bodega; origenBodega = 'sucursal (app)' }
