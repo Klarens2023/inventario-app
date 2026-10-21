@@ -5,7 +5,7 @@ import { BodegaSelect } from '@/components/ordenes-cen/BodegaSelect'
 
 type Config = { nit: string; nombre: string | null; id_co: string; tipo_docto: string; bodega: string; ind_precio: string; lista_precio: string | null; cond_pago: string | null }
 
-const vacio: Config = { nit: '', nombre: '', id_co: '001', tipo_docto: 'PVK', bodega: '00110', ind_precio: '2', lista_precio: '', cond_pago: '' }
+const vacio: Config = { nit: '', nombre: '', id_co: '001', tipo_docto: 'PVS', bodega: '00110', ind_precio: '2', lista_precio: '', cond_pago: '' }
 const inp: React.CSSProperties = { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, width: '100%' }
 
 const IND_PRECIO: Record<string, string> = { '0': '0 · Lista del cliente', '1': '1 · Lista del registro', '2': '2 · Precio de la orden' }
@@ -75,7 +75,7 @@ export default function ConfigClientesPage() {
               <label>NIT{campo('nit', '890900608', 15)}</label>
               <label>NOMBRE{campo('nombre', 'Almacenes Éxito', 80)}</label>
               <label>CENTRO DE OPERACIÓN{campo('id_co', '001', 3)}</label>
-              <label>TIPO DE DOCUMENTO{campo('tipo_docto', 'PVK', 3)}</label>
+              <label>TIPO DE DOCUMENTO{campo('tipo_docto', 'PVS', 3)}</label>
               <label>BODEGA (si la sucursal no tiene una)<BodegaSelect value={editando.bodega} onChange={v => setEditando({ ...editando, bodega: v })} style={inp} /></label>
               <label>INDICADOR DE PRECIO
                 <select style={inp} value={editando.ind_precio} onChange={e => setEditando({ ...editando, ind_precio: e.target.value })}>

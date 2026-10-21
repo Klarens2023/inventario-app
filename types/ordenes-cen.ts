@@ -22,6 +22,7 @@ export type OrdenCen = {
   lineas: number
   locales: number // tiendas del reparto (órdenes a CEDI); 0 si es entrega directa
   motivos: string[] // por qué hay que revisar la orden antes de crear el pedido
+  siesa_consecutivo?: string | null // número del pedido en Siesa (ej. PVS-12)
   created_at: string
 }
 
@@ -43,7 +44,7 @@ export type LineaOrdenCen = {
 export type DistribucionCen = { ean_local: string; cantidad: number; ean_item: string; nit: string | null; sucursal: string | null; razon_social: string | null }
 
 export type DetalleOrdenCen = {
-  orden: OrdenCen & { siesa_consecutivo: string | null; siesa_respuesta: unknown; enviado_at: string | null }
+  orden: OrdenCen & { siesa_respuesta: unknown; enviado_at: string | null }
   lineas: LineaOrdenCen[]
   distribucion: DistribucionCen[]
 }

@@ -19,7 +19,7 @@ export async function PUT(req: NextRequest) {
   if (!nit || nit.length > 15) return NextResponse.json({ error: 'NIT inválido' }, { status: 400 })
   const indPrecio = v('ind_precio', 1) || '2'
   if (!['0', '1', '2'].includes(indPrecio)) return NextResponse.json({ error: 'El indicador de precio debe ser 0, 1 o 2' }, { status: 400 })
-  const co = v('id_co', 3) || '001', tipo = v('tipo_docto', 3) || 'PVK', bodega = v('bodega', 5) || '00110'
+  const co = v('id_co', 3) || '001', tipo = v('tipo_docto', 3) || 'PVS', bodega = v('bodega', 5) || '00110'
   await sql`
     INSERT INTO cen_config_clientes (nit, nombre, id_co, tipo_docto, bodega, ind_precio, lista_precio, cond_pago)
     VALUES (${nit}, ${String(b.nombre ?? '').trim().slice(0, 80) || null}, ${co}, ${tipo}, ${bodega}, ${indPrecio},

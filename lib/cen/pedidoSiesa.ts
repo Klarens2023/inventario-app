@@ -4,7 +4,10 @@
 // Reglas del JSON (documento "Reglas_JSON_PedidoVenta_Connekta"):
 //   - Secciones Inicial, Pedidos, MovtoPedidoscomercial y Final, en ese orden.
 //   - Todas las llaves aunque estén vacías y todos los valores como texto.
-//   - Enteros nunca vacíos: con consecutivo automático va "1" en f430/f431_consec_docto.
+//   - Enteros nunca vacíos.
+//   - Tipo de documento PVS (exclusivo de las órdenes EDI) con consecutivo MANUAL: F_CONSEC_AUTO_REG = "0" y
+//     f430/f431_consec_docto = siguiente número, consultado en Siesa (API_v2_Ventas_Pedidos) justo antes de
+//     enviar. Así cada orden queda con su número de pedido (cen_ordenes.siesa_consecutivo = "PVS-N").
 //   - f430_id_fecha = fecha del día del envío; f430_id_punto_envio obligatorio.
 //
 // Antes de enviar se valida contra Siesa:
@@ -27,6 +30,8 @@ const ID_DOCUMENTO = () => process.env.SIESA_ID_DOCUMENTO_PEDIDO || '142900'
 const NOMBRE_DOCUMENTO = () => process.env.SIESA_NOMBRE_DOCUMENTO_PEDIDO || 'API_v1_Ventas_Comercial_PedidoVenta'
 const CIA = () => process.env.SIESA_CIA || '1'
 const PUNTO_ENVIO = '001'
+// Tipo de documento de los pedidos de órdenes EDI (solo se usa para estos pedidos).
+export const TIPO_DOCTO = () => process.env.SIESA_TIPO_DOCTO_PEDIDO || 'PVS'
 // Detalle de extensión con que se piden los ítems que manejan extensión 1 (todos los pedidos de Siesa usan FN).
 const EXT1_DETALLE = () => process.env.SIESA_EXT1_DETALLE || 'FN'
 
@@ -37,7 +42,7 @@ export interface PreparacionPedido {
   documento: Record<string, Record<string, string>[]>
   avisos: Aviso[]
   puedeEnviar: boolean
-  resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; fechaEntrega: string; diasEntrega: number }
+  resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; consecutivo: string; fechaEntrega: string; diasEntrega: number }
 }
 
 const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) // AAAA-MM-DD
@@ -60,6 +65,20 @@ async function cargarOrden(ordenId: number) {
   return { orden, lineas }
 }
 
+// Siguiente consecutivo del tipo de documento en el CO: el mayor entre lo que ya tiene Siesa y lo que la app
+// ya envió, más uno. A Siesa solo se le piden los pedidos por encima del último conocido (consulta corta).
+export async function siguienteConsecutivo(co: string, tipo: string): Promise<number> {
+  const [local] = await sql`
+    SELECT COALESCE(MAX(split_part(siesa_consecutivo, '-', 2)::int), 0) AS n FROM cen_ordenes
+    WHERE siesa_consecutivo ~ ${'^' + tipo + '-[0-9]+$'}
+  `
+  let mayor = Number(local?.n ?? 0)
+  const enSiesa = await consultarTodo<Record<string, unknown>>('API_v2_Ventas_Pedidos',
+    `${condicion('f430_id_tipo_docto', tipo)} AND ${condicion('f430_id_co', co)} AND f430_consec_docto > ${mayor}`)
+  for (const p of enSiesa) mayor = Math.max(mayor, Number(p.f430_consec_docto) || 0)
+  return mayor + 1
+}
+
 export async function prepararPedido(ordenId: number): Promise<PreparacionPedido> {
   await asignarItemsAutomaticamente()
   const { orden, lineas } = await cargarOrden(ordenId)
@@ -72,8 +91,8 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   if (!orden.nit) bloqueo('El punto de entrega no está asociado a una sucursal de Siesa.')
 
   const [config] = orden.nit ? await sql`SELECT * FROM cen_config_clientes WHERE nit = ${orden.nit}` : []
-  if (orden.nit && !config) alerta(`El cliente ${orden.nit} no tiene configuración propia: se usan CO 001, tipo PVK y precio de la orden.`)
-  const co = config?.id_co ?? '001', tipoDocto = config?.tipo_docto ?? 'PVK', indPrecio = config?.ind_precio ?? '2'
+  if (orden.nit && !config) alerta(`El cliente ${orden.nit} no tiene configuración propia: se usan CO 001 y precio de la orden.`)
+  const co = config?.id_co ?? '001', tipoDocto = TIPO_DOCTO(), indPrecio = config?.ind_precio ?? '2'
 
   // La bodega se amarra a la sucursal. Prioridad: la que traiga Siesa en el maestro del
   // cliente/sucursal > la asignada a la sucursal en la app > la del cliente > 00110.
@@ -163,11 +182,20 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   }
   const dias = diasEntre(hoy, fechaEntrega)
 
+  // ── Consecutivo manual ──
+  let consecutivo = 0
+  try {
+    consecutivo = await siguienteConsecutivo(co, tipoDocto)
+  } catch (e) {
+    bloqueo(`No se pudo consultar el último consecutivo ${tipoDocto} en Siesa: ${e instanceof Error ? e.message : e}`)
+  }
+  const consec = String(consecutivo || 1)
+
   // ── Documento ──
   const base = { F_CIA: CIA() }
   const pedido: Record<string, string> = {
-    F_CIA: CIA(), F_LIQUIDA_IMPUESTO: '1', F_CONSEC_AUTO_REG: '1', F_IND_CONTACTO: '1',
-    f430_id_co: co, f430_id_tipo_docto: tipoDocto, f430_consec_docto: '1', f430_id_fecha: aaaammdd(hoy),
+    F_CIA: CIA(), F_LIQUIDA_IMPUESTO: '1', F_CONSEC_AUTO_REG: '0', F_IND_CONTACTO: '1',
+    f430_id_co: co, f430_id_tipo_docto: tipoDocto, f430_consec_docto: consec, f430_id_fecha: aaaammdd(hoy),
     f430_id_clase_docto: '502', f430_ind_estado: '0', f430_ind_backorder: '0',
     f430_id_tercero_fact: orden.nit ?? '', f430_id_sucursal_fact: orden.sucursal ?? '',
     f430_id_tercero_rem: orden.nit ?? '', f430_id_sucursal_rem: orden.sucursal ?? '',
@@ -182,7 +210,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
     f419_id_ciudad: '', f419_id_barrio: '', f419_telefono: '', f419_fax: '', f419_cod_postal: '', f419_email: '', f419_ind_descuento: '0',
   }
   const movimientos = lineas.map((l, i) => ({
-    F_CIA: CIA(), f431_id_co: co, f431_id_tipo_docto: tipoDocto, f431_consec_docto: '1', f431_nro_registro: String(i + 1),
+    F_CIA: CIA(), f431_id_co: co, f431_id_tipo_docto: tipoDocto, f431_consec_docto: consec, f431_nro_registro: String(i + 1),
     f431_id_item: l.f120_id ? String(l.f120_id) : '', f431_referencia_item: '', f431_codigo_barras: '', f431_id_ext1_detalle: l.extension1 ? EXT1_DETALLE() : '', f431_id_ext2_detalle: '',
     f431_id_bodega: bodega, f431_id_concepto: '501', f431_id_motivo: '01', f431_ind_obsequio: '0', f431_id_co_movto: co,
     f431_id_un_movto: '', f431_id_ccosto_movto: '', f431_id_proyecto: '',
@@ -201,7 +229,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
     puedeEnviar: !avisos.some(a => a.nivel === 'bloqueo'),
     resumen: {
       cliente: orden.razon_social ? `${orden.razon_social} (${orden.nit}/${orden.sucursal})` : 'Sin asociar',
-      listaPrecio, condPago, bodega, origenBodega, tipoDocto, fechaEntrega, diasEntrega: dias,
+      listaPrecio, condPago, bodega, origenBodega, tipoDocto, consecutivo: `${tipoDocto}-${consec}`, fechaEntrega, diasEntrega: dias,
     },
   }
 }
@@ -219,8 +247,8 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
     return { ok: false, mensaje: `Siesa rechazó el pedido: ${r.mensaje}`, respuesta: r.cuerpo, prep }
   }
 
-  // Consecutivo asignado por Siesa: se busca el pedido recién creado por su documento de referencia.
-  let consecutivo: string | null = null
+  // Número con que se creó (consecutivo manual); se confirma con el pedido recién creado en Siesa.
+  let consecutivo: string | null = prep.resumen.consecutivo
   let retenido = ''
   try {
     const { orden } = await cargarOrden(ordenId)

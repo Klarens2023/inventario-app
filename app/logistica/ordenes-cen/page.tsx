@@ -322,7 +322,7 @@ export default function OrdenesCenPage() {
             {!recogido && <div style={{ overflowX: 'auto' }}>
               <table className="inv-table">
                 <thead>
-                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Cadena</th>{vista === 'ruta' && <th>Punto de venta</th>}<th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th><th>Fecha OC</th><th>Entrega</th><th>Productos</th><th>Unidades</th><th>Peso</th><th>Valor</th><th>Estado</th></tr>
+                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Cadena</th>{vista === 'ruta' && <th>Punto de venta</th>}<th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th><th>Fecha OC</th><th>Entrega</th><th>Productos</th><th>Unidades</th><th>Peso</th><th>Valor</th><th>Estado</th><th>Pedido Siesa</th></tr>
                 </thead>
                 <tbody>
                   {g.ordenes.map(o => (
@@ -350,6 +350,7 @@ export default function OrdenesCenPage() {
                           <div style={{ fontSize: 11, color: '#B45309', marginTop: 4, maxWidth: 260 }}>⚠ {o.motivos.join(' · ')}</div>
                         )}
                       </td>
+                      <td style={{ fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>{o.siesa_consecutivo ?? ''}</td>
                     </tr>
                   ))}
                 </tbody>

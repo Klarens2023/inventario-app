@@ -39,7 +39,7 @@ export function ClienteSiesa({ ordenId, nit, sucursal }: { ordenId: number; nit:
     ['Calificación', t(c.f201_ind_calificacion)],
     ['Bloqueo por cupo / mora', `${si(c.f201_ind_bloqueo_cupo)} / ${si(c.f201_ind_bloqueo_mora)}`],
     ['Ciudad', [data?.app?.ciudad, data?.app?.departamento].filter(Boolean).join(', ') || '—'],
-    ['CO / tipo de documento', `${t(cfg?.id_co ?? '001')} / ${t(cfg?.tipo_docto ?? 'PVK')}`],
+    ['CO / tipo de documento', `${t(cfg?.id_co ?? '001')} / PVS`],
   ] : []
 
   return (

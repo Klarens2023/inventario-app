@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     SELECT o.id, o.fuente, o.numero_orden, o.fecha_orden::text, o.fecha_entrega::text, o.fecha_entrega_max::text,
            o.ean_comprador, o.ean_entrega, o.nit, o.sucursal, o.razon_social,
            o.total_unidades::float AS total_unidades, o.valor_total::float AS valor_total, o.peso_kg::float AS peso_kg,
-           o.ruta, o.ruta_manual, o.estado, o.created_at, pe.ciudad,
+           o.ruta, o.ruta_manual, o.estado, o.created_at, o.siesa_consecutivo, pe.ciudad,
            (SELECT COUNT(*)::int FROM cen_orden_lineas l WHERE l.orden_id = o.id) AS lineas,
            (SELECT COUNT(DISTINCT d.ean_local)::int FROM cen_orden_distribucion d
               JOIN cen_orden_lineas l ON l.id = d.linea_id WHERE l.orden_id = o.id) AS locales,
