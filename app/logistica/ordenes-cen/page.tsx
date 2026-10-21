@@ -89,10 +89,10 @@ export default function OrdenesCenPage() {
     for (const o of ordenes) {
       let clave: string, titulo: string, subtitulo: string
       if (vista === 'ruta') {
-        const rel = relacion(o.ruta, o.fecha_entrega)
-        clave = rel ?? 'sin-ruta'
+        // Una sección por ruta; las relaciones (ruta + semana de entrega) se listan en el subtítulo.
+        clave = o.ruta ?? 'sin-ruta'
         titulo = o.ruta ? `Ruta ${o.ruta}` : 'Sin ruta asignada'
-        subtitulo = rel ? `Relación ${rel}` : 'Asigna la ruta desde el detalle de cada orden o crea una regla'
+        subtitulo = o.ruta ? '' : 'Asigna la ruta desde el detalle de cada orden o crea una regla'
       } else {
         clave = o.nit ? `${o.nit}/${o.sucursal}` : `ean:${o.ean_entrega}`
         titulo = o.razon_social ?? `Punto sin homologar · ${nombreComprador(o.ean_comprador)}`
@@ -100,6 +100,13 @@ export default function OrdenesCenPage() {
       }
       if (!m.has(clave)) m.set(clave, { clave, titulo, subtitulo, sinPunto: vista === 'punto' ? !o.nit : !o.ruta, ean: o.ean_entrega, ruta: vista === 'ruta' ? o.ruta : null, ordenes: [] })
       m.get(clave)!.ordenes.push(o)
+    }
+    if (vista === 'ruta') {
+      for (const g of Array.from(m.values())) {
+        if (!g.ruta) continue
+        const rels = Array.from(new Set(g.ordenes.map(o => relacion(o.ruta, o.fecha_entrega)).filter(Boolean))).sort()
+        g.subtitulo = `${rels.length === 1 ? 'Relación' : 'Relaciones'} ${rels.join(', ')}`
+      }
     }
     // Primero los que necesitan atención (sin punto / sin ruta)
     return Array.from(m.values()).sort((a, b) => Number(b.sinPunto) - Number(a.sinPunto) || a.titulo.localeCompare(b.titulo))
@@ -315,7 +322,7 @@ export default function OrdenesCenPage() {
             {!recogido && <div style={{ overflowX: 'auto' }}>
               <table className="inv-table">
                 <thead>
-                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Cadena</th>{vista === 'ruta' && <th>Punto de venta</th>}<th>Ruta</th><th>Fecha OC</th><th>Entrega</th><th>Productos</th><th>Unidades</th><th>Peso</th><th>Valor</th><th>Estado</th></tr>
+                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Cadena</th>{vista === 'ruta' && <th>Punto de venta</th>}<th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th><th>Fecha OC</th><th>Entrega</th><th>Productos</th><th>Unidades</th><th>Peso</th><th>Valor</th><th>Estado</th></tr>
                 </thead>
                 <tbody>
                   {g.ordenes.map(o => (
@@ -328,7 +335,7 @@ export default function OrdenesCenPage() {
                       <td style={{ fontWeight: 700 }}>{o.numero_orden}</td>
                       <td>{nombreComprador(o.ean_comprador)}{o.locales > 0 && <span style={{ color: 'var(--text2)', fontSize: 12 }}> · CEDI, {o.locales} tiendas</span>}</td>
                       {vista === 'ruta' && <td>{o.razon_social ?? `EAN ${o.ean_entrega}`}{o.ciudad && <span style={{ color: 'var(--text2)', fontSize: 12 }}> · {o.ciudad}</span>}</td>}
-                      <td>{o.ruta ? <strong>{o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
+                      <td>{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_entrega) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
                       <td>{fmtFecha(o.fecha_orden)}</td>
                       <td>{fmtFecha(o.fecha_entrega)}</td>
                       <td style={{ textAlign: 'right' }}>{o.lineas}</td>
