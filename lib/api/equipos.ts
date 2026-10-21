@@ -10,7 +10,7 @@ export async function fetchEquipos(filtros: FiltrosEquipos): Promise<Equipo[]> {
   return Array.isArray(data) ? data : []
 }
 
-export async function fetchEquipoDetalle(id: string): Promise<{ equipo: EquipoDetalle; mantenimientos: HistReg[]; incidencias: HistReg[]; cambios: HistReg[]; movimientos: HistReg[] }> {
+export async function fetchEquipoDetalle(id: string): Promise<{ equipo: EquipoDetalle; mantenimientos: HistReg[]; incidencias: HistReg[]; cambios: HistReg[]; movimientos: HistReg[]; repuestos?: HistReg[] }> {
   const res = await fetch(`/api/sistemas/equipos/${id}`)
   if (!res.ok) throw new Error('Equipo no encontrado')
   return res.json()

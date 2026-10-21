@@ -1,7 +1,7 @@
 export const MODULOS = [
   'cargar', 'consulta', 'acumulados', 'ordenes_cen',
   'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr',
-  'equipos', 'movimientos_tic',
+  'equipos', 'movimientos_tic', 'repuestos_tic',
   'planos', 'conciliacion_facturas',
 ] as const
 
@@ -10,7 +10,7 @@ export type Modulo = typeof MODULOS[number]
 export const GRUPOS_MODULOS: Array<{ key: string; label: string; modulos: Modulo[] }> = [
   { key: 'logistica',    label: 'Logística',      modulos: ['cargar', 'consulta', 'acumulados', 'ordenes_cen'] },
   { key: 'puntos_venta', label: 'Puntos de Venta', modulos: ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr'] },
-  { key: 'sistemas',     label: 'Sistemas',        modulos: ['equipos', 'movimientos_tic'] },
+  { key: 'sistemas',     label: 'Sistemas',        modulos: ['equipos', 'movimientos_tic', 'repuestos_tic'] },
   { key: 'contabilidad', label: 'Contabilidad',    modulos: ['planos', 'conciliacion_facturas'] },
 ]
 
@@ -25,6 +25,7 @@ export const MODULO_LABELS: Record<Modulo, string> = {
   pvn_pagos_qr: 'Pagos QR',
   equipos: 'Equipos TI',
   movimientos_tic: 'Movimientos TIC',
+  repuestos_tic: 'Repuestos e Insumos',
   planos: 'Generación de Planos',
   conciliacion_facturas: 'Conciliación de Facturas',
 }

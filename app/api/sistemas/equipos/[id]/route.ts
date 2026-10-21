@@ -31,7 +31,34 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     ORDER BY m.fecha DESC
   `
 
-  return NextResponse.json({ equipo, mantenimientos, incidencias, cambios, movimientos })
+  // Si aún no se corrió la migración de repuestos, la hoja de vida carga igual sin esta sección
+  // Asignaciones (vigentes primero, con su historial de reemplazo/devolución) + consumos sin asignación (tóner, etc.)
+  const repuestos = await sql`
+    SELECT * FROM (
+      SELECT s.id, 'asignacion' AS clase, s.fecha_asignacion::text AS fecha, s.articulo_codigo, a.descripcion,
+             a.categoria, s.cantidad, s.persona_nombre, s.es_prestamo, s.fecha_limite_prestamo::text AS fecha_limite_prestamo,
+             s.estado, s.destino_retiro, s.fecha_retiro::text AS fecha_retiro, s.motivo_retiro, s.detalle_retiro,
+             s.reemplaza_a, s.reemplazada_por, r.articulo_codigo AS reemplazada_por_codigo, s.observaciones,
+             (s.estado = 'vigente' AND s.es_prestamo AND s.fecha_limite_prestamo < CURRENT_DATE) AS vencido,
+             (s.cantidad * ms.costo_unitario)::float AS costo
+      FROM tic_articulo_asignaciones s
+      JOIN tic_articulos a ON a.codigo = s.articulo_codigo
+      JOIN tic_articulo_movimientos ms ON ms.id = s.movimiento_salida_id
+      LEFT JOIN tic_articulo_asignaciones r ON r.id = s.reemplazada_por
+      WHERE s.equipo_id = ${params.id}
+      UNION ALL
+      SELECT m.id, 'consumo', m.fecha::text, m.articulo_codigo, a.descripcion, a.categoria, -m.cantidad, m.destino_nombre,
+             FALSE, NULL, 'consumo', NULL, NULL, m.motivo, NULL, NULL, NULL, NULL, m.observaciones, FALSE,
+             (-m.cantidad * m.costo_unitario)::float
+      FROM tic_articulo_movimientos m
+      JOIN tic_articulos a ON a.codigo = m.articulo_codigo
+      WHERE m.equipo_id = ${params.id} AND m.tipo = 'salida'
+        AND NOT EXISTS (SELECT 1 FROM tic_articulo_asignaciones s WHERE s.movimiento_salida_id = m.id)
+    ) x
+    ORDER BY (estado = 'vigente') DESC, fecha DESC, id DESC
+  `.catch(() => [])
+
+  return NextResponse.json({ equipo, mantenimientos, incidencias, cambios, movimientos, repuestos })
 }
 
 // PUT /api/sistemas/equipos/[id]

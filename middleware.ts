@@ -10,7 +10,10 @@ const PATH_MODULO: Array<[string, Modulo]> = [
   ['/pvn/analisis', 'pvn_analisis'],
   ['/pvn/catalogo', 'pvn_catalogo'],
   ['/pvn/pagos-qr', 'pvn_pagos_qr'],
-  ['/sistemas', 'equipos'],
+  ['/sistemas/equipos', 'equipos'],
+  ['/sistemas/mantenimientos', 'equipos'],
+  ['/sistemas/movimientos', 'movimientos_tic'],
+  ['/sistemas/repuestos', 'repuestos_tic'],
   ['/planos', 'planos'],
   ['/logistica/ordenes-cen', 'ordenes_cen'],
 ]

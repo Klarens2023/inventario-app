@@ -6,7 +6,7 @@ import { fmtFecha } from './shared'
 
 type Props = {
   titulo: string
-  tipo: 'mantenimientos' | 'incidencias' | 'cambios' | 'movimientos'
+  tipo: 'mantenimientos' | 'incidencias' | 'cambios' | 'movimientos' | 'repuestos'
   rows: HistReg[]
   canAdd: boolean
   onAdd: () => void
@@ -46,6 +46,35 @@ const CONFIG = {
       r.motivo as string, r.origen_nombre as string, r.destino_nombre as string, r.estado as string,
     ],
   },
+  repuestos: {
+    columnas: ['Estado','Desde','Artículo','Cant.','Costo','Usuario','Préstamo hasta','Retiro','Motivo / observación'],
+    getRow: (r: HistReg) => {
+      const estado = r.vencido ? 'Préstamo vencido' : ESTADO_REPUESTO[r.estado as string] ?? (r.estado as string)
+      const color = r.vencido ? '#991b1b' : r.estado === 'vigente' ? '#065f46' : r.estado === 'reemplazado' ? '#5b21b6' : '#475569'
+      return [
+        <span key="e" style={{ fontWeight: 700, color, whiteSpace: 'nowrap' }}>{estado}</span>,
+        fmtFecha(r.fecha as string),
+        <span key="a"><span style={{ color: '#0047BA', fontWeight: 700, fontFamily: 'monospace' }}>{r.articulo_codigo as string}</span> {r.descripcion as string}
+          {r.reemplaza_a ? <span style={{ display: 'block', fontSize: 11, color: '#5b21b6' }}>Reemplazó la asignación #{r.reemplaza_a as number}</span> : null}</span>,
+        String(r.cantidad),
+        r.costo != null ? `$${Math.round(Number(r.costo)).toLocaleString('es-CO')}` : '—',
+        r.persona_nombre as string,
+        r.es_prestamo ? fmtFecha(r.fecha_limite_prestamo as string) : '—',
+        r.fecha_retiro
+          ? <span key="r">{DESTINO_REPUESTO[r.destino_retiro as string] ?? ''} · {fmtFecha(r.fecha_retiro as string)}
+              {r.reemplazada_por ? <span style={{ display: 'block', fontSize: 11, color: '#5b21b6' }}>Reemplazado por #{r.reemplazada_por as number} {r.reemplazada_por_codigo as string}</span> : null}</span>
+          : '—',
+        [r.motivo_retiro, r.detalle_retiro, r.observaciones].filter(Boolean).join(' — ') || '—',
+      ]
+    },
+  },
+}
+
+const ESTADO_REPUESTO: Record<string, string> = {
+  vigente: 'Vigente', devuelto: 'Devuelto', reemplazado: 'Reemplazado', consumo: 'Consumo',
+}
+const DESTINO_REPUESTO: Record<string, string> = {
+  inventario: 'Volvió al inventario', baja: 'Dado de baja', garantia: 'En garantía', perdido: 'Perdido',
 }
 
 export function HistorialTab({ titulo, tipo, rows, canAdd, onAdd }: Props) {

@@ -18,6 +18,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
   const [incidencias,    setIncidencias]    = useState<HistReg[]>([])
   const [cambios,        setCambios]        = useState<HistReg[]>([])
   const [movimientos,    setMovimientos]    = useState<HistReg[]>([])
+  const [repuestos,      setRepuestos]      = useState<HistReg[]>([])
   const [loading,        setLoading]        = useState(true)
   const [tab,            setTab]            = useState<TabKey>('detalles')
   const [editMode,       setEditMode]       = useState(false)
@@ -38,6 +39,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
       setIncidencias(data.incidencias ?? [])
       setCambios(data.cambios ?? [])
       setMovimientos(data.movimientos ?? [])
+      setRepuestos(data.repuestos ?? [])
     } catch {
       router.push('/sistemas/equipos')
     } finally {
@@ -94,6 +96,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
     ['incidencias',    `Incidencias (${incidencias.length})`],
     ['cambios',        `Cambios (${cambios.length})`],
     ['movimientos',    `Movimientos (${movimientos.length})`],
+    ['repuestos',      `Repuestos (${repuestos.filter(r => r.estado === 'vigente').length} vigentes)`],
   ]
 
   return (
@@ -260,6 +263,7 @@ export function HojaDeVida({ id, canEdit, canDelete }: Props) {
       {tab === 'incidencias'    && <HistorialTab titulo="Historial de Incidencias / Tickets" tipo="incidencias"    rows={incidencias}    canAdd={canEdit} onAdd={() => { setModalTipo('incidencia');    setModalData({}) }} />}
       {tab === 'cambios'        && <HistorialTab titulo="Cambios en Componentes"              tipo="cambios"        rows={cambios}        canAdd={canEdit} onAdd={() => { setModalTipo('cambio');        setModalData({}) }} />}
       {tab === 'movimientos'    && <HistorialTab titulo="Historial de Movimientos TIC"        tipo="movimientos"    rows={movimientos}    canAdd={false}   onAdd={() => {}} />}
+      {tab === 'repuestos'      && <HistorialTab titulo="Repuestos y periféricos asignados (vigentes e historial)" tipo="repuestos"  rows={repuestos}      canAdd={false}   onAdd={() => {}} />}
 
       {modalTipo && (
         <ModalHistorial

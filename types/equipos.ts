@@ -17,7 +17,7 @@ export type EquipoDetalle = Record<string, string | boolean | null>
 
 export type HistReg = Record<string, string | number | null>
 
-export type TabKey = 'detalles' | 'mantenimientos' | 'incidencias' | 'cambios' | 'movimientos'
+export type TabKey = 'detalles' | 'mantenimientos' | 'incidencias' | 'cambios' | 'movimientos' | 'repuestos'
 
 export type FiltrosEquipos = {
   buscar: string
