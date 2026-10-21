@@ -34,7 +34,14 @@ async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): 
 
   const [punto] = await sql`SELECT nit, sucursal, razon_social FROM cen_puntos_ean WHERE ean = ${o.eanEntrega} AND activo = TRUE`
   const eans = o.lineas.map(l => l.eanItem)
-  const productos = await sql`SELECT ean, peso_kg FROM cen_productos WHERE ean = ANY(${eans})`
+  // Peso del producto de la cadena (cen_productos_comprador) si existe; si no, el del maestro.
+  const productos = await sql`
+    SELECT e AS ean, COALESCE(c.peso_kg, p.peso_kg) AS peso_kg
+    FROM unnest(${eans}::text[]) AS e
+    LEFT JOIN cen_productos p ON p.ean = e
+    LEFT JOIN cen_productos_comprador c ON c.ean = e AND c.ean_comprador = ${o.eanComprador}
+    WHERE p.ean IS NOT NULL OR c.ean IS NOT NULL
+  `
   const pesoPorEan = new Map(productos.map(p => [p.ean as string, Number(p.peso_kg)]))
   const todosConPeso = eans.every(e => pesoPorEan.has(e))
 

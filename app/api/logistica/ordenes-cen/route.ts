@@ -27,10 +27,10 @@ export async function GET(req: NextRequest) {
            -- Motivos para revisar la orden antes de crear el pedido (solo órdenes abiertas)
            CASE WHEN o.estado IN ('pendiente', 'sin_punto', 'error') THEN array_remove(ARRAY[
              CASE WHEN o.nit IS NULL THEN 'Punto de entrega ' || o.ean_entrega || ' sin sucursal de Siesa asociada' END,
-             CASE WHEN EXISTS (SELECT 1 FROM cen_orden_lineas l LEFT JOIN cen_productos p ON p.ean = l.ean_item
+             CASE WHEN EXISTS (SELECT 1 FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id
                                WHERE l.orden_id = o.id AND p.ean IS NULL) THEN 'Productos que no están en el maestro (sin peso)' END,
-             CASE WHEN EXISTS (SELECT 1 FROM cen_orden_lineas l JOIN cen_productos p ON p.ean = l.ean_item
-                               WHERE l.orden_id = o.id AND p.f120_id IS NULL) THEN 'Productos sin ítem de Siesa asignado' END
+             CASE WHEN EXISTS (SELECT 1 FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id
+                               WHERE l.orden_id = o.id AND p.ean IS NOT NULL AND p.f120_id IS NULL) THEN 'Productos sin ítem de Siesa asignado' END
            ], NULL) ELSE '{}' END AS motivos
     FROM cen_ordenes o
     LEFT JOIN cen_puntos_ean pe ON pe.ean = o.ean_entrega

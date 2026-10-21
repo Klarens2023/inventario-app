@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
            CASE WHEN p.peso_kg IS NULL THEN NULL ELSE SUM(l.cantidad * p.peso_kg)::float END AS peso
     FROM cen_ordenes o
     JOIN cen_orden_lineas l ON l.orden_id = o.id
-    LEFT JOIN cen_productos p ON p.ean = l.ean_item
+    JOIN cen_lineas_producto p ON p.linea_id = l.id -- producto de la cadena o del maestro
     WHERE o.id = ANY(${ids}) AND o.estado <> 'descartada'
     GROUP BY 1, o.nit, o.sucursal, l.ean_item, p.f120_id, p.descripcion, p.peso_kg
     ORDER BY 1, 6

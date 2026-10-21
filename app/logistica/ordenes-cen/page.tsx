@@ -33,7 +33,7 @@ export default function OrdenesCenPage() {
   const [buscar, setBuscar] = useState('')
   const [ruta, setRuta] = useState('')
   const [vista, setVista] = useState<'punto' | 'ruta'>('ruta')
-  const [recogidos, setRecogidos] = useState<Set<string>>(new Set())
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set()) // las secciones arrancan recogidas
   const [rutas, setRutas] = useState<string[]>([])
 
   const [detalleId, setDetalleId] = useState<number | null>(null)
@@ -141,7 +141,7 @@ export default function OrdenesCenPage() {
     await cargar()
   }
 
-  const alternar = (clave: string) => setRecogidos(prev => {
+  const alternar = (clave: string) => setAbiertos(prev => {
     const n = new Set(prev); if (n.has(clave)) n.delete(clave); else n.add(clave); return n
   })
 
@@ -242,8 +242,8 @@ export default function OrdenesCenPage() {
           ))}
         </div>
         {grupos.length > 0 && (
-          <button className="btn" onClick={() => setRecogidos(recogidos.size === grupos.length ? new Set() : new Set(grupos.map(g => g.clave)))}>
-            {recogidos.size === grupos.length ? 'Expandir todas' : 'Recoger todas'}
+          <button className="btn" onClick={() => setAbiertos(abiertos.size > 0 ? new Set() : new Set(grupos.map(g => g.clave)))}>
+            {abiertos.size > 0 ? 'Recoger todas' : 'Expandir todas'}
           </button>
         )}
       </div>
@@ -289,7 +289,7 @@ export default function OrdenesCenPage() {
         const valor = g.ordenes.reduce((s, o) => s + o.valor_total, 0)
         const pesoCompleto = g.ordenes.every(o => o.peso_kg !== null)
         const peso = g.ordenes.reduce((s, o) => s + (o.peso_kg ?? 0), 0)
-        const recogido = recogidos.has(g.clave)
+        const recogido = !abiertos.has(g.clave)
         const porRevisar = g.ordenes.filter(o => o.motivos.length > 0).length
         const idsEnviables = g.ordenes.filter(enviable).map(o => o.id)
         const marcadas = idsEnviables.filter(id => seleccion.has(id)).length
@@ -315,7 +315,7 @@ export default function OrdenesCenPage() {
                 <span><strong>{fmtNumero(unidades)}</strong> und</span>
                 <span><strong>{pesoCompleto ? `${fmtNumero(peso, 1)} kg` : 'peso incompleto'}</strong></span>
                 <span><strong>{fmtMoneda(valor)}</strong></span>
-                <button className="btn" onClick={e => { e.stopPropagation(); setTotales({ titulo: vista === 'ruta' ? `${g.titulo} · ${g.subtitulo}` : g.titulo, ruta: g.ruta, ids: g.ordenes.map(o => o.id) }) }}>Totales</button>
+                <button className="btn" onClick={e => { e.stopPropagation(); setTotales({ titulo: vista === 'ruta' && g.ruta ? `${g.titulo} · ${g.subtitulo}` : g.titulo, ruta: g.ruta, ids: g.ordenes.map(o => o.id) }) }}>Totales</button>
                 {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={e => { e.stopPropagation(); setAsignarEan(g.ean) }}>Asignar sucursal</button>}
               </div>
             </div>

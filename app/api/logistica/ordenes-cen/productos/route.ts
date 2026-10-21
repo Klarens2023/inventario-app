@@ -47,7 +47,7 @@ export async function PUT(req: NextRequest) {
     UPDATE cen_ordenes o SET peso_kg = x.peso, updated_at = NOW()
     FROM (
       SELECT l.orden_id, CASE WHEN BOOL_AND(p.ean IS NOT NULL) THEN SUM(l.cantidad * p.peso_kg) END AS peso
-      FROM cen_orden_lineas l LEFT JOIN cen_productos p ON p.ean = l.ean_item
+      FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id
       WHERE l.orden_id IN (SELECT orden_id FROM cen_orden_lineas WHERE ean_item = ${ean})
       GROUP BY l.orden_id
     ) x

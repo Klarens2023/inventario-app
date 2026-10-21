@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
            l.cantidad::float AS cantidad, l.precio::float AS precio, l.iva::float AS iva,
            p.f120_id AS item_siesa, p.descripcion AS descripcion_maestro, p.peso_kg::float AS peso_kg, p.und_caja
     FROM cen_orden_lineas l
-    LEFT JOIN cen_productos p ON p.ean = l.ean_item
+    LEFT JOIN cen_lineas_producto p ON p.linea_id = l.id -- producto de la cadena o del maestro
     WHERE l.orden_id = ${id}
     ORDER BY l.nro_linea
   `
