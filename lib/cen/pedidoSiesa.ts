@@ -272,3 +272,27 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
   const mensaje = (consecutivo ? `Pedido ${consecutivo} creado en Siesa.` : 'Pedido creado en Siesa.') + (retenido ? ` ${retenido}` : '')
   return { ok: true, mensaje, consecutivo, retenido, respuesta: r.cuerpo, prep }
 }
+
+// Reversa en la app una orden ya enviada para volver a crear su pedido (ej. pedidos de prueba PVK que se rehacen
+// como PVS). La API no permite anular pedidos: primero se anula en Siesa y aquí solo se confirma que ya no quede
+// ningún pedido vivo con esa OC, para no duplicarlo. La orden vuelve a Pendiente y se guarda el número anterior.
+export async function reversarPedido(ordenId: number): Promise<{ ok: boolean; mensaje: string }> {
+  const [orden] = await sql`SELECT numero_orden, nit, estado, siesa_consecutivo FROM cen_ordenes WHERE id = ${ordenId}`
+  if (!orden) return { ok: false, mensaje: 'Orden no encontrada' }
+  if (orden.estado !== 'enviado') return { ok: false, mensaje: 'Solo se reversan órdenes que ya tienen pedido en Siesa.' }
+
+  const pedidos = await consultar<Record<string, unknown>>('API_v2_Ventas_Pedidos', {
+    parametros: `${condicion('f430_num_docto_referencia', orden.numero_orden)} AND ${condicion('f200_nit_pedido_fact', orden.nit)}`,
+  })
+  const vivos = Array.from(new Set(pedidos.filter(p => Number(p.f430_ind_estado) !== 9).map(p => `${p.f430_id_tipo_docto}-${p.f430_consec_docto}`)))
+  if (vivos.length) {
+    return { ok: false, mensaje: `La OC ${orden.numero_orden} todavía tiene el pedido ${vivos.join(', ')} vivo en Siesa. Anúlalo primero en Siesa y vuelve a reversar.` }
+  }
+  await sql`
+    UPDATE cen_ordenes SET estado = ${orden.nit ? 'pendiente' : 'sin_punto'}, siesa_consecutivo = NULL, enviado_at = NULL,
+           siesa_respuesta = ${JSON.stringify({ reversado_at: new Date().toISOString(), pedido_anterior: orden.siesa_consecutivo })}::jsonb,
+           updated_at = NOW()
+    WHERE id = ${ordenId}
+  `
+  return { ok: true, mensaje: `Orden reversada: el pedido ${orden.siesa_consecutivo ?? ''} está anulado en Siesa y la OC quedó pendiente para volver a enviarla.` }
+}

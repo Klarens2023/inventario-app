@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { verificarAcceso } from '@/lib/cen/acceso'
 import { recalcularRutas } from '@/lib/cen/rutas'
+import { reversarPedido } from '@/lib/cen/pedidoSiesa'
 
 // GET /api/logistica/ordenes-cen/[id] — detalle: líneas (con peso del maestro) y reparto por tienda
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -51,6 +52,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { accion, ruta } = await req.json() as { accion?: string; ruta?: string }
   const [orden] = await sql`SELECT estado, nit FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
+  // Reversar: la orden ya enviada vuelve a pendiente si su pedido está anulado en Siesa
+  if (accion === 'reversar') {
+    try {
+      const r = await reversarPedido(id)
+      return NextResponse.json(r.ok ? r : { error: r.mensaje }, { status: r.ok ? 200 : 409 })
+    } catch (e) {
+      return NextResponse.json({ error: `No se pudo consultar Siesa: ${e instanceof Error ? e.message : e}` }, { status: 502 })
+    }
+  }
   if (orden.estado === 'enviado') return NextResponse.json({ error: 'La orden ya se envió a Siesa' }, { status: 409 })
 
   if (accion === 'descartar') {

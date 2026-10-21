@@ -34,7 +34,8 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
     return Array.from(m.entries())
   }, [detalle])
 
-  async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta', ruta?: string) {
+  async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar', ruta?: string) {
+    if (accion === 'reversar' && !window.confirm('Reversar el pedido de esta orden?\n\nPrimero debe estar ANULADO en Siesa. La orden vuelve a Pendiente para crear el pedido de nuevo (PVS).')) return
     const res = await fetch(`/api/logistica/ordenes-cen/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, ruta }) })
     if (res.ok) { onCambio(); onClose() } else setError((await res.json()).error ?? 'No se pudo actualizar')
   }
@@ -170,6 +171,10 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                 <button className="btn btn-danger" onClick={() => cambiarEstado('descartar')}>Descartar orden</button>
               )}
               {o.estado === 'descartada' && <button className="btn" onClick={() => cambiarEstado('reactivar')}>Reactivar</button>}
+              {o.estado === 'enviado' && (
+                <button className="btn" title="Cuando el pedido ya está anulado en Siesa, devuelve la orden a Pendiente para volver a crearlo"
+                  onClick={() => cambiarEstado('reversar')}>Reversar pedido</button>
+              )}
               <button className="btn" onClick={onClose}>Cerrar</button>
             </div>
           </>
