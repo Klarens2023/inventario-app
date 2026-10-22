@@ -8,3 +8,6 @@ out/
 
 # Muestras descargadas del SFTP de CEN (datos reales de órdenes)
 muestras-cen/
+
+# Caché de compilación de TypeScript (se regenera sola)
+tsconfig.tsbuildinfo
