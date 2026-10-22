@@ -145,3 +145,22 @@ Usuario de prueba `prueba.auditoria` como líder de Sistemas, con sesión web pr
 | Log del servidor | Sin errores |
 
 Al final `prueba.auditoria` quedó desactivado de nuevo.
+
+### Revisión externa del preview de Vercel (rama `auditoria-seguridad-2026-10`, 22/10/2026)
+
+El preview está protegido con **Vercel Authentication** (sin sesión de Vercel todo redirige al login de Vercel, con `X-Robots-Tag: noindex`). El usuario inició sesión en Vercel en la pestaña de pruebas; la revisión se hizo desde ahí, **sin sesión de la app** y solo con GET.
+
+| Revisión | Resultado |
+|---|---|
+| Versión | **Next 15.5.28** |
+| Encabezados | CSP presente (sin `'unsafe-eval'`), `X-XSS-Protection` retirado, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy |
+| 13 APIs sin sesión de la app | Todas 401 sin datos |
+| Cron de sincronización | 503 "CRON_SECRET no está configurado": la variable no está definida para Preview (correcto: el cron solo corre contra producción) |
+| Páginas protegidas, incluida `/contabilidad/conciliacion-facturas` | Redirigen al login (AUD-11 corregido en el despliegue) |
+| `/.env`, `/.git`, `schema.sql`, `package.json`, `README.md`, `scripts/`, `docs/`, `limpieza-pruebas-auditoria.sql`, `muestras-cen` | 404 |
+| Mapas de código fuente | 404 |
+| Optimizador de imágenes | Local 200, origen externo 400 |
+| Errores | 404/401 genéricos, sin trazas ni SQL |
+| Consola del navegador en `/login` | Sin errores ni bloqueos de CSP |
+
+Pendiente de probar por el usuario con sesión de la app en el preview: usuarios, Pagos QR con fotos y una orden EDI.
