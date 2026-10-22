@@ -1,0 +1,41 @@
+# Trae cada 30 minutos las órdenes EDI nuevas de los SFTP (Carvajal y Subrik) llamando a la app en Vercel.
+# Carvajal borra los archivos a las ~30-37 h: si no se leen a tiempo, la orden se pierde.
+#
+# Solo corre en Klarens2023/inventario-app, el repositorio desde el que publica Vercel (en las copias de
+# desarrollo no hace nada). Configuración (una sola vez) en ese repositorio:
+#   Settings → Secrets and variables → Actions → New repository secret
+#     APP_URL      URL de producción, sin "/" al final (ej. https://mi-app.vercel.app)
+#     CRON_SECRET  la misma clave que la variable CRON_SECRET del proyecto en Vercel
+# GitHub puede retrasar unos minutos las ejecuciones programadas; también se puede correr a mano (Run workflow).
+name: Sincronizar órdenes EDI
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sincronizar:
+    if: github.repository == 'Klarens2023/inventario-app'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Traer órdenes de los SFTP
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Faltan los secretos APP_URL y CRON_SECRET en este repositorio: no se sincroniza."
+            exit 0
+          fi
+          # Cada llamada trae hasta 40 archivos por fuente; si quedan pendientes se repite (máx. 5 veces).
+          for intento in 1 2 3 4 5; do
+            respuesta=$(curl -sS --max-time 90 -w '\n%{http_code}' -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/logistica/ordenes-cen/sincronizar")
+            codigo=$(echo "$respuesta" | tail -n1)
+            cuerpo=$(echo "$respuesta" | sed '$d')
+            echo "Intento $intento → HTTP $codigo: $cuerpo"
+            if [ "$codigo" != "200" ]; then exit 1; fi
+            pendientes=$(echo "$cuerpo" | jq '[.resumen[].pendientesPorTraer] | add')
+            if [ "$pendientes" = "0" ]; then break; fi
+          done
