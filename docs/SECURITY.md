@@ -22,7 +22,7 @@
 | Enumeración de usuarios por tiempo | Hash señuelo cuando el usuario no existe (AUD-17) |
 | Archivos subidos | Solo imágenes (`type image/*`), máx. 8 MB, re-codificadas a JPEG con sharp antes de subir a Drive (no se guarda el archivo original) |
 | Abuso del cron | `GET /api/logistica/ordenes-cen/sincronizar` compara `CRON_SECRET` en tiempo constante; sin secreto configurado responde 503 |
-| Operaciones duplicadas | Pedido EDI con reserva atómica (AUD-07); kardex de repuestos transaccional con CHECK `stock >= 0`; índices únicos de turnos y registros PVN (AUD-08, ya en la BD de pruebas); consecutivos con reintento (AUD-21) |
+| Operaciones duplicadas | Pedido EDI con reserva atómica (AUD-07); kardex de repuestos transaccional con CHECK `stock >= 0`; índices únicos de turnos y registros PVN (AUD-08, ya aplicados en producción); consecutivos con reintento (AUD-21) |
 | Dependencias | `npm audit` en cada revisión; Next 15.5.28 y next-auth 4.24.15 con los avisos de 2026 corregidos (AUD-13) |
 | Exposición de secretos | `.env*` en `.gitignore`; no hay secretos en el historial (búsqueda de patrones de llaves, tokens y cadenas de conexión); `.env.example` solo con nombres |
 | SFTP de terceros | Conexión solo de lectura: nunca borra, mueve ni renombra archivos |

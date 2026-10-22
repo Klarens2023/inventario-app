@@ -15,7 +15,7 @@ Estado: **Corregido** (cambio aplicado y verificado como se indica),
 | AUD-05 | Medio | Confirmado | XSS almacenado en el formato imprimible de movimientos TIC | Corregido |
 | AUD-06 | Alto | Confirmado | Recargar inventario borraba conteos ya acumulados y la carga no era atómica | Corregido |
 | AUD-07 | Medio | Confirmado | Doble envío del mismo pedido EDI a Siesa por concurrencia | Corregido |
-| AUD-08 | Medio | Confirmado | Duplicados por carrera en turnos y registros PVN; registro no atómico | Corregido en código y BD de pruebas; falta la migración en producción |
+| AUD-08 | Medio | Confirmado | Duplicados por carrera en turnos y registros PVN; registro no atómico | Corregido (código e índices ya en producción) |
 | AUD-09 | Bajo | Confirmado | Montos de pagos QR sin límite (Infinity, desbordamiento) | Corregido |
 | AUD-10 | Bajo | Confirmado | Inyección de marcado en el banner SVG de las fotos de pago | Corregido |
 | AUD-11 | Medio | Confirmado | `/contabilidad/*` sin control de módulo en el middleware | Corregido |
@@ -85,7 +85,7 @@ Estado: **Corregido** (cambio aplicado y verificado como se indica),
 ### AUD-08 — Duplicados por carrera en PVN · Medio · Parcial
 - **Evidencia:** "un turno abierto por día" y "un registro por turno" solo se validan con un SELECT previo; no hay restricción única. El registro de ventas insertaba el detalle fila por fila.
 - **Corrección aplicada:** el registro y su detalle se insertan en una sola sentencia; se valida el detalle; los dos endpoints traducen la violación de unicidad (23505) a 409.
-- **Migración:** `scripts/migrate-add-indices-unicos.js` se corrió en la BD de pruebas (22/10/2026, sin duplicados) y se probó con envíos simultáneos (ver TESTING.md). **Falta correrla en producción.** La prueba también destapó un 500 con cantidades fuera del rango INTEGER, ya corregido (400).
+- **Migración:** `scripts/migrate-add-indices-unicos.js` se corrió el 22/10/2026 en la base de `.env.local`, que resultó ser la de **producción**: los índices ya están aplicados allá (no había duplicados). Se probó con envíos simultáneos (ver TESTING.md). La prueba también destapó un 500 con cantidades fuera del rango INTEGER, ya corregido (400).
 
 ### AUD-09 — Montos de pagos QR · Bajo · Corregido
 `parseFloat` aceptaba `1e999` (Infinity) y valores que no caben en `NUMERIC(14,2)` (500 al insertar). `lib/validacion.ts` (`valorMonetario`) los rechaza manteniendo los formatos que ya enviaban los clientes. Prueba en `tests/seguridad.test.ts`.

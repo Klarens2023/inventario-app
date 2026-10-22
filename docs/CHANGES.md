@@ -15,7 +15,7 @@ quedan en el árbol de trabajo para revisarlos y probarlos antes del commit.
 | 7 | AUD-06 | Carga de inventario: 409 si hay filas acumuladas; borrado + inserción masiva en una transacción | `app/api/inventario/route.ts` |
 | 8 | AUD-07 | Reserva atómica de la orden antes de enviar el pedido a Siesa; liberación si falla la red | `lib/cen/pedidoSiesa.ts` |
 | 9 | AUD-08 | Registro de ventas PVN atómico (CTE) con validación del detalle; manejo de duplicado (23505 → 409) al abrir turno y registrar ventas | `app/api/pvn/registros/route.ts`, `app/api/qr/turno/route.ts` |
-| 10 | AUD-08 | Migración nueva de índices únicos (corrida en la BD de pruebas; falta producción) y validación de rango INTEGER en el detalle de ventas | `scripts/migrate-add-indices-unicos.js` (nuevo), `app/api/pvn/registros/route.ts` |
+| 10 | AUD-08 | Migración nueva de índices únicos (ya aplicada en la BD de producción el 22/10/2026) y validación de rango INTEGER en el detalle de ventas | `scripts/migrate-add-indices-unicos.js` (nuevo), `app/api/pvn/registros/route.ts` |
 | 11 | AUD-04 | `setup-db.js` sin contraseñas fijas, sin sobrescribir usuarios existentes y con cambio obligatorio; README sin credenciales | `scripts/setup-db.js`, `README.md` |
 | 12 | AUD-15 | Parser EDIFACT: el escape `?` solo se quita en el último nivel | `lib/cen/parser.ts` |
 | 13 | AUD-14 | `npm audit fix` sin `--force` (solo versiones dentro de los rangos de `package.json`) | `package-lock.json` |

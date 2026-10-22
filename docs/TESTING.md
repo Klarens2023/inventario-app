@@ -27,9 +27,11 @@ la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconf
 | `npx next build` (después) | Correcto (76 páginas, middleware 49 kB) |
 | Prueba de humo con `npm run dev`, sin sesión | `/dashboard` y `/contabilidad/conciliacion-facturas` → redirección al login; `/api/usuarios`, `/api/qr/pagos`, `/api/pvn/productos/1` → 401; Bearer con `alg=none` → 401; cron sin `CRON_SECRET` configurado → 503; sin errores en el log del servidor |
 | Lint | No hay ESLint configurado en el proyecto: no se ejecutó |
-| Prueba guiada con el usuario (BD de pruebas, `npm run dev`, sesión admin iniciada por el usuario) | Ver abajo |
+| Prueba guiada con el usuario (`npm run dev` con la base de `.env.local`, que es la de **producción**; sesión admin iniciada por el usuario) | Ver abajo |
 
-### Prueba guiada del 22/10/2026 (BD de pruebas)
+### Prueba guiada del 22/10/2026
+
+> **Aclaración posterior:** estas pruebas se hicieron creyendo que la base de `.env.local` era de pruebas, pero **es la base de producción** (lo de pruebas era Siesa QA). Los datos de prueba quedaron en producción; no se borró ningún dato real. Ver «Datos que quedaron» y `limpieza-pruebas-auditoria.sql`.
 
 Usuario de prueba `prueba.auditoria` (área Sistemas, módulos Equipos TI y Movimientos TIC), creado desde la interfaz:
 
@@ -55,7 +57,7 @@ Usuario de prueba `prueba.auditoria` (área Sistemas, módulos Equipos TI y Movi
 | Doble envío de pedido EDI (AUD-07), Siesa **QA** (`SIESA_API_URL` sin definir → `apiqa.siesacloud.com`): orden #66, OC 4646721521 (STO 251 – Valledupar), dos POST simultáneos con `confirmaAlertas` | Uno respondió 200 "Pedido PVS-1 creado en Siesa."; el otro 422 "La orden ya se está enviando o ya tiene pedido en Siesa." (~25 s) |
 | Verificación | Orden en estado `enviado` con consecutivo PVS-1; un tercer envío queda bloqueado; "Reversar" (que lista todos los pedidos vivos de la OC en Siesa) reporta solo PVS-1 |
 
-| Migración `scripts/migrate-add-indices-unicos.js` en la BD de pruebas | Creó `ux_pvn_turnos_activo_dia` y `ux_pvn_registros_turno`; no había duplicados |
+| Migración `scripts/migrate-add-indices-unicos.js` (en producción) | Creó `ux_pvn_turnos_activo_dia` y `ux_pvn_registros_turno`; no había duplicados |
 | Tres aperturas de turno simultáneas del usuario `pv` (PVV rotativo, token móvil) en Sede Principal (AUD-08) | Una 201 (turno #746) y dos 409 "Ya tienes un turno abierto hoy"; un solo turno activo |
 | Tres registros de ventas simultáneos (sesión admin, 28/10/2026, turno PRUEBA-AUD, 2 productos, una cantidad enviada como texto "2") | Un solo registro (#1) con 2 productos y 5 unidades; los otros dos rechazados |
 | Registro con una cantidad que no cabe en INTEGER | No dejó encabezado huérfano (el reintento del mismo turno entró, #4), pero respondía **500**. Se agregó validación de rango en `app/api/pvn/registros/route.ts`: ahora 400 |
@@ -81,7 +83,7 @@ Usuario de prueba `prueba.auditoria` (área Sistemas, módulos Equipos TI y Movi
 | Log del servidor | Sin errores |
 | `guardarOrden` (EDI) | **No ejercitado en vivo**: requiere archivos nuevos en el SFTP. Cubierto por tipos y revisión; validar en la próxima sincronización |
 
-Datos que quedaron en la BD de pruebas: usuario `prueba.auditoria` (desactivado) y el movimiento `TIC-0004` (no hay endpoint para borrarlo). En Siesa QA: pedido PVS-1 de la OC 4646721521 (orden #66 en `enviado`); para repetir la prueba, anularlo en Siesa y usar "Reversar". PVN: turno #746 de `pv` (cerrado) y registros de ventas #1 y #4 del 28/10/2026 a nombre del admin. En la carpeta de Google Drive configurada en `.env.local` quedó la foto sintética del cierre del datafono (nombre con `RG1_999999`). La contraseña de `pv` se restableció y cambió durante la prueba. Segunda ronda: movimientos TIC-0005, TIC-0006 y TIC-0007 (este con la placa `NO-EXISTE`) y el producto PVN 3874 "PRUEBA AUDITORIA PRODUCTO" (inactivo).
+Datos de prueba que quedaron **en la base de producción** (para limpiar con `limpieza-pruebas-auditoria.sql`, excepto el usuario, que queda desactivado): usuario `prueba.auditoria` (desactivado) y el movimiento `TIC-0004` (no hay endpoint para borrarlo). En Siesa QA: pedido PVS-1 de la OC 4646721521 (orden #66 en `enviado`); para repetir la prueba, anularlo en Siesa y usar "Reversar". PVN: turno #746 de `pv` (cerrado) y registros de ventas #1 y #4 del 28/10/2026 a nombre del admin. En la carpeta de Google Drive configurada en `.env.local` quedó la foto sintética del cierre del datafono (nombre con `RG1_999999`). La contraseña de `pv` se restableció y cambió durante la prueba. Segunda ronda: movimientos TIC-0005, TIC-0006 y TIC-0007 (este con la placa `NO-EXISTE`) y el producto PVN 3874 "PRUEBA AUDITORIA PRODUCTO" (inactivo).
 
 ## Lo que las pruebas cubren
 
