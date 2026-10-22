@@ -1,8 +1,11 @@
 import type { Producto } from '@/types/pvn-registrar'
 
+// Si la API responde error (401 de sesión revocada, 403, 500) devuelve [] en vez del
+// objeto { error }: las pantallas hacen .map/.filter sobre esto y se caían (AUD-32).
 export async function getProductos(): Promise<Producto[]> {
   const res = await fetch('/api/pvn/productos')
-  return res.json()
+  const data = res.ok ? await res.json() : []
+  return Array.isArray(data) ? data : []
 }
 
 export async function postRegistro(body: {

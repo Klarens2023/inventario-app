@@ -1,3 +1,5 @@
+-- ⚠️ DESACTUALIZADO: el esquema real y completo está en db/esquema.sql
+--    (generado con scripts/exportar-esquema.js). Este archivo se conserva como referencia histórica.
 -- ═══════════════════════════════════════════════════════════
 --  SCHEMA - Sistema de Control de Inventario
 --  Ejecutar en Neon → SQL Editor

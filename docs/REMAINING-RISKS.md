@@ -21,7 +21,6 @@
 |---|---|---|---|
 | 1 | AUD-17 | Bloqueo de cuentas ajenas (el tiempo del login ya está igualado) | Límite por IP con Vercel WAF o una tabla de intentos por IP |
 | 3 | AUD-24 | CSP con `'unsafe-inline'` en scripts | Pasar a nonces por petición en el middleware |
-| 4 | AUD-23 | Esquema no reproducible | `pg_dump --schema-only` versionado o migraciones numeradas |
 | 5 | AUD-25 | Cobertura de pruebas baja | Pruebas de integración de rutas API contra una rama de Neon de pruebas; ESLint |
 | 6 | AUD-26 | Higiene | Sacar `tsconfig.tsbuildinfo` de Git (`git rm --cached` + `.gitignore`) al hacer el commit |
 

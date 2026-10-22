@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { escapeHtml } from '../lib/html.ts'
-import { valorMonetario, VALOR_MAXIMO } from '../lib/validacion.ts'
+import { valorMonetario, VALOR_MAXIMO, parseValorPesos } from '../lib/validacion.ts'
 import { tieneModulo, modulosPorDefecto, MODULOS } from '../lib/permissions.ts'
 import { generarPasswordTemporal, LARGO_PASSWORD_TEMPORAL } from '../lib/passwordTemporal.ts'
 
@@ -64,4 +64,12 @@ test('modulosPorDefecto según el área', () => {
   assert.deepEqual(modulosPorDefecto('lider', area), ['cargar', 'acumulados'])
   assert.deepEqual(modulosPorDefecto('usuario', undefined), [])
   assert.equal(modulosPorDefecto('admin', undefined).length, MODULOS.length)
+})
+
+test('parseValorPesos: punto y coma de miles como se escribe en Colombia', () => {
+  const casos: Record<string, number | null> = {
+    '25000': 25000, '25.000': 25000, '25,000': 25000, '$ 25.000': 25000, '1.250.000': 1250000,
+    '253.000': 253000, '12.500,50': 12500.5, '1500.5': 1500.5, '0': null, '': null, 'abc': null,
+  }
+  for (const [texto, esperado] of Object.entries(casos)) assert.equal(parseValorPesos(texto), esperado, texto)
 })

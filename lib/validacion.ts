@@ -24,3 +24,23 @@ export function valorMonetario(v: unknown): number | null {
   const redondeado = Math.round(n * 100) / 100
   return redondeado > 0 ? redondeado : null
 }
+
+/**
+ * Lee el monto que escribe el usuario en pesos colombianos (formularios de pagos QR).
+ *
+ * Antes se usaba `parseFloat(texto.replace(/[^\d.]/g, ''))`: con el punto de miles
+ * ("25.000") quedaba 25 y se registraba un pago de $25. El punto y la coma son
+ * separadores de miles, salvo que el último vaya seguido de 1 o 2 dígitos al final,
+ * que se toma como decimal ("12.500,50" → 12500.5). Misma regla que la app móvil
+ * (pvn-pvv-mobile/src/utils/valor.ts).
+ *
+ * @returns el monto, o `null` si no hay un número mayor que cero
+ */
+export function parseValorPesos(texto: string): number | null {
+  const limpio = texto.replace(/[^\d.,]/g, '')
+  if (!/\d/.test(limpio)) return null
+  const decimal = limpio.match(/^(.*\d)[.,](\d{1,2})$/)
+  const entero = (decimal ? decimal[1] : limpio).replace(/[.,]/g, '')
+  const n = Number(decimal ? `${entero}.${decimal[2]}` : entero)
+  return Number.isFinite(n) && n > 0 ? n : null
+}

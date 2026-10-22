@@ -98,8 +98,9 @@ datos son los chequeos dentro de cada ruta API.
 
 ## Base de datos
 
-PostgreSQL (Neon). El esquema real es `schema.sql` **más** las migraciones de
-`scripts/migrate-*.js` corridas a mano. `schema.sql` no refleja columnas que el
+PostgreSQL (Neon). **El esquema real está en `db/esquema.sql`**, generado con
+`node --env-file=.env.local scripts/exportar-esquema.js` (volver a exportarlo tras cada migración).
+Antes era `schema.sql` **más** las migraciones de `scripts/migrate-*.js` corridas a mano. `schema.sql` no refleja columnas que el
 código usa (`inventario_datos.modo` y `lote`, `usuarios.area`, `punto_venta_id`,
 `acceso_movil`, `intentos_fallidos`, `bloqueado_hasta`, tablas `pvn_registros`,
 `pvn_productos`, `equipos_*`…): no se puede reconstruir la BD solo desde el

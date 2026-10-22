@@ -17,7 +17,8 @@ type Props = {
 
 export function MovimientosList({ lista, cargando, filtros, onFiltro, onBuscar, onNuevo, onVerDetalle }: Props) {
   async function handleImprimir(id: string) {
-    const det = await fetchMovimientoDetalle(id)
+    let det
+    try { det = await fetchMovimientoDetalle(id) } catch { alert('No se pudo cargar el movimiento para imprimirlo'); return }
     imprimirMovimiento(det, window.location.origin)
   }
 

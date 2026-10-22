@@ -13,6 +13,7 @@ export async function fetchMovimientos(filtros: FiltrosMovimientos): Promise<Mov
 
 export async function fetchMovimientoDetalle(id: string): Promise<MovimientoDetalle> {
   const res = await fetch(`/api/sistemas/movimientos/${id}`)
+  if (!res.ok) throw new Error('No se pudo cargar el movimiento')
   return res.json()
 }
 

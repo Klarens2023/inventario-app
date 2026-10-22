@@ -30,7 +30,7 @@ Estado: **Corregido** (cambio aplicado y verificado como se indica),
 | AUD-20 | Medio | Confirmado (funcional) | El resumen al cerrar turno suma por día, no por turno | Corregido (aprobado 22/10/2026) |
 | AUD-21 | Bajo | Confirmado | Ids consecutivos con `MAX()+1` (equipos, movimientos, repuestos, productos) | Corregido (reintento ante duplicado) |
 | AUD-22 | Bajo | Confirmado | Escrituras de varias sentencias sin transacción | Corregido |
-| AUD-23 | Informativo | Confirmado | `schema.sql` desactualizado: la BD no se puede reconstruir desde el repo | Pendiente |
+| AUD-23 | Informativo | Confirmado | `schema.sql` desactualizado: la BD no se puede reconstruir desde el repo | Corregido (`db/esquema.sql`) |
 | AUD-24 | Informativo | Recomendación | Sin Content-Security-Policy | Corregido |
 | AUD-25 | Informativo | Confirmado | Sin pruebas automatizadas ni configuración de lint | Parcial |
 | AUD-26 | Informativo | Confirmado | Higiene del repositorio y entradas no validadas que terminan en 500 | Parcial (falta sacar `tsconfig.tsbuildinfo` de Git) |
@@ -38,6 +38,8 @@ Estado: **Corregido** (cambio aplicado y verificado como se indica),
 | AUD-28 | Medio | Confirmado (funcional) | El detalle y el formato impreso de un movimiento TIC omitían los activos con placa escrita a mano | Corregido |
 | AUD-29 | Bajo | Confirmado | Los movimientos TIC aceptan placas que no existen en Equipos TI | Aceptado (decisión 22/10/2026) |
 | AUD-30 | Alto (funcional) | Confirmado | Restablecer la propia contraseña dejaba la cuenta sin acceso (error de la app antes de mostrar la temporal) | Corregido |
+| AUD-31 | Alto (dinero) | Confirmado | Montos con punto de miles («25.000») se guardaban como $25 en los formularios de pagos QR (web y móvil) | Corregido |
+| AUD-32 | Medio (funcional) | Confirmado | Pantallas que se caían («Application error») cuando la API respondía error | Corregido |
 
 ---
 
@@ -130,7 +132,7 @@ Al cerrar turno (`app/api/qr/turno/route.ts`), el total de pagos se calcula por 
 ### AUD-22 — Escrituras sin transacción · Bajo · Pendiente
 `POST /api/usuarios` (usuario + módulos), `PUT /api/usuarios/[id]` (varios UPDATE y módulos), `POST /api/sistemas/movimientos` (cabecera + activos), productos PVN (producto + componentes), `guardarOrden` de EDI (orden + líneas). Un fallo intermedio deja datos a medias. Recomendación: `sql.transaction` o sentencias únicas con CTE, como ya hace el módulo de repuestos.
 
-### AUD-23 — Esquema no reproducible · Informativo · Pendiente
+### AUD-23 — Esquema no reproducible · Informativo · Corregido (ver «Revisión de lo que faltaba»)
 `schema.sql` no tiene columnas y tablas que el código usa (ver ARCHITECTURE.md). Recomendación: exportar el esquema real (`pg_dump --schema-only`) y versionarlo, o adoptar migraciones numeradas.
 
 ### AUD-24 — CSP · Informativo · Pendiente
@@ -207,3 +209,27 @@ herramientas). Desde AUD-28 esos activos sí aparecen en el detalle y en el form
 ### AUD-30 — Restablecer la propia contraseña dejaba la cuenta sin acceso · Alto (funcional) · Corregido
 Detectado en producción el 22/10/2026, después del despliegue. El admin se restableció la contraseña desde Usuarios → Editar → «Restablecer contraseña». Desde AUD-02, una sesión con cambio pendiente queda sin permisos; la lista de usuarios respondió 401 y la pantalla guardó el objeto de error en lugar de la lista (`usuarios.filter is not a function`). La app mostró «Application error» **antes** de enseñar la contraseña temporal, así que la cuenta quedó con una clave que nadie conocía (se recupera entrando a `/cambiar-password` con la sesión todavía abierta, que no pide la actual en el cambio obligatorio).
 Corrección: `PUT /api/usuarios/[id]` rechaza `resetPassword` sobre la propia cuenta (400); `fetchUsuarios` y la carga de áreas toleran respuestas de error; en «Editar» de la propia cuenta aparece «Cambiar mi contraseña» en vez de «Restablecer»; la barra lateral tiene el enlace «Cambiar contraseña» para cualquier usuario. Verificado en local contra la rama de desarrollo de Neon.
+
+### AUD-31 — Montos con punto de miles se guardaban mil veces menores · Alto (dinero) · Corregido
+Encontrado en la auditoría de la app móvil (MOV-01, `pvn-pvv-mobile/docs/AUDITORIA.md`). Los formularios de pagos QR leían el monto con `parseFloat(texto.replace(/[^\d.]/g, ''))`: «25.000», como se escribe en Colombia, quedaba en **$25**. Estaba en la app móvil y en la web (`app/pvn/subir-qr/page.tsx`, `app/pvn/pagos-qr/page.tsx`, `components/pvn-qr/CargarQRPendienteForm.tsx`). En la copia de producción hay 7 de 6 609 pagos por debajo de $1 000 (entre $167 y $349; la mediana es $12 450), que conviene revisar contra la foto del comprobante.
+Corrección: `parseValorPesos` en `lib/validacion.ts` (y su equivalente en la app móvil) lee el punto y la coma como separadores de miles; solo los toma como decimal si el último va seguido de 1 o 2 dígitos. Prueba en `tests/seguridad.test.ts`.
+
+### AUD-32 — Pantallas que se caían ante una respuesta de error · Medio (funcional) · Corregido
+Misma causa que AUD-30, buscada en todo el cliente: funciones de `lib/api/*` y llamadas `fetch` que pasaban
+`res.json()` a la pantalla sin revisar si la respuesta era un error. Con un 401 (sesión revocada o con cambio
+de contraseña pendiente), 403 o 500, la pantalla recibía `{ error }` donde esperaba una lista y fallaba al hacer
+`.map`/`.filter`. Corregidas: puntos de venta (Análisis, Historial y Usuarios), productos (Registrar ventas),
+análisis y detalle de producto PVN, y detalle e impresión de movimientos TIC. Las listas devuelven `[]` y los
+detalles lanzan un error que la pantalla ya atrapa.
+
+### Revisión de lo que faltaba (22/10/2026, tarde)
+- `lib/planos/*`, `lib/exportExcel.ts`, `lib/repuestos-excel.ts`: ExcelJS escribe los textos como texto (un
+  valor que empieza con `=` no se ejecuta al abrir el archivo); la única fórmula es un `SUBTOTAL` fijo del código.
+- `lib/conciliacion-facturas/*`: lectura de Excel en el navegador con SheetJS 0.20.3 (con sus avisos conocidos
+  corregidos); los montos se comparan con tolerancia, no por igualdad exacta.
+- Enlaces armados con placas de equipo: siempre bajo `/sistemas/equipos/…`, sin riesgo de `javascript:`.
+- `scripts/import-*.js` y `scripts/probar-*.js`: leen las credenciales del entorno, sin secretos en el código;
+  los `import-*` hacen `INSERT … ON CONFLICT` o `UPDATE` por EAN (no borran).
+- AUD-23: `scripts/exportar-esquema.js` genera `db/esquema.sql` desde el catálogo de PostgreSQL (34 tablas,
+  90 restricciones, 36 índices, 3 vistas, 24 secuencias). Verificado ejecutando las 187 sentencias completas en un
+  esquema temporal de la rama de desarrollo dentro de una transacción que se deshizo al final.

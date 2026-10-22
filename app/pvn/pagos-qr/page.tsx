@@ -16,6 +16,7 @@ import { TurnosActivosPanel } from '@/components/pvn-pagos-admin/TurnosActivosPa
 import { ResumenCards } from '@/components/pvn-pagos-admin/ResumenCards'
 import { PagosTable } from '@/components/pvn-pagos-admin/PagosTable'
 import { CierresTurnoTable } from '@/components/pvn-pagos-admin/CierresTurnoTable'
+import { parseValorPesos } from '@/lib/validacion'
 
 export default function PagosQRPage() {
   const { data: session, status } = useSession()
@@ -82,7 +83,7 @@ export default function PagosQRPage() {
   }
 
   async function guardarEdicionPago(id: number) {
-    const valorNum = parseFloat(valorEdit.replace(/[^\d.]/g, ''))
+    const valorNum = parseValorPesos(valorEdit) ?? 0
     if (!valorNum || valorNum <= 0) return
     setGuardandoEdit(true)
     try {

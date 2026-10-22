@@ -67,7 +67,10 @@ export default function GestionUsuariosPage() {
     if (status === 'authenticated' && esLider) {
       cargar()
       cargarAreas()
-      fetch('/api/pvn/puntos-venta').then(r => r.json()).then(setPuntosVenta).catch(() => {})
+      fetch('/api/pvn/puntos-venta')
+        .then(r => (r.ok ? r.json() : []))
+        .then(d => setPuntosVenta(Array.isArray(d) ? d : []))
+        .catch(() => {})
     }
   }, [status, esLider, cargar, cargarAreas])
 

@@ -25,6 +25,7 @@ export function MovimientoDetalle({ id, isAdmin, onVolver, onEstadoCambiado }: P
     setCargando(true)
     fetchMovimientoDetalle(id)
       .then(setDetalle)
+      .catch(() => setDetalle(null))
       .finally(() => setCargando(false))
   }, [id])
 

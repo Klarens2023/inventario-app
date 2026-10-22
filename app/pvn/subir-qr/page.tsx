@@ -15,6 +15,7 @@ import { ComprobanteForm } from '@/components/pvn-qr/ComprobanteForm'
 import { MisPagosPanel } from '@/components/pvn-qr/MisPagosPanel'
 import { CierreDatafonoForm } from '@/components/pvn-qr/CierreDatafonoForm'
 import { Lightbox } from '@/components/pvn-qr/Lightbox'
+import { parseValorPesos } from '@/lib/validacion'
 
 export default function SubirQRPage() {
   const { data: session, status } = useSession()
@@ -186,7 +187,7 @@ export default function SubirQRPage() {
   async function enviar() {
     setError('')
     if (!foto) { setError('Adjunta la foto del comprobante'); return }
-    const valorNum = parseFloat(valor.replace(/[^\d.]/g, ''))
+    const valorNum = parseValorPesos(valor) ?? 0
     if (!valorNum || valorNum <= 0) { setError('Ingresa un valor válido'); return }
     setSubiendo(true)
     try {
@@ -205,7 +206,7 @@ export default function SubirQRPage() {
   }
 
   async function guardarEdicion(id: number) {
-    const valorNum = parseFloat(valorEdit.replace(/[^\d.]/g, ''))
+    const valorNum = parseValorPesos(valorEdit) ?? 0
     if (!valorNum || valorNum <= 0) return
     setGuardandoEdit(true)
     try {

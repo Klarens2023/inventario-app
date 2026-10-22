@@ -4,6 +4,7 @@ import type { Turno } from '@/types/pvn-qr'
 import { postPago } from '@/lib/api/pvn-qr'
 import { comprimirImagen, fmtFecha } from './utils'
 import { card, lbl, inp, btnPrimary } from './constants'
+import { parseValorPesos } from '@/lib/validacion'
 
 type Props = {
   turnoPendiente: Turno
@@ -33,7 +34,7 @@ export function CargarQRPendienteForm({ turnoPendiente, numero, total, onRegistr
   async function enviar() {
     setError('')
     if (!foto) { setError('Adjunta la foto del comprobante'); return }
-    const valorNum = parseFloat(valor.replace(/[^\d.]/g, ''))
+    const valorNum = parseValorPesos(valor) ?? 0
     if (!valorNum || valorNum <= 0) { setError('Ingresa un valor válido'); return }
     setSubiendo(true)
     try {
