@@ -2,7 +2,7 @@
 
 ## Acciones inmediatas (operación, fuera del código)
 
-0. **Desplegar estos cambios** (primero en un *preview* de Vercel). La revisión externa del 22/10/2026 confirmó que producción sigue en Next 14.2.35, sin CSP y con `/contabilidad/conciliacion-facturas` abierta sin sesión; todo eso queda resuelto con el despliegue.
+0. ~~Desplegar estos cambios~~: desplegado el 22/10/2026 (Next 15.5.28, CSP y `/contabilidad` protegida, verificado desde fuera).
 1. **Verificar credenciales por defecto (AUD-04).** Las contraseñas que publicaba el README siguen en el historial de Git. Confirmar que ningún usuario de producción las usa: iniciar sesión como `admin`, `usuario1`, `usuario2` con ellas debe fallar; si alguna entra, cambiarla de inmediato y revisar `audit_logs`. Si el repositorio es o fue público, tratarlas como comprometidas.
 2. ~~Correr `scripts/migrate-add-indices-unicos.js` en producción~~: ya quedó aplicada el 22/10/2026 (la base de `.env.local` es la de producción).
 2b. **Limpiar los datos de las pruebas guiadas**, que quedaron en producción: correr `limpieza-pruebas-auditoria.sql` en el SQL Editor de Neon (ver TESTING.md) y borrar en Google Drive la foto `…RG1_999999…`. Anular el pedido PVS-1 en Siesa QA.

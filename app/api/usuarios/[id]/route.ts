@@ -130,6 +130,13 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   }
   // Restablecer: contraseña temporal aleatoria (antes "123456"), devuelta una sola vez.
   let passwordTemporal: string | null = null
+  // Restablecer la propia contraseña dejaba la sesión actual con cambio obligatorio
+  // pendiente (sin permisos) y la pantalla de Usuarios fallaba antes de mostrar la
+  // temporal: la cuenta quedaba con una clave que nadie conocía. Para la propia
+  // contraseña se usa /cambiar-password.
+  if (resetPassword === true && esSelf) {
+    return NextResponse.json({ error: 'Para cambiar tu propia contraseña usa "Cambiar contraseña" en el menú lateral' }, { status: 400 })
+  }
   if (resetPassword === true) {
     passwordTemporal = generarPasswordTemporal()
     const hash = await bcrypt.hash(passwordTemporal, 10)

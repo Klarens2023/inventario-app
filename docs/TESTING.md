@@ -164,3 +164,17 @@ El preview está protegido con **Vercel Authentication** (sin sesión de Vercel 
 | Consola del navegador en `/login` | Sin errores ni bloqueos de CSP |
 
 Pendiente de probar por el usuario con sesión de la app en el preview: usuarios, Pagos QR con fotos y una orden EDI.
+
+### Revisión externa final de producción, ya desplegada (22/10/2026)
+
+`https://operaciones.klarens.com.co` con el commit `f774aa3` (Klarens2023/inventario-app). Solo GET/HEAD sin sesión.
+
+| Revisión | Resultado |
+|---|---|
+| Versión | **Next 15.5.28** (antes 14.2.35) |
+| Encabezados | CSP presente, `X-XSS-Protection` retirado, HSTS, nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy |
+| 13 APIs sin sesión | Todas 401 |
+| Cron sin clave / con clave falsa | 401 / 401 |
+| Archivos sensibles y mapas de código | 404 |
+| Páginas protegidas, incluida `/contabilidad/conciliacion-facturas` | 307 al login (AUD-11 resuelto en producción) |
+| Errores | Sin trazas, SQL ni rutas internas |

@@ -129,23 +129,29 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVent
               </div>
             </div>
           </div>
-          <div
-            onClick={() => setResetPassword(v => !v)}
-            style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
-              padding: '10px 12px', borderRadius: 8,
-              border: `1px solid ${resetPassword ? '#fca5a5' : '#e2e8f0'}`,
-              background: resetPassword ? '#fee2e2' : '#f8fafc',
-            }}
-          >
-            <input type="checkbox" checked={resetPassword} onChange={e => setResetPassword(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer' }} />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: resetPassword ? '#991b1b' : '#1e293b' }}>Restablecer contraseña</div>
-              <div style={{ fontSize: 12, color: resetPassword ? '#b91c1c' : '#64748b', marginTop: 2 }}>
-                Genera una contraseña temporal nueva (se muestra una sola vez al guardar) y el usuario deberá cambiarla al iniciar sesión.
+          {esYo ? (
+            <a href="/cambiar-password" style={{ display: 'block', padding: '10px 12px', borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+              Cambiar mi contraseña →
+            </a>
+          ) : (
+            <div
+              onClick={() => setResetPassword(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                padding: '10px 12px', borderRadius: 8,
+                border: `1px solid ${resetPassword ? '#fca5a5' : '#e2e8f0'}`,
+                background: resetPassword ? '#fee2e2' : '#f8fafc',
+              }}
+            >
+              <input type="checkbox" checked={resetPassword} onChange={e => setResetPassword(e.target.checked)} style={{ marginTop: 2, cursor: 'pointer' }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: resetPassword ? '#991b1b' : '#1e293b' }}>Restablecer contraseña</div>
+                <div style={{ fontSize: 12, color: resetPassword ? '#b91c1c' : '#64748b', marginTop: 2 }}>
+                  Genera una contraseña temporal nueva (se muestra una sola vez al guardar) y el usuario deberá cambiarla al iniciar sesión.
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
           <button onClick={onClose} style={btnSecondary}>Cancelar</button>

@@ -58,7 +58,9 @@ export default function GestionUsuariosPage() {
 
   const cargarAreas = useCallback(async () => {
     const res = await fetch('/api/areas')
-    if (res.ok) setAreas(await res.json())
+    if (!res.ok) return
+    const data = await res.json()
+    if (Array.isArray(data)) setAreas(data)
   }, [])
 
   useEffect(() => {

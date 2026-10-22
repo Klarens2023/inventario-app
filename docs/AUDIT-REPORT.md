@@ -93,7 +93,7 @@ segunda ronda; el estado vigente está al final de este documento.
 hallazgos críticos ni altos abiertos en el código. Riesgos residuales: límite de intentos por IP (AUD-17), CSP sin
 nonces (AUD-24), esquema no reproducible (AUD-23) y verificaciones que dependen de
 producción: credenciales publicadas en el historial (AUD-04), migración de índices
-únicos (AUD-08) y el despliegue de estos cambios, que producción aún no tiene. Esto no certifica que la aplicación esté libre de
+únicos (AUD-08, ya aplicada en producción). Los cambios se desplegaron en producción el 22/10/2026 y se verificaron desde fuera. Esto no certifica que la aplicación esté libre de
 vulnerabilidades.
 
 **Revisión externa de producción (autorizada):** el perímetro sin sesión está bien cerrado

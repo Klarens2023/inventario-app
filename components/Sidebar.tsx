@@ -335,6 +335,9 @@ export default function Sidebar() {
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{session?.user?.name || 'Usuario'}</div>
             <div style={{ fontSize: 11, color: '#8AB4F8', marginTop: 2 }}>Planta Valledupar</div>
+            <a href="/cambiar-password" style={{ display: 'inline-block', fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 6, textDecoration: 'underline' }}>
+              Cambiar contraseña
+            </a>
           </div>
         )}
         <button

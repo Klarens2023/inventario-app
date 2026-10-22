@@ -1,8 +1,13 @@
 import type { Usuario } from '@/types/usuarios'
 
+// [] si la API responde error (p. ej. 401 cuando la sesión quedó con cambio de
+// contraseña pendiente): antes se guardaba el objeto { error } y la pantalla
+// fallaba con "usuarios.filter is not a function".
 export async function fetchUsuarios(): Promise<Usuario[]> {
   const res = await fetch('/api/usuarios')
-  return res.json()
+  if (!res.ok) return []
+  const data = await res.json()
+  return Array.isArray(data) ? data : []
 }
 
 // passwordTemporal: contraseña inicial generada por el servidor; llega solo en esta respuesta.

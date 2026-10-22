@@ -37,6 +37,7 @@ Estado: **Corregido** (cambio aplicado y verificado como se indica),
 | AUD-27 | Bajo | Confirmado | `/api/qr/foto` entrega cualquier archivo de la cuenta de servicio a cualquier usuario autenticado | Corregido |
 | AUD-28 | Medio | Confirmado (funcional) | El detalle y el formato impreso de un movimiento TIC omitían los activos con placa escrita a mano | Corregido |
 | AUD-29 | Bajo | Confirmado | Los movimientos TIC aceptan placas que no existen en Equipos TI | Aceptado (decisión 22/10/2026) |
+| AUD-30 | Alto (funcional) | Confirmado | Restablecer la propia contraseña dejaba la cuenta sin acceso (error de la app antes de mostrar la temporal) | Corregido |
 
 ---
 
@@ -202,3 +203,7 @@ del admin; la bitácora guarda además el `turno_id`.
 ### AUD-29 — Placas libres en movimientos TIC · Aceptado
 Se mantiene la posibilidad de registrar placas que no están en Equipos TI (estibas,
 herramientas). Desde AUD-28 esos activos sí aparecen en el detalle y en el formato impreso.
+
+### AUD-30 — Restablecer la propia contraseña dejaba la cuenta sin acceso · Alto (funcional) · Corregido
+Detectado en producción el 22/10/2026, después del despliegue. El admin se restableció la contraseña desde Usuarios → Editar → «Restablecer contraseña». Desde AUD-02, una sesión con cambio pendiente queda sin permisos; la lista de usuarios respondió 401 y la pantalla guardó el objeto de error en lugar de la lista (`usuarios.filter is not a function`). La app mostró «Application error» **antes** de enseñar la contraseña temporal, así que la cuenta quedó con una clave que nadie conocía (se recupera entrando a `/cambiar-password` con la sesión todavía abierta, que no pide la actual en el cambio obligatorio).
+Corrección: `PUT /api/usuarios/[id]` rechaza `resetPassword` sobre la propia cuenta (400); `fetchUsuarios` y la carga de áreas toleran respuestas de error; en «Editar» de la propia cuenta aparece «Cambiar mi contraseña» en vez de «Restablecer»; la barra lateral tiene el enlace «Cambiar contraseña» para cualquier usuario. Verificado en local contra la rama de desarrollo de Neon.

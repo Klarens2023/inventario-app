@@ -32,6 +32,7 @@ quedan en el árbol de trabajo para revisarlos y probarlos antes del commit.
 | 25 | AUD-16 | Líder solo gestiona usuario/pvn/pvv | `app/api/usuarios/route.ts`, `app/api/usuarios/[id]/route.ts`, `components/usuarios/UsuariosList.tsx`, `ModalCrear.tsx`, `ModalEditar.tsx` |
 | 26 | AUD-18 | Mínimo 8, distinta de la actual y contraseña actual en cambios voluntarios | `app/api/cambiar-password/route.ts`, `app/cambiar-password/page.tsx` |
 | 27 | AUD-20 | Resumen del cierre por `turno_id` | `app/api/qr/turno/route.ts` |
+| 28 | AUD-30 | Sin auto-restablecimiento; lista de usuarios tolerante a errores; enlace «Cambiar contraseña» | `app/api/usuarios/[id]/route.ts`, `lib/api/usuarios.ts`, `app/admin/usuarios/page.tsx`, `components/usuarios/ModalEditar.tsx`, `components/Sidebar.tsx` |
 | 15 | — | `.env.example` con todas las variables que usa el código (solo nombres) | `.env.example` |
 | 16 | — | Documentación | `docs/*` |
 
