@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import type { NeonQueryPromise } from '@neondatabase/serverless'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import bcrypt from 'bcryptjs'
-
-const PASSWORD_GENERICA = '123456'
+import { generarPasswordTemporal } from '@/lib/passwordTemporal'
+import { MODULOS } from '@/lib/permissions'
 
 // PUT /api/usuarios/[id] — activar/desactivar, cambiar rol o área
 // admin → puede modificar cualquier usuario
 // lider → solo puede modificar usuarios de su área, no puede cambiar admins ni crear admins
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
@@ -28,7 +30,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const [usuario] = await sql`SELECT id, nombre, username, rol, area FROM usuarios WHERE id = ${id} LIMIT 1`
   if (!usuario) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
 
-  // Lider solo puede modificar usuarios de su área y no puede tocar admins
+  // Lider solo puede modificar usuarios de su área con rol usuario, pvn o pvv (AUD-16):
+  // ni admins ni otros líderes, para que no pueda restablecerle la contraseña a otro
+  // líder y actuar a su nombre.
   if (sesionRol === 'lider') {
     if (usuario.area !== session.user?.area) {
       return NextResponse.json({ error: 'No tienes permiso para modificar este usuario' }, { status: 403 })
@@ -36,54 +40,62 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (usuario.rol === 'admin') {
       return NextResponse.json({ error: 'No puedes modificar administradores' }, { status: 403 })
     }
+    if (usuario.rol === 'lider') {
+      return NextResponse.json({ error: 'Solo un administrador puede modificar a otro líder' }, { status: 403 })
+    }
   }
 
   const body = await req.json()
   const { activo, rol, nombre, username, area, punto_venta_id, resetPassword, modulos, acceso_movil } = body
 
+  // Primero se valida todo y después se aplican los cambios en una sola
+  // transacción (AUD-22): antes cada campo se guardaba apenas se validaba, así
+  // que un error en un campo posterior (p. ej. usuario repetido) respondía 400
+  // pero dejaba aplicados los cambios anteriores.
+  const cambios: NeonQueryPromise<false, false>[] = []
+
   if (activo !== undefined) {
     if (esSelf && !activo) {
       return NextResponse.json({ error: 'No puedes desactivar tu propia cuenta' }, { status: 400 })
     }
-    await sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`
+    cambios.push(sql`UPDATE usuarios SET activo = ${!!activo} WHERE id = ${id}`)
   }
   if (rol !== undefined) {
     if (esSelf && rol !== usuario.rol) {
       return NextResponse.json({ error: 'No puedes cambiar tu propio rol' }, { status: 400 })
     }
-    const rolesValidos = sesionRol === 'admin' ? ['admin', 'lider', 'usuario', 'pvn', 'pvv'] : ['lider', 'usuario', 'pvn', 'pvv']
+    const rolesValidos = sesionRol === 'admin' ? ['admin', 'lider', 'usuario', 'pvn', 'pvv'] : ['usuario', 'pvn', 'pvv']
     if (!rolesValidos.includes(rol)) {
       return NextResponse.json({ error: 'Rol inválido' }, { status: 400 })
     }
-    await sql`UPDATE usuarios SET rol = ${rol} WHERE id = ${id}`
+    cambios.push(sql`UPDATE usuarios SET rol = ${rol} WHERE id = ${id}`)
   }
   if (nombre !== undefined && typeof nombre === 'string' && nombre.trim()) {
-    await sql`UPDATE usuarios SET nombre = ${nombre.trim()} WHERE id = ${id}`
+    cambios.push(sql`UPDATE usuarios SET nombre = ${nombre.trim()} WHERE id = ${id}`)
   }
   if (username !== undefined && typeof username === 'string' && username.trim()) {
     const existing = await sql`SELECT id FROM usuarios WHERE username = ${username.trim()} AND id != ${id} LIMIT 1`
     if (existing.length > 0) {
       return NextResponse.json({ error: 'Ese nombre de usuario ya está en uso' }, { status: 400 })
     }
-    await sql`UPDATE usuarios SET username = ${username.trim()} WHERE id = ${id}`
+    cambios.push(sql`UPDATE usuarios SET username = ${username.trim()} WHERE id = ${id}`)
   }
   if (area !== undefined && sesionRol === 'admin') {
     const [areaValida] = await sql`SELECT key FROM areas WHERE key = ${area}`
     if (!areaValida) {
       return NextResponse.json({ error: 'Área inválida' }, { status: 400 })
     }
-    await sql`UPDATE usuarios SET area = ${area} WHERE id = ${id}`
+    cambios.push(sql`UPDATE usuarios SET area = ${area} WHERE id = ${id}`)
   }
   if (punto_venta_id !== undefined) {
     const pvId = punto_venta_id === null ? null : parseInt(punto_venta_id)
-    await sql`UPDATE usuarios SET punto_venta_id = ${pvId} WHERE id = ${id}`
+    if (pvId !== null && !Number.isInteger(pvId)) {
+      return NextResponse.json({ error: 'Punto de venta inválido' }, { status: 400 })
+    }
+    cambios.push(sql`UPDATE usuarios SET punto_venta_id = ${pvId} WHERE id = ${id}`)
   }
   if (typeof acceso_movil === 'boolean') {
-    await sql`UPDATE usuarios SET acceso_movil = ${acceso_movil} WHERE id = ${id}`
-  }
-  if (resetPassword === true) {
-    const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
-    await sql`UPDATE usuarios SET password_hash = ${hash}, debe_cambiar_password = true WHERE id = ${id}`
+    cambios.push(sql`UPDATE usuarios SET acceso_movil = ${acceso_movil} WHERE id = ${id}`)
   }
   if (Array.isArray(modulos)) {
     if (esSelf) {
@@ -102,16 +114,37 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       // Un líder solo puede conceder módulos que ya estén habilitados para el
       // área del usuario objetivo (tabla `areas`), para que no pueda otorgar
       // a otros usuarios módulos de otras áreas editando este campo.
-      let modulosPermitidos: string[] = modulos
+      let modulosPermitidos: string[] = modulos.filter((m: unknown) => (MODULOS as readonly unknown[]).includes(m))
       if (sesionRol === 'lider') {
         const [areaInfo] = await sql`SELECT modulos_usuario, modulos_lider FROM areas WHERE key = ${usuario.area}`
         const permitido = new Set([...(areaInfo?.modulos_usuario ?? []), ...(areaInfo?.modulos_lider ?? [])])
-        modulosPermitidos = modulos.filter((m: string) => permitido.has(m))
+        modulosPermitidos = modulosPermitidos.filter((m: string) => permitido.has(m))
       }
-      await sql`DELETE FROM usuario_modulos WHERE usuario_id = ${id}`
-      for (const m of modulosPermitidos) {
-        await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${id}, ${m}) ON CONFLICT DO NOTHING`
+      cambios.push(sql`DELETE FROM usuario_modulos WHERE usuario_id = ${id}`)
+      cambios.push(sql`
+        INSERT INTO usuario_modulos (usuario_id, modulo)
+        SELECT ${id}, m FROM unnest(${modulosPermitidos}::text[]) AS m
+        ON CONFLICT DO NOTHING
+      `)
+    }
+  }
+  // Restablecer: contraseña temporal aleatoria (antes "123456"), devuelta una sola vez.
+  let passwordTemporal: string | null = null
+  if (resetPassword === true) {
+    passwordTemporal = generarPasswordTemporal()
+    const hash = await bcrypt.hash(passwordTemporal, 10)
+    cambios.push(sql`UPDATE usuarios SET password_hash = ${hash}, debe_cambiar_password = true WHERE id = ${id}`)
+  }
+
+  if (cambios.length > 0) {
+    try {
+      await sql.transaction(cambios)
+    } catch (e) {
+      // 23505: el nombre de usuario lo tomó otra petición entre el chequeo y el UPDATE
+      if ((e as { code?: string })?.code === '23505') {
+        return NextResponse.json({ error: 'Ese nombre de usuario ya está en uso' }, { status: 400 })
       }
+      throw e
     }
   }
 
@@ -129,5 +162,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     SELECT id, username, nombre, rol, area, activo, debe_cambiar_password, created_at, acceso_movil
     FROM usuarios WHERE id = ${id}
   `
-  return NextResponse.json(actualizado)
+  if (!passwordTemporal) return NextResponse.json(actualizado)
+  return NextResponse.json({ ...actualizado, password_temporal: passwordTemporal }, { headers: { 'Cache-Control': 'no-store' } })
 }

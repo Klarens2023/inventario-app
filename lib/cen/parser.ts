@@ -65,12 +65,15 @@ function ordenVacia(): OrdenEdi {
 // ── EDIFACT estándar (Carvajal) ──────────────────────────────────────────────
 
 // Separa respetando el carácter de escape "?" (ej. "?+" es un + literal).
-function separar(texto: string, sep: string): string[] {
+// Solo el último nivel (componentes, ":") quita los "?": si se quitaban ya al
+// separar segmentos, un "?+" de una descripción llegaba como "+" al separar
+// elementos y la cortaba ("QUESO ?+ CREMA" quedaba "QUESO").
+function separar(texto: string, sep: string, desescapar = false): string[] {
   const partes: string[] = []
   let actual = ''
   for (let i = 0; i < texto.length; i++) {
     const c = texto[i]
-    if (c === '?' && i + 1 < texto.length) { actual += texto[++i]; continue }
+    if (c === '?' && i + 1 < texto.length) { actual += desescapar ? texto[++i] : c + texto[++i]; continue }
     if (c === sep) { partes.push(actual); actual = ''; continue }
     actual += c
   }
@@ -86,9 +89,9 @@ export function parsearEdifact(contenido: string): OrdenEdi {
 
   for (const seg of segmentos) {
     const el = separar(seg, '+')
-    const comp = (i: number) => separar(el[i] ?? '', ':')
+    const comp = (i: number) => separar(el[i] ?? '', ':', true)
     switch (el[0]) {
-      case 'BGM': orden.numeroOrden = (el[2] ?? '').trim(); break
+      case 'BGM': orden.numeroOrden = (comp(2)[0] ?? '').trim(); break
       case 'DTM': {
         const [calif, valor] = comp(1)
         if (calif === '137') orden.fechaOrden = fecha(valor)

@@ -5,7 +5,10 @@ import { recalcularRutas } from '@/lib/cen/rutas'
 import { validarRegla, type ReglaEntrada } from '@/lib/cen/validarRegla'
 
 // PUT /api/logistica/ordenes-cen/reglas/[id] — edita una regla y recalcula las rutas sugeridas
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
+  const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
   try {
@@ -14,7 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       UPDATE cen_reglas_ruta SET prioridad = ${r.prioridad}, ruta = ${r.ruta}, ean_comprador = ${r.ean_comprador},
         ciudades = ${r.ciudades}, departamentos = ${r.departamentos}, peso_min = ${r.peso_min}, peso_max = ${r.peso_max},
         descripcion = ${r.descripcion}, activo = ${r.activo}, updated_at = NOW()
-      WHERE id = ${parseInt(params.id)} RETURNING id
+      WHERE id = ${id} RETURNING id
     `
     if (!res.length) return NextResponse.json({ error: 'Regla no encontrada' }, { status: 404 })
     const cambios = await recalcularRutas()
@@ -25,10 +28,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE /api/logistica/ordenes-cen/reglas/[id]
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
+  const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
-  await sql`DELETE FROM cen_reglas_ruta WHERE id = ${parseInt(params.id)}`
+  await sql`DELETE FROM cen_reglas_ruta WHERE id = ${id}`
   const cambios = await recalcularRutas()
   return NextResponse.json({ ok: true, ordenesRecalculadas: cambios })
 }

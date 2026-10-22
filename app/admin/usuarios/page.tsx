@@ -10,6 +10,7 @@ import { AreaFilterBar } from '@/components/usuarios/AreaFilterBar'
 import { BusquedaBar }   from '@/components/usuarios/BusquedaBar'
 import { ModalCrear }    from '@/components/usuarios/ModalCrear'
 import { ModalEditar }   from '@/components/usuarios/ModalEditar'
+import { ModalPasswordTemporal } from '@/components/usuarios/ModalPasswordTemporal'
 import { ModalAreas }      from '@/components/usuarios/ModalAreas'
 import { PuntosVentaTab }  from '@/components/usuarios/PuntosVentaTab'
 
@@ -45,6 +46,8 @@ export default function GestionUsuariosPage() {
   const [usuarioEdit, setUsuarioEdit] = useState<Usuario | null>(null)
 
   const [modalAreas,  setModalAreas]  = useState(false)
+  // Contraseña temporal recién generada: solo en memoria, se borra al cerrar el modal
+  const [passwordNueva, setPasswordNueva] = useState<{ nombre: string; username: string; password: string; motivo: 'creado' | 'restablecido' } | null>(null)
   const [tab,         setTab]         = useState<'usuarios' | 'puntos'>('usuarios')
 
   const cargar = useCallback(async () => {
@@ -72,7 +75,10 @@ export default function GestionUsuariosPage() {
     const res = await crearUsuario(body)
     setGuardando(false)
     if (!res.ok) { setErrorCrear(res.error ?? ''); return }
-    setExito(`Usuario "${body.nombre}" creado. Contraseña inicial: 123456`)
+    setExito(`Usuario "${body.nombre}" creado.`)
+    if (res.passwordTemporal) {
+      setPasswordNueva({ nombre: String(body.nombre), username: String(body.username), password: res.passwordTemporal, motivo: 'creado' })
+    }
     setModalCrear(false)
     setErrorCrear('')
     cargar()
@@ -85,8 +91,11 @@ export default function GestionUsuariosPage() {
     if (!res.ok) return
     const nombre = body.nombre as string
     setExito(body.resetPassword
-      ? `Usuario "${nombre}" actualizado — contraseña restablecida a 123456`
+      ? `Usuario "${nombre}" actualizado — contraseña restablecida`
       : `Usuario "${nombre}" actualizado correctamente`)
+    if (res.passwordTemporal) {
+      setPasswordNueva({ nombre, username: String(body.username), password: res.passwordTemporal, motivo: 'restablecido' })
+    }
     setModalEditar(false)
     cargar()
   }
@@ -198,6 +207,10 @@ export default function GestionUsuariosPage() {
           onClose={() => setModalEditar(false)}
           onGuardar={handleEditar}
         />
+      )}
+
+      {passwordNueva && (
+        <ModalPasswordTemporal {...passwordNueva} onClose={() => setPasswordNueva(null)} />
       )}
 
       {modalAreas && (

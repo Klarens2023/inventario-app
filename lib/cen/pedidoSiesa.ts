@@ -244,7 +244,29 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
     return { ok: false, mensaje: 'Confirma que revisaste las alertas antes de enviar.', prep }
   }
 
-  const r = await enviarConector(ID_DOCUMENTO(), NOMBRE_DOCUMENTO(), prep.documento)
+  // Reserva atómica de la orden antes de llamar a Siesa: dos envíos simultáneos
+  // (doble clic, dos usuarios) pasaban ambos la validación de arriba y podían
+  // crear dos pedidos. Solo el UPDATE que encuentra la orden aún abierta sigue;
+  // mientras se envía queda en 'enviado', así que la sincronización EDI tampoco
+  // la reescribe (guardarOrden omite las enviadas).
+  const [reserva] = await sql`
+    WITH previa AS (SELECT estado FROM cen_ordenes WHERE id = ${ordenId})
+    UPDATE cen_ordenes o SET estado = 'enviado', updated_at = NOW()
+    FROM previa
+    WHERE o.id = ${ordenId} AND o.estado IN ('pendiente', 'error')
+    RETURNING previa.estado AS estado_previo
+  `
+  if (!reserva) return { ok: false, mensaje: 'La orden ya se está enviando o ya tiene pedido en Siesa. Actualiza la lista.', prep }
+
+  let r: Awaited<ReturnType<typeof enviarConector>>
+  try {
+    r = await enviarConector(ID_DOCUMENTO(), NOMBRE_DOCUMENTO(), prep.documento)
+  } catch (e) {
+    // Fallo de red: se libera la reserva. Si Siesa alcanzó a crear el pedido, el
+    // siguiente intento lo detecta (prepararPedido busca la OC en Siesa y bloquea).
+    await sql`UPDATE cen_ordenes SET estado = ${reserva.estado_previo}, updated_at = NOW() WHERE id = ${ordenId}`
+    throw e
+  }
   if (!r.ok) {
     await sql`UPDATE cen_ordenes SET estado = 'error', siesa_respuesta = ${JSON.stringify(r.cuerpo)}::jsonb, updated_at = NOW() WHERE id = ${ordenId}`
     return { ok: false, mensaje: `Siesa rechazó el pedido: ${r.mensaje}`, respuesta: r.cuerpo, prep }

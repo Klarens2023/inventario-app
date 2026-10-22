@@ -14,7 +14,8 @@ function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | nu
 
 // GET /api/sistemas/movimientos/[id] — getAuthUser (no solo sesión web) para
 // que la app móvil también pueda consultar el movimiento antes de subir la foto.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!tieneModulo(user.rol, user.modulos, 'movimientos_tic')) {
@@ -29,7 +30,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const activos = await sql`
     SELECT a.*, e.marca, e.modelo, e.numero_serie
     FROM tic_movimiento_activos a
-    JOIN equipos_tecnologicos e ON e.id = a.equipo_id
+    -- LEFT JOIN: la placa se puede escribir a mano (estibas, herramientas) y con JOIN
+    -- ese activo desaparecía del detalle y del formato impreso.
+    LEFT JOIN equipos_tecnologicos e ON e.id = a.equipo_id
     WHERE a.movimiento_id = ${params.id}
     ORDER BY a.id
   `
@@ -38,7 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PATCH /api/sistemas/movimientos/[id] — actualizar estado
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })

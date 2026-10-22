@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { valorMonetario } from '@/lib/validacion'
 
 function hoyBogota(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
@@ -10,11 +11,13 @@ function hoyBogota(): string {
 // PUT /api/qr/pagos/[id]
 // admin: puede editar valor y/o punto_venta_id de cualquier pago, sin restricción
 // pvn/pvv: solo puede editar el valor de un pago propio de hoy, con turno activo
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const body = await req.json()
 
   if (user.rol === 'admin') {
@@ -23,8 +26,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     let valorNum: number | null = null
     if (body.valor !== undefined) {
-      valorNum = parseFloat(body.valor)
-      if (!valorNum || valorNum <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
+      valorNum = valorMonetario(body.valor)
+      if (valorNum === null) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
     }
 
     let pvNuevo: { id: number; nombre: string } | null = null
@@ -65,8 +68,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   if (!['pvn', 'pvv'].includes(user.rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
-  const valorNum = parseFloat(body.valor)
-  if (!valorNum || valorNum <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
+  const valorNum = valorMonetario(body.valor)
+  if (valorNum === null) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
 
   const hoy = hoyBogota()
   const [existente] = await sql`
@@ -94,11 +97,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 // DELETE /api/qr/pagos/[id]
 // admin: puede eliminar cualquier pago, sin restricción (p. ej. duplicados por error)
 // pvn/pvv: solo un pago propio de hoy, con turno activo
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
   if (user.rol === 'admin') {
     const [existente] = await sql`SELECT id, valor, punto_venta_nombre, usuario_nombre FROM pvn_pagos_qr WHERE id = ${id}`

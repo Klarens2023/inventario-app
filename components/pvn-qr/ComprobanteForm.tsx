@@ -13,7 +13,7 @@ type Props = {
   error: string
   preview: string | null
   onQuitarFoto: () => void
-  fileRef: RefObject<HTMLInputElement>
+  fileRef: RefObject<HTMLInputElement | null>
   onSeleccionarFoto: (e: React.ChangeEvent<HTMLInputElement>) => void
   valor: string
   onValorChange: (v: string) => void

@@ -5,11 +5,13 @@ import { recalcularRutas } from '@/lib/cen/rutas'
 import { reversarPedido } from '@/lib/cen/pedidoSiesa'
 
 // GET /api/logistica/ordenes-cen/[id] — detalle: líneas (con peso del maestro) y reparto por tienda
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [orden] = await sql`
     SELECT id, fuente, numero_orden, fecha_orden::text, fecha_entrega::text, fecha_entrega_max::text,
            ean_comprador, ean_entrega, nit, sucursal, razon_social,
@@ -44,11 +46,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 // PATCH /api/logistica/ordenes-cen/[id] — descartar / reactivar una orden, o cambiar su ruta
 // (ruta vacía = volver a la ruta sugerida por las reglas)
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const { accion, ruta } = await req.json() as { accion?: string; ruta?: string }
   const [orden] = await sql`SELECT estado, nit FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })

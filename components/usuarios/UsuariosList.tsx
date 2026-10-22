@@ -39,8 +39,9 @@ export function UsuariosList({ usuarios, areas, loading, sessionUserId, esAdmin,
               const areaEncontrada = areas.find(a => a.key === areaKey)
               const areaInfo = areaEncontrada ? { label: areaEncontrada.label, color: areaEncontrada.color, bg: areaEncontrada.bg } : { label: u.area, color: '#374151', bg: '#f3f4f6' }
               const esYo           = String(u.id) === sessionUserId
-              const puedeEditar    = esAdmin || (u.rol !== 'admin' && !esYo)
-              const puedeDesactivar = !esYo && (esAdmin || u.rol !== 'admin')
+              // Un líder no gestiona admins ni otros líderes (AUD-16; el servidor también lo impide)
+              const puedeEditar    = esAdmin || (!['admin', 'lider'].includes(u.rol) && !esYo)
+              const puedeDesactivar = !esYo && (esAdmin || !['admin', 'lider'].includes(u.rol))
 
               return (
                 <tr key={u.id} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#fff' : '#fafafa' }}>

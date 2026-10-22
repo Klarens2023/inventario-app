@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
+import { conReintentoPorDuplicado } from '@/lib/reintentar'
 import { canAccessRepuestos, CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpcional, texto, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
 
 async function generarCodigo(): Promise<string> {
@@ -68,25 +69,30 @@ export async function POST(req: NextRequest) {
   }
   const costo = numeroOpcional(body.costo_unitario)
   const usuario = session.user?.name ?? 'Sistema'
-  const codigo = await generarCodigo()
+  let codigo = ''
 
   try {
     // Un solo statement: el artículo y su movimiento de inventario inicial quedan juntos o no queda ninguno
-    await sql(
-      `WITH art AS (
-         INSERT INTO tic_articulos (codigo, categoria, tipo, descripcion, marca, referencia, compatible_con,
-                                    unidad, stock_actual, stock_minimo, ubicacion, costo_unitario, observaciones, registrado_por)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::int, $10::int, $11, $12::numeric, $13, $14)
-         RETURNING codigo
-       )
-       INSERT INTO tic_articulo_movimientos (articulo_codigo, fecha, tipo, motivo, cantidad, stock_anterior,
-                                             stock_resultante, costo_unitario, registrado_por)
-       SELECT codigo, CURRENT_DATE, 'entrada', 'Inventario inicial', $9::int, 0, $9::int, $12::numeric, $14
-       FROM art WHERE $9::int > 0`,
-      [codigo, categoria, tipo, descripcion, texto(body.marca), texto(body.referencia), texto(body.compatible_con),
-       texto(body.unidad) ?? 'Unidad', stockInicial, stockMinimo, texto(body.ubicacion), costo,
-       texto(body.observaciones), usuario]
-    )
+    // El código REP- se recalcula y reintenta si otra alta simultánea tomó el mismo (AUD-21).
+    codigo = await conReintentoPorDuplicado(async () => {
+      const c = await generarCodigo()
+      await sql(
+        `WITH art AS (
+           INSERT INTO tic_articulos (codigo, categoria, tipo, descripcion, marca, referencia, compatible_con,
+                                      unidad, stock_actual, stock_minimo, ubicacion, costo_unitario, observaciones, registrado_por)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::int, $10::int, $11, $12::numeric, $13, $14)
+           RETURNING codigo
+         )
+         INSERT INTO tic_articulo_movimientos (articulo_codigo, fecha, tipo, motivo, cantidad, stock_anterior,
+                                               stock_resultante, costo_unitario, registrado_por)
+         SELECT codigo, CURRENT_DATE, 'entrada', 'Inventario inicial', $9::int, 0, $9::int, $12::numeric, $14
+         FROM art WHERE $9::int > 0`,
+        [c, categoria, tipo, descripcion, texto(body.marca), texto(body.referencia), texto(body.compatible_con),
+         texto(body.unidad) ?? 'Unidad', stockInicial, stockMinimo, texto(body.ubicacion), costo,
+         texto(body.observaciones), usuario]
+      )
+      return c
+    })
   } catch (e) {
     console.error('[repuestos POST]', e)
     return NextResponse.json({ error: 'Error al crear el artículo' }, { status: 500 })

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import sharp from 'sharp'
 import { getAuthUser } from '@/lib/api-auth'
+import { sql } from '@/lib/db'
+import { tieneModulo } from '@/lib/permissions'
 
 // Proxy de imágenes: Google Drive bloquea el hotlinking de "uc?export=view"
 // cuando se embebe como <img> desde otro dominio (falla silenciosa en el navegador,
@@ -26,7 +28,30 @@ export async function GET(req: NextRequest) {
 
   const fileId = req.nextUrl.searchParams.get('id')
   if (!fileId) return NextResponse.json({ error: 'Falta el id' }, { status: 400 })
+  // Los ids de Drive son alfanuméricos con - y _; cualquier otra cosa no es un id nuestro.
+  if (!/^[A-Za-z0-9_-]{10,200}$/.test(fileId)) return NextResponse.json({ error: 'Id inválido' }, { status: 400 })
   const esMiniatura = req.nextUrl.searchParams.get('thumb') === '1'
+
+  // Control por registro (AUD-27): la cuenta de servicio puede leer cualquier archivo
+  // que haya subido, así que solo se entrega si el fileId pertenece a un registro que
+  // este usuario puede ver: pagos y cierres de turno propios (o todos con el módulo
+  // pvn_pagos_qr) y formatos firmados de movimientos TIC (con el módulo movimientos_tic).
+  // 404 y no 403 para no confirmar si el archivo existe.
+  const verPagos = tieneModulo(user.rol, user.modulos, 'pvn_pagos_qr')
+  const verTic = tieneModulo(user.rol, user.modulos, 'movimientos_tic')
+  const uid = parseInt(user.id)
+  const [permitido] = await sql`
+    SELECT 1 FROM pvn_pagos_qr
+    WHERE substring(foto_url from '[?&]id=([^&]+)') = ${fileId} AND (${verPagos} OR usuario_id = ${uid})
+    UNION ALL
+    SELECT 1 FROM pvn_turnos
+    WHERE substring(foto_datafono_url from '[?&]id=([^&]+)') = ${fileId} AND (${verPagos} OR usuario_id = ${uid})
+    UNION ALL
+    SELECT 1 FROM tic_movimientos
+    WHERE substring(foto_autorizacion_url from '[?&]id=([^&]+)') = ${fileId} AND ${verTic}
+    LIMIT 1
+  `
+  if (!permitido) return NextResponse.json({ error: 'Imagen no encontrada' }, { status: 404 })
 
   const auth = new google.auth.GoogleAuth({
     credentials: {

@@ -2,7 +2,8 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { sql } from './db'
-import { minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from './loginBruteForce'
+import { compararSenuelo, minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from './loginBruteForce'
+import { cargarEstadoUsuario } from './estadoUsuario'
 
 const SESION_PVN_PVV_SEGUNDOS = 24 * 60 * 60 // 24 horas
 const SESION_DEFAULT_SEGUNDOS = 8 * 60 * 60  // 8 horas (admin, lider, usuario)
@@ -35,7 +36,10 @@ export const authOptions: NextAuthOptions = {
           LIMIT 1
         `
 
-        if (rows.length === 0) return null
+        if (rows.length === 0) {
+          await compararSenuelo(credentials.password)
+          return null
+        }
 
         const user = rows[0]
 
@@ -76,7 +80,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user }) {
       if (user) {
         const u = user as { id: string; name?: string; rol?: string; area?: string; debe_cambiar_password?: boolean; punto_venta_id?: number | null; modulos?: string[] }
         token.id                    = u.id
@@ -93,22 +97,51 @@ export const authOptions: NextAuthOptions = {
           ? SESION_PVN_PVV_SEGUNDOS
           : SESION_DEFAULT_SEGUNDOS
         token.exp = Math.floor(Date.now() / 1000) + duracion
+        return token
       }
-      // Permite actualizar el token desde el cliente con useSession().update()
-      if (trigger === 'update' && session?.debe_cambiar_password !== undefined) {
-        token.debe_cambiar_password = session.debe_cambiar_password
+
+      // Seguridad: en cada lectura de la sesión (getServerSession, /api/auth/session,
+      // useSession().update()) se vuelve a leer el usuario en la BD. Así un usuario
+      // desactivado pierde el acceso de inmediato y los cambios de rol, módulos o
+      // "debe cambiar contraseña" aplican sin esperar a que venza el JWT.
+      // Antes, update({ debe_cambiar_password: false }) desde el navegador bastaba
+      // para saltarse el cambio obligatorio de contraseña: ahora manda la BD.
+      try {
+        const estado = await cargarEstadoUsuario(token.id)
+        if (!estado) {
+          token.revocado = true
+          token.modulos = []
+        } else {
+          token.revocado              = false
+          token.rol                   = estado.rol
+          token.area                  = estado.area
+          token.punto_venta_id        = estado.punto_venta_id
+          token.debe_cambiar_password = estado.debe_cambiar_password
+          token.modulos               = estado.modulos
+        }
+      } catch (e) {
+        // Si la BD no responde se conservan los datos del token (comportamiento
+        // anterior) en vez de cerrar la sesión de todos por un fallo transitorio;
+        // la sesión sigue acotada por su vencimiento (8 h / 24 h).
+        console.error('[auth] No se pudo revalidar la sesión contra la BD:', e)
       }
       return token
     },
     async session({ session, token }) {
       if (token && session.user) {
+        // Sesión revocada (usuario inactivo o eliminado) o con cambio de contraseña
+        // pendiente: se publica sin rol ni módulos, para que las rutas que usan
+        // getServerSession directamente nieguen todo con su chequeo de rol/módulo.
+        // /api/cambiar-password solo necesita el id (usa getAuthUser).
+        const restringida = Boolean(token.revocado) || Boolean(token.debe_cambiar_password)
         session.user.id                    = token.id as string
         session.user.name                  = token.name as string
-        session.user.rol                   = token.rol as string
+        session.user.rol                   = restringida ? '' : (token.rol as string)
         session.user.area                  = (token.area as string) ?? (token.rol === 'admin' ? 'general' : 'logistica')
         session.user.debe_cambiar_password = token.debe_cambiar_password as boolean
         session.user.punto_venta_id        = (token.punto_venta_id as number | null) ?? null
-        session.user.modulos               = (token.modulos as string[]) ?? []
+        session.user.modulos               = restringida ? [] : ((token.modulos as string[]) ?? [])
+        session.user.revocado              = Boolean(token.revocado)
       }
       return session
     },

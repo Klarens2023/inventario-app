@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
+import { conReintentoPorDuplicado } from '@/lib/reintentar'
 
 function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
   if (!session?.user) return false
@@ -84,28 +85,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Debes agregar al menos un activo' }, { status: 400 })
   }
 
-  const id = await generarId()
   const registradoPor = session.user?.name ?? 'Sistema'
 
-  await sql`
-    INSERT INTO tic_movimientos
-      (id, fecha, movimiento, tipo_movimiento, motivo,
-       origen_nombre, origen_documento, origen_area,
-       destino_nombre, destino_documento, destino_area,
-       observaciones, registrado_por)
-    VALUES
-      (${id}, ${fecha}::date, ${movimiento}, ${tipo_movimiento}, ${motivo},
-       ${origen_nombre}, ${origen_documento}, ${origen_area},
-       ${destino_nombre}, ${destino_documento}, ${destino_area},
-       ${observaciones ?? null}, ${registradoPor})
-  `
-
-  for (const a of activos) {
+  // Cabecera y activos en una sola sentencia (AUD-22): antes un INSERT por activo
+  // podía dejar un movimiento sin sus activos. El consecutivo TIC- se recalcula y
+  // reintenta si otra alta simultánea tomó el mismo número (AUD-21).
+  const id = await conReintentoPorDuplicado(async () => {
+    const nuevoId = await generarId()
     await sql`
+      WITH mov AS (
+        INSERT INTO tic_movimientos
+          (id, fecha, movimiento, tipo_movimiento, motivo,
+           origen_nombre, origen_documento, origen_area,
+           destino_nombre, destino_documento, destino_area,
+           observaciones, registrado_por)
+        VALUES
+          (${nuevoId}, ${fecha}::date, ${movimiento}, ${tipo_movimiento}, ${motivo},
+           ${origen_nombre}, ${origen_documento}, ${origen_area},
+           ${destino_nombre}, ${destino_documento}, ${destino_area},
+           ${observaciones ?? null}, ${registradoPor})
+        RETURNING id
+      )
       INSERT INTO tic_movimiento_activos (movimiento_id, equipo_id, descripcion, tipo_activo, cantidad)
-      VALUES (${id}, ${a.equipo_id}, ${a.descripcion}, ${a.tipo_activo}, ${a.cantidad ?? 1})
+      SELECT mov.id, a.eq, a.des, a.tip, a.cant
+      FROM mov, unnest(
+        ${activos.map((a: { equipo_id: unknown }) => a.equipo_id)}::text[],
+        ${activos.map((a: { descripcion: unknown }) => a.descripcion)}::text[],
+        ${activos.map((a: { tipo_activo: unknown }) => a.tipo_activo)}::text[],
+        ${activos.map((a: { cantidad?: unknown }) => a.cantidad ?? 1)}::int[]
+      ) AS a(eq, des, tip, cant)
     `
-  }
+    return nuevoId
+  })
 
   await logAudit({
     usuarioId: session.user?.id ?? null,

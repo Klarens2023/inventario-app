@@ -11,7 +11,8 @@ function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | nu
 }
 
 // GET /api/sistemas/equipos/[id]
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
@@ -62,7 +63,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // PUT /api/sistemas/equipos/[id]
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
@@ -172,7 +174,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE /api/sistemas/equipos/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Solo el admin puede eliminar equipos' }, { status: 403 })

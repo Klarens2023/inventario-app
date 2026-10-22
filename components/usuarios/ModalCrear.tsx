@@ -59,7 +59,7 @@ export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando,
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '32px', maxWidth: 440, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginTop: 0, marginBottom: 4 }}>Nuevo Usuario</h2>
         <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>
-          Contraseña inicial: <strong>123456</strong>. El usuario deberá cambiarla al primer ingreso.
+          Se generará una contraseña temporal que verás una sola vez al crear el usuario. Deberá cambiarla al primer ingreso.
         </p>
         {error && (
           <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginBottom: 16, color: '#991b1b', fontSize: 13 }}>{error}</div>
@@ -79,7 +79,7 @@ export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando,
               <option value="usuario">Usuario</option>
               <option value="pvn">PVN (Punto de Venta)</option>
               <option value="pvv">PVV (Punto Principal — app móvil)</option>
-              <option value="lider">Líder de Área</option>
+              {esAdmin && <option value="lider">Líder de Área</option>}
               {esAdmin && <option value="admin">Administrador</option>}
             </select>
           </div>

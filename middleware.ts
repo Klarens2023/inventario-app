@@ -16,13 +16,23 @@ const PATH_MODULO: Array<[string, Modulo]> = [
   ['/sistemas/repuestos', 'repuestos_tic'],
   ['/planos', 'planos'],
   ['/logistica/ordenes-cen', 'ordenes_cen'],
+  ['/contabilidad/conciliacion-facturas', 'conciliacion_facturas'],
 ]
 
+/**
+ * Control de acceso a las PÁGINAS (no a la API: cada ruta /api valida por su
+ * cuenta en el servidor). Esto solo evita mostrar pantallas a quien no tiene el
+ * rol o módulo; no es la barrera de seguridad de los datos.
+ *
+ * El token de la cookie lo revalida contra la BD callbacks.jwt (lib/auth.ts)
+ * cada vez que el cliente consulta la sesión; si el usuario fue desactivado
+ * queda marcado como `revocado` y aquí se le envía al login.
+ */
 export async function middleware(req: NextRequest) {
   const token = await getToken({ req })
   const { pathname } = req.nextUrl
 
-  if (!token) {
+  if (!token || token.revocado) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
@@ -83,6 +93,7 @@ export const config = {
     '/pvn/:path*',
     '/planos/:path*',
     '/logistica/:path*',
+    '/contabilidad/:path*',
     '/cambiar-password',
   ],
 }

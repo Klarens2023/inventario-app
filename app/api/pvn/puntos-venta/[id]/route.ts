@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 

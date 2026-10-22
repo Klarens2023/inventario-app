@@ -112,11 +112,21 @@ export async function POST(req: NextRequest) {
       puntoVentaNombre = pv.nombre
     }
 
-    const [turno] = await sql`
-      INSERT INTO pvn_turnos (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha)
-      VALUES (${parseInt(user.id)}, ${user.name}, ${puntoVentaId}, ${puntoVentaNombre}, ${hoy}::date)
-      RETURNING id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at
-    `
+    let turno
+    try {
+      ;[turno] = await sql`
+        INSERT INTO pvn_turnos (usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha)
+        VALUES (${parseInt(user.id)}, ${user.name}, ${puntoVentaId}, ${puntoVentaNombre}, ${hoy}::date)
+        RETURNING id, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at
+      `
+    } catch (e) {
+      // 23505 = ux_pvn_turnos_activo_dia (scripts/migrate-add-indices-unicos.js):
+      // otra petición simultánea abrió el turno entre el SELECT de arriba y este INSERT.
+      if ((e as { code?: string })?.code === '23505') {
+        return NextResponse.json({ error: 'Ya tienes un turno abierto hoy. Ciérralo antes de abrir uno nuevo.' }, { status: 409 })
+      }
+      throw e
+    }
 
     await logAudit({
       usuarioId: user.id,
@@ -185,11 +195,13 @@ export async function POST(req: NextRequest) {
         `
     if (!turno) return NextResponse.json({ error: 'No hay turno abierto para cerrar' }, { status: 404 })
 
-    // También registrar cierre de día en auditoría
+    // Resumen del turno que se cierra (AUD-20): antes sumaba todos los pagos del
+    // usuario en el día, así que con dos turnos el mismo día el segundo cierre
+    // incluía los pagos del primero. Ahora coincide con el cierre forzado del admin.
     const [resumen] = await sql`
       SELECT COUNT(*)::int AS total_pagos, COALESCE(SUM(valor), 0) AS total_valor
       FROM pvn_pagos_qr
-      WHERE usuario_id = ${parseInt(user.id)} AND fecha = ${turno.fecha}::date
+      WHERE turno_id = ${turno.id}
     `
 
     await logAudit({
@@ -197,7 +209,7 @@ export async function POST(req: NextRequest) {
       usuarioNombre: user.name,
       accion: 'PVN_TURNO_CERRADO',
       descripcion: `Cerró turno en ${turno.punto_venta_nombre} — ${resumen.total_pagos} pagos, total ${resumen.total_valor}`,
-      datos: { punto_venta: turno.punto_venta_nombre, fecha: hoy, total_pagos: resumen.total_pagos, total_valor: resumen.total_valor, numero_recogida: numeroRecogida },
+      datos: { turno_id: turno.id, punto_venta: turno.punto_venta_nombre, fecha: hoy, total_pagos: resumen.total_pagos, total_valor: resumen.total_valor, numero_recogida: numeroRecogida },
     })
 
     return NextResponse.json({ ok: true, total_pagos: resumen.total_pagos, total_valor: Number(resumen.total_valor) })

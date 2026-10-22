@@ -137,41 +137,63 @@ export async function POST(req: NextRequest) {
   }
 
   const userId = session.user?.id ?? null
+  const tipos = Array.from(tiposEnArchivo)
 
-  // Borrar solo registros del mismo modo + tipo para esa fecha (no afecta el otro modo)
-  await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND modo = ${modo} AND (tipo = '' OR tipo IS NULL)`
-  for (const tipo of Array.from(tiposEnArchivo)) {
-    await sql`DELETE FROM inventario_datos WHERE fecha = ${fechaStr} AND modo = ${modo} AND tipo = ${tipo}`
+  // Integridad: la recarga reemplaza las filas del mismo modo + tipo de esa fecha,
+  // y el DELETE arrastra sus conteos (FK ON DELETE CASCADE). Si alguna de esas
+  // filas ya fue acumulada (bloqueada), recargar borraría un conteo cerrado que
+  // /api/conteo ya no deja modificar: se rechaza en vez de perderlo.
+  const [bloqueadas] = await sql`
+    SELECT COUNT(*)::int AS n FROM inventario_datos
+    WHERE fecha = ${fechaStr} AND modo = ${modo} AND acumulado = true
+      AND (tipo = '' OR tipo IS NULL OR tipo = ANY(${tipos}::text[]))
+  `
+  if (bloqueadas.n > 0) {
+    return NextResponse.json(
+      { error: `El inventario ${modo} del ${fechaStr} ya tiene ${bloqueadas.n} registro(s) acumulados (bloqueados): no se puede recargar encima.` },
+      { status: 409 },
+    )
   }
 
-  let insertados = 0
+  // Filas del archivo como columnas paralelas, para insertarlas con un solo
+  // INSERT ... SELECT FROM unnest (antes era un INSERT por fila: miles de viajes
+  // HTTP a Neon y, si uno fallaba a mitad, la fecha quedaba con datos a medias).
+  const filas: (string | number | null)[][] = []
   for (let i = 1; i < lines.length; i++) {
     const fields = lines[i].split('\t')
     if (!fields[cols.referencia]?.trim()) continue
+    filas.push([
+      fields[cols.categoria]?.trim() ?? '',
+      fields[cols.referencia].trim(),
+      fields[cols.descripcion]?.trim() ?? '',
+      fields[cols.localizacion]?.trim() ?? '',
+      limpiarNum(fields[cols.cantidad] ?? '0'),
+      fields[cols.um]?.trim() ?? '',
+      limpiarNum(fields[cols.costo_unitario] ?? '0'),
+      limpiarNum(fields[cols.costo_total] ?? '0'),
+      fields[cols.tipo]?.trim() ?? '',
+      modo === 'lotes' ? (fields[cols.lote]?.trim() ?? null) : null,
+    ])
+  }
+  const col = (j: number) => filas.map(f => f[j])
+  const insertados = filas.length
 
-    const loteVal = modo === 'lotes' ? (fields[cols.lote]?.trim() ?? null) : null
-
-    await sql`
+  // Borrar (solo mismo modo + tipos del archivo, no afecta el otro modo) e
+  // insertar en una sola transacción: o queda la carga completa o no cambia nada.
+  await sql.transaction([
+    sql`DELETE FROM inventario_datos
+        WHERE fecha = ${fechaStr} AND modo = ${modo}
+          AND (tipo = '' OR tipo IS NULL OR tipo = ANY(${tipos}::text[]))`,
+    sql`
       INSERT INTO inventario_datos
         (fecha, categoria, referencia, descripcion, localizacion,
          cantidad, um, costo_unitario, costo_total, tipo, lote, modo, cargado_por)
-      VALUES (
-        ${fechaStr},
-        ${fields[cols.categoria]?.trim() ?? ''},
-        ${fields[cols.referencia].trim()},
-        ${fields[cols.descripcion]?.trim() ?? ''},
-        ${fields[cols.localizacion]?.trim() ?? ''},
-        ${limpiarNum(fields[cols.cantidad] ?? '0')},
-        ${fields[cols.um]?.trim() ?? ''},
-        ${limpiarNum(fields[cols.costo_unitario] ?? '0')},
-        ${limpiarNum(fields[cols.costo_total] ?? '0')},
-        ${fields[cols.tipo]?.trim() ?? ''},
-        ${loteVal},
-        ${modo},
-        ${userId}
-      )`
-    insertados++
-  }
+      SELECT ${fechaStr}::date, cat, ref, des, loc, cant, um, cu, ct, tip, lot, ${modo}, ${userId}::int
+      FROM unnest(
+        ${col(0)}::text[], ${col(1)}::text[], ${col(2)}::text[], ${col(3)}::text[], ${col(4)}::numeric[],
+        ${col(5)}::text[], ${col(6)}::numeric[], ${col(7)}::numeric[], ${col(8)}::text[], ${col(9)}::text[]
+      ) AS t(cat, ref, des, loc, cant, um, cu, ct, tip, lot)`,
+  ])
 
   const tiposStr = Array.from(tiposEnArchivo).join(', ')
 

@@ -76,14 +76,11 @@ set DATABASE_URL=postgresql://...tu-string... && node scripts/setup-db.js
 $env:DATABASE_URL="postgresql://...tu-string..."; node scripts/setup-db.js
 ```
 
-Verás:
-```
-✅ admin    → contraseña: Admin2024!
-✅ usuario1 → contraseña: User1_2024!
-✅ usuario2 → contraseña: User2_2024!
-```
+El script muestra **una sola vez** una contraseña temporal aleatoria por usuario
+(o usa la de `SETUP_PASSWORD_ADMIN`, `SETUP_PASSWORD_USUARIO1`... si las defines).
+Los usuarios quedan obligados a cambiarla al primer ingreso, y si ya existen no se modifican.
 
-> ⚠️ Cambia estas contraseñas una vez en producción (desde el SQL Editor de Neon con UPDATE)
+> ⚠️ No escribas contraseñas reales en este README ni en el código.
 
 ---
 
@@ -96,7 +93,7 @@ npm run dev
 Abre http://localhost:3000 en el navegador.
 
 Prueba de flujo completo:
-1. **Login** con admin / Admin2024!
+1. **Login** con `admin` y la contraseña temporal que mostró `setup-db.js`
 2. **Cargar inventario** → sube el archivo `inv22.txt` de prueba
 3. **Conteo Físico** → selecciona la fecha, edita conteos y guarda
 4. **Acumulados** → busca sin filtros para ver todo

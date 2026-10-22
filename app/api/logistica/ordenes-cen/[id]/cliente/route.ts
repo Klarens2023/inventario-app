@@ -7,11 +7,14 @@ export const runtime = 'nodejs'
 
 // GET /api/logistica/ordenes-cen/[id]/cliente — datos del cliente/sucursal de la orden tal como
 // están en Siesa (API_v2_Clientes) más lo configurado en la app, para rectificarlos antes del pedido.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
+  const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
 
-  const [orden] = await sql`SELECT nit, sucursal, ean_entrega FROM cen_ordenes WHERE id = ${parseInt(params.id)}`
+  const [orden] = await sql`SELECT nit, sucursal, ean_entrega FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
   if (!orden.nit) return NextResponse.json({ asociada: false })
 

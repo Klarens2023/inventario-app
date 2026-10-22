@@ -12,6 +12,8 @@ declare module 'next-auth' {
       debe_cambiar_password: boolean
       punto_venta_id: number | null
       modulos: string[]
+      /** true si el usuario fue desactivado/eliminado después de iniciar sesión */
+      revocado?: boolean
     }
   }
 }
@@ -24,5 +26,7 @@ declare module 'next-auth/jwt' {
     debe_cambiar_password: boolean
     punto_venta_id: number | null
     modulos: string[]
+    /** Lo fija callbacks.jwt al revalidar contra la BD (lib/auth.ts) */
+    revocado?: boolean
   }
 }

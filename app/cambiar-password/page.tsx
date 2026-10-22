@@ -5,7 +5,10 @@ import Image from 'next/image'
 
 export default function CambiarPasswordPage() {
   const { data: session, update } = useSession()
+  // Cambio obligatorio (contraseña temporal): no se pide la actual. Cambio voluntario: sí.
+  const obligatorio = session?.user?.debe_cambiar_password ?? true
 
+  const [actual, setActual]       = useState('')
   const [nueva, setNueva]         = useState('')
   const [confirmar, setConfirmar] = useState('')
   const [error, setError]         = useState('')
@@ -17,8 +20,8 @@ export default function CambiarPasswordPage() {
     e.preventDefault()
     setError('')
 
-    if (nueva.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
+    if (nueva.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres')
       return
     }
     if (nueva !== confirmar) {
@@ -31,7 +34,8 @@ export default function CambiarPasswordPage() {
       const res = await fetch('/api/cambiar-password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nueva_password: nueva }),
+        // En un cambio voluntario el servidor exige la contraseña actual (AUD-18)
+        body: JSON.stringify(obligatorio ? { nueva_password: nueva } : { nueva_password: nueva, password_actual: actual }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Error al cambiar la contraseña'); return }
@@ -67,7 +71,9 @@ export default function CambiarPasswordPage() {
             Cambio de Contraseña
           </h1>
           <p style={{ fontSize: 13, color: '#64748b', marginTop: 8 }}>
-            Hola <strong>{session?.user?.name}</strong>, por seguridad debes establecer una nueva contraseña antes de continuar.
+            {obligatorio
+              ? <>Hola <strong>{session?.user?.name}</strong>, por seguridad debes establecer una nueva contraseña antes de continuar.</>
+              : <>Hola <strong>{session?.user?.name}</strong>, ingresa tu contraseña actual y la nueva.</>}
           </p>
         </div>
 
@@ -81,6 +87,20 @@ export default function CambiarPasswordPage() {
             </div>
           )}
 
+          {!obligatorio && (
+            <div>
+              <label style={labelStyle}>Contraseña actual</label>
+              <input
+                type="password"
+                value={actual}
+                onChange={e => setActual(e.target.value)}
+                autoComplete="current-password"
+                required
+                style={inputStyle}
+              />
+            </div>
+          )}
+
           <div>
             <label style={labelStyle}>Nueva contraseña</label>
             <div style={{ position: 'relative' }}>
@@ -88,7 +108,7 @@ export default function CambiarPasswordPage() {
                 type={showNueva ? 'text' : 'password'}
                 value={nueva}
                 onChange={e => setNueva(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 8 caracteres"
                 required
                 style={{ ...inputStyle, paddingRight: 44 }}
               />

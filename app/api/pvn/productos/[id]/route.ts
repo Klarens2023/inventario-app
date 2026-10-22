@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getAuthUser } from '@/lib/api-auth'
+import type { NeonQueryPromise } from '@neondatabase/serverless'
 import { sql } from '@/lib/db'
+import { qInsertarComponentes } from '@/lib/pvn-componentes'
 import { tieneModulo } from '@/lib/permissions'
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+// GET: cualquier usuario autenticado (el catálogo lo usan PVN, PVV y análisis).
+// getAuthUser y no solo getServerSession: rechaza sesiones revocadas y con cambio
+// de contraseña pendiente, que getServerSession por sí solo no filtra.
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
+  const user = await getAuthUser(req)
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [producto] = await sql`
     SELECT
       p.id, p.nombre, p.activo,
@@ -32,7 +40,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json(producto)
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
@@ -50,26 +59,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     componentes?: Array<{ componente_nombre: string; cantidad: number; unidad: string; componente_id?: number }>
   }
 
+  // Nombre, estado y receta en una sola transacción (AUD-22): antes se borraba
+  // la receta y se insertaba componente por componente; un fallo a mitad dejaba
+  // el producto sin receta completa.
+  const cambios: NeonQueryPromise<false, false>[] = []
   if (nombre !== undefined && nombre.trim()) {
-    await sql`UPDATE pvn_productos SET nombre = ${nombre.trim()} WHERE id = ${id}`
+    cambios.push(sql`UPDATE pvn_productos SET nombre = ${nombre.trim()} WHERE id = ${id}`)
   }
   if (activo !== undefined) {
-    await sql`UPDATE pvn_productos SET activo = ${!!activo} WHERE id = ${id}`
+    cambios.push(sql`UPDATE pvn_productos SET activo = ${!!activo} WHERE id = ${id}`)
   }
   if (componentes !== undefined) {
-    await sql`DELETE FROM pvn_componentes WHERE producto_id = ${id}`
-
-    const [maxCid] = await sql`SELECT COALESCE(MAX(componente_id), 0) AS max FROM pvn_componentes`
-    let counter = (maxCid.max as number) + 1
-    for (const c of componentes) {
-      if (!c.componente_nombre?.trim() || c.cantidad == null) continue
-      const cid = c.componente_id ?? counter++
-      await sql`
-        INSERT INTO pvn_componentes (producto_id, componente_id, componente_nombre, cantidad, unidad)
-        VALUES (${id}, ${cid}, ${c.componente_nombre.trim()}, ${c.cantidad}, ${c.unidad ?? 'UND'})
-      `
-    }
+    cambios.push(sql`DELETE FROM pvn_componentes WHERE producto_id = ${id}`)
+    const qComp = qInsertarComponentes(id, componentes)
+    if (qComp) cambios.push(qComp)
   }
+  if (cambios.length > 0) await sql.transaction(cambios)
 
   const [updated] = await sql`
     SELECT p.id, p.nombre, p.activo,

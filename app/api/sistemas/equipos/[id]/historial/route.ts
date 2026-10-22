@@ -11,7 +11,8 @@ function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | nu
 
 // POST /api/sistemas/equipos/[id]/historial
 // body.tipo: 'mantenimiento' | 'incidencia' | 'cambio'
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })

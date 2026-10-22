@@ -5,6 +5,8 @@ import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
 import { subirADrive, aUrlProxy } from '@/lib/google-drive'
+import { escapeHtml } from '@/lib/html'
+import { valorMonetario } from '@/lib/validacion'
 
 async function agregarEtiqueta(
   buffer: Buffer,
@@ -17,8 +19,10 @@ async function agregarEtiqueta(
   const width  = meta.width  ?? 800
   const height = meta.height ?? 600
 
-  const linea1 = `${fecha}  ${hora}`
-  const linea2 = `${sede}  ·  ${usuario}`
+  // Escapados: el nombre del punto o del usuario con "<" o "&" rompía el SVG
+  // (el banner se perdía en silencio) y permitía inyectar marcado SVG.
+  const linea1 = escapeHtml(`${fecha}  ${hora}`)
+  const linea2 = escapeHtml(`${sede}  ·  ${usuario}`)
   // El banner nunca puede ser más alto que la propia foto, o sharp rechaza el
   // composite ("Image to composite must have same dimensions or smaller") —
   // pasaba con fotos de aspecto poco común (ej. capturas muy alargadas).
@@ -62,11 +66,11 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData()
   const foto = form.get('foto') as File | null
-  const valor = parseFloat(String(form.get('valor') ?? ''))
+  const valor = valorMonetario(form.get('valor'))
   const turnoIdForm = form.get('turno_id') as string | null
 
   if (!foto) return NextResponse.json({ error: 'La foto es obligatoria' }, { status: 400 })
-  if (!valor || valor <= 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
+  if (valor === null) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
   if (!foto.type.startsWith('image/')) {
     return NextResponse.json({ error: 'El archivo debe ser una imagen' }, { status: 400 })
   }

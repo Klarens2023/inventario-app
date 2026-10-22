@@ -7,7 +7,8 @@ import { canAccessRepuestos, DESTINOS_RETIRO, MOTIVO_RETORNO, texto, esFecha } f
 import { reservarIds, qMovimientoStock, qCerrarAsignacion, asignacionVigente, ETIQUETA_DESTINO, type Query } from '@/lib/repuestos-db'
 
 // GET /api/sistemas/repuestos/asignaciones/[id] — detalle completo (para el acta impresa)
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
@@ -44,7 +45,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 // POST /api/sistemas/repuestos/asignaciones/[id] — retira una asignación vigente (devolución de préstamo,
 // devolución del usuario, daño, pérdida...). Si regresa al inventario, el stock sube y queda la entrada en el kardex.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })

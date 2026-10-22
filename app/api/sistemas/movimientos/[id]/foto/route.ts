@@ -10,7 +10,8 @@ const MAX_BYTES = 8 * 1024 * 1024
 // POST /api/sistemas/movimientos/[id]/foto — sube la foto del formato ya
 // firmado y autorizado. Usa getAuthUser (no getServerSession) para que tanto
 // la sesión web como el JWT de la app móvil puedan subir la foto.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!tieneModulo(user.rol, user.modulos, 'movimientos_tic')) {

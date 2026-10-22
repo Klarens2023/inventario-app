@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
+import { conReintentoPorDuplicado } from '@/lib/reintentar'
+import { qInsertarComponentes } from '@/lib/pvn-componentes'
 
 const SELECT_PROD = `
   SELECT
@@ -55,24 +57,17 @@ export async function POST(req: NextRequest) {
 
   if (!nombre?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 })
 
-  const maxRow = await sql`SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM pvn_productos`
-  const [nuevo] = await sql`
-    INSERT INTO pvn_productos (id, nombre) VALUES (${maxRow[0].next_id}, ${nombre.trim()})
-    RETURNING id, nombre, activo
-  `
-
-  if (Array.isArray(componentes) && componentes.length > 0) {
-    const maxCid = await sql`SELECT COALESCE(MAX(componente_id), 0) AS max FROM pvn_componentes`
-    let counter = (maxCid[0].max as number) + 1
-    for (const c of componentes) {
-      if (!c.componente_nombre?.trim() || c.cantidad == null) continue
-      const cid = c.componente_id ?? counter++
-      await sql`
-        INSERT INTO pvn_componentes (producto_id, componente_id, componente_nombre, cantidad, unidad)
-        VALUES (${nuevo.id}, ${cid}, ${c.componente_nombre.trim()}, ${c.cantidad}, ${c.unidad ?? 'UND'})
-      `
-    }
-  }
+  // Producto y receta en una transacción (AUD-22); el id es "último + 1" y se
+  // reintenta si otra alta simultánea tomó el mismo (AUD-21).
+  const nuevo = await conReintentoPorDuplicado(async () => {
+    const [{ next_id }] = await sql`SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM pvn_productos`
+    const qComp = qInsertarComponentes(next_id, componentes)
+    const [filas] = await sql.transaction([
+      sql`INSERT INTO pvn_productos (id, nombre) VALUES (${next_id}, ${nombre.trim()}) RETURNING id, nombre, activo`,
+      ...(qComp ? [qComp] : []),
+    ])
+    return filas[0]
+  })
 
   return NextResponse.json(nuevo, { status: 201 })
 }

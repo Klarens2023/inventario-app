@@ -51,50 +51,56 @@ async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): 
   const peso = todosConPeso ? o.lineas.reduce((s, l) => s + l.cantidad * (pesoPorEan.get(l.eanItem) ?? 0), 0) : null
   const estado = punto ? 'pendiente' : 'sin_punto'
 
-  let ordenId: number
-  if (existente) {
-    ordenId = existente.id
-    await sql`
-      UPDATE cen_ordenes SET
-        fuente = ${fuente}, archivo_id = ${archivoId}, fecha_orden = ${o.fechaOrden}, fecha_entrega = ${o.fechaEntrega},
-        fecha_entrega_max = ${o.fechaEntregaMax}, ean_entrega = ${o.eanEntrega},
-        nit = ${punto?.nit ?? null}, sucursal = ${punto?.sucursal ?? null}, razon_social = ${punto?.razon_social ?? null},
-        total_unidades = ${unidades}, valor_total = ${valor}, peso_kg = ${peso},
-        estado = CASE WHEN estado = 'descartada' THEN estado ELSE ${estado} END, updated_at = NOW()
-      WHERE id = ${ordenId}
-    `
-    await sql`DELETE FROM cen_orden_lineas WHERE orden_id = ${ordenId}`
-  } else {
-    const [nueva] = await sql`
-      INSERT INTO cen_ordenes (fuente, archivo_id, numero_orden, fecha_orden, fecha_entrega, fecha_entrega_max,
-        ean_comprador, ean_entrega, nit, sucursal, razon_social, total_unidades, valor_total, peso_kg, estado)
-      VALUES (${fuente}, ${archivoId}, ${o.numeroOrden}, ${o.fechaOrden}, ${o.fechaEntrega}, ${o.fechaEntregaMax},
-        ${o.eanComprador}, ${o.eanEntrega}, ${punto?.nit ?? null}, ${punto?.sucursal ?? null}, ${punto?.razon_social ?? null},
-        ${unidades}, ${valor}, ${peso}, ${estado})
-      RETURNING id
-    `
-    ordenId = nueva.id
-  }
-
-  // Todas las líneas en una sola consulta, y todo el reparto por tienda en otra
-  // (cada consulta a Neon es un viaje HTTP; una por línea no cabe en el tiempo de Vercel).
-  const lineas = await sql`
-    INSERT INTO cen_orden_lineas (orden_id, nro_linea, ean_item, cod_comprador, descripcion, cantidad, precio, iva)
-    SELECT ${ordenId}, n, e, c, d, q, p, i FROM unnest(
-      ${o.lineas.map(l => l.nroLinea)}::int[], ${o.lineas.map(l => l.eanItem)}::text[],
-      ${o.lineas.map(l => l.codComprador)}::text[], ${o.lineas.map(l => l.descripcion)}::text[],
-      ${o.lineas.map(l => l.cantidad)}::numeric[], ${o.lineas.map(l => l.precio)}::numeric[],
-      ${o.lineas.map(l => l.iva)}::numeric[]
-    ) AS t(n, e, c, d, q, p, i)
-    RETURNING id, nro_linea
+  // Líneas y reparto por tienda en una sola sentencia; la orden se ubica por su
+  // clave única (comprador + número), así funciona igual para orden nueva o existente.
+  // Si hay líneas con el mismo número, el reparto va a la última, como antes.
+  const reparto = o.lineas.flatMap(l => l.distribucion.map(d => ({ nro: l.nroLinea, ...d })))
+  const qLineas = sql`
+    WITH ord AS (SELECT id FROM cen_ordenes WHERE ean_comprador = ${o.eanComprador} AND numero_orden = ${o.numeroOrden}),
+    lin AS (
+      INSERT INTO cen_orden_lineas (orden_id, nro_linea, ean_item, cod_comprador, descripcion, cantidad, precio, iva)
+      SELECT ord.id, n, e, c, d, q, p, i FROM ord, unnest(
+        ${o.lineas.map(l => l.nroLinea)}::int[], ${o.lineas.map(l => l.eanItem)}::text[],
+        ${o.lineas.map(l => l.codComprador)}::text[], ${o.lineas.map(l => l.descripcion)}::text[],
+        ${o.lineas.map(l => l.cantidad)}::numeric[], ${o.lineas.map(l => l.precio)}::numeric[],
+        ${o.lineas.map(l => l.iva)}::numeric[]
+      ) AS t(n, e, c, d, q, p, i)
+      RETURNING id, nro_linea
+    )
+    INSERT INTO cen_orden_distribucion (linea_id, ean_local, cantidad)
+    SELECT ul.id, r.loc, r.cant
+    FROM (SELECT DISTINCT ON (nro_linea) id, nro_linea FROM lin ORDER BY nro_linea, id DESC) ul
+    JOIN unnest(${reparto.map(r => r.nro)}::int[], ${reparto.map(r => r.eanLocal)}::text[], ${reparto.map(r => r.cantidad)}::numeric[])
+      AS r(nro, loc, cant) ON r.nro = ul.nro_linea
   `
-  const idPorLinea = new Map(lineas.map(l => [l.nro_linea as number, l.id as number]))
-  const reparto = o.lineas.flatMap(l => l.distribucion.map(d => ({ lineaId: idPorLinea.get(l.nroLinea)!, ...d })))
-  if (reparto.length) {
-    await sql`
-      INSERT INTO cen_orden_distribucion (linea_id, ean_local, cantidad)
-      SELECT * FROM unnest(${reparto.map(r => r.lineaId)}::int[], ${reparto.map(r => r.eanLocal)}::text[], ${reparto.map(r => r.cantidad)}::numeric[])
-    `
+
+  // Encabezado, líneas y reparto en una transacción (AUD-22): antes, si fallaba la
+  // inserción de líneas después de borrar las anteriores, la orden quedaba sin líneas.
+  if (existente) {
+    await sql.transaction([
+      sql`
+        UPDATE cen_ordenes SET
+          fuente = ${fuente}, archivo_id = ${archivoId}, fecha_orden = ${o.fechaOrden}, fecha_entrega = ${o.fechaEntrega},
+          fecha_entrega_max = ${o.fechaEntregaMax}, ean_entrega = ${o.eanEntrega},
+          nit = ${punto?.nit ?? null}, sucursal = ${punto?.sucursal ?? null}, razon_social = ${punto?.razon_social ?? null},
+          total_unidades = ${unidades}, valor_total = ${valor}, peso_kg = ${peso},
+          estado = CASE WHEN estado = 'descartada' THEN estado ELSE ${estado} END, updated_at = NOW()
+        WHERE id = ${existente.id}
+      `,
+      sql`DELETE FROM cen_orden_lineas WHERE orden_id = ${existente.id}`,
+      qLineas,
+    ])
+  } else {
+    await sql.transaction([
+      sql`
+        INSERT INTO cen_ordenes (fuente, archivo_id, numero_orden, fecha_orden, fecha_entrega, fecha_entrega_max,
+          ean_comprador, ean_entrega, nit, sucursal, razon_social, total_unidades, valor_total, peso_kg, estado)
+        VALUES (${fuente}, ${archivoId}, ${o.numeroOrden}, ${o.fechaOrden}, ${o.fechaEntrega}, ${o.fechaEntregaMax},
+          ${o.eanComprador}, ${o.eanEntrega}, ${punto?.nit ?? null}, ${punto?.sucursal ?? null}, ${punto?.razon_social ?? null},
+          ${unidades}, ${valor}, ${peso}, ${estado})
+      `,
+      qLineas,
+    ])
   }
   return { resultado: existente ? 'actualizada' : 'nueva', porRevisar: !punto }
 }

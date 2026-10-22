@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { sql } from '@/lib/db'
-import { minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from '@/lib/loginBruteForce'
+import { compararSenuelo, minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from '@/lib/loginBruteForce'
 
 // Login para la app móvil (PVN/PVV) — emite un JWT propio, independiente de la
 // sesión por cookie de NextAuth (no accesible desde React Native).
 export async function POST(req: NextRequest) {
-  const { username, password } = await req.json() as { username?: string; password?: string }
+  const { username, password } = await req.json().catch(() => ({})) as { username?: string; password?: string }
   if (!username || !password) {
     return NextResponse.json({ error: 'Usuario y contraseña requeridos' }, { status: 400 })
   }
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     LIMIT 1
   `
   if (rows.length === 0) {
+    await compararSenuelo(password)
     return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 })
   }
 
@@ -65,7 +66,10 @@ export async function POST(req: NextRequest) {
     modulos,
   }
 
-  const token = jwt.sign(payload, process.env.NEXTAUTH_SECRET as string, { expiresIn: '30d' })
+  // El token lleva rol/módulos solo como referencia para la app: getAuthUser
+  // (lib/api-auth.ts) los vuelve a leer de la BD en cada petición, así que
+  // desactivar al usuario o cambiarle permisos aplica de inmediato.
+  const token = jwt.sign(payload, process.env.NEXTAUTH_SECRET as string, { expiresIn: '30d', algorithm: 'HS256' })
 
   return NextResponse.json({ token, user: payload })
 }

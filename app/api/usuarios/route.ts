@@ -3,10 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { modulosPorDefecto, type AreaInfo } from '@/lib/permissions'
+import { MODULOS, modulosPorDefecto, type AreaInfo } from '@/lib/permissions'
 import bcrypt from 'bcryptjs'
-
-const PASSWORD_GENERICA = '123456'
+import { generarPasswordTemporal } from '@/lib/passwordTemporal'
 
 const SELECT_CON_MODULOS = `
   SELECT u.id, u.username, u.nombre, u.rol, u.area, u.activo, u.debe_cambiar_password, u.created_at,
@@ -60,8 +59,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Usuario y nombre son obligatorios' }, { status: 400 })
   }
 
-  if (rol === 'lider' && rolNuevo === 'admin') {
-    return NextResponse.json({ error: 'No tienes permiso para crear administradores' }, { status: 403 })
+  // AUD-16: un líder solo crea usuarios de rol usuario, pvn o pvv
+  if (rol === 'lider' && ['admin', 'lider'].includes(rolNuevo)) {
+    return NextResponse.json({ error: 'Solo un administrador puede crear administradores o líderes' }, { status: 403 })
   }
 
   const areaFinal = rol === 'admin' ? (areaNueva ?? 'logistica') : (session.user?.area ?? 'logistica')
@@ -75,15 +75,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El nombre de usuario ya existe' }, { status: 409 })
   }
 
-  const hash = await bcrypt.hash(PASSWORD_GENERICA, 10)
+  // Contraseña temporal aleatoria por usuario (antes "123456" para todos): se guarda
+  // solo el hash y se devuelve en claro una única vez en esta respuesta.
+  const passwordTemporal = generarPasswordTemporal()
+  const hash = await bcrypt.hash(passwordTemporal, 10)
 
   const puntoVentaId = (['pvn', 'pvv'].includes(rolFinal) && pvId) ? parseInt(pvId) : null
-
-  const [nuevo] = await sql`
-    INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password, punto_venta_id, acceso_movil)
-    VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true, ${puntoVentaId}, ${accesoMovilFinal})
-    RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at, acceso_movil
-  `
 
   const [areaInfo] = await sql`SELECT * FROM areas WHERE key = ${areaFinal}`
 
@@ -101,8 +98,31 @@ export async function POST(req: NextRequest) {
   } else {
     modulosFinal = modulosPorDefecto(rolFinal, areaInfo as AreaInfo | undefined)
   }
-  for (const m of modulosFinal) {
-    await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${nuevo.id}, ${m}) ON CONFLICT DO NOTHING`
+  // Solo módulos que existen en el catálogo (antes se guardaba cualquier texto).
+  modulosFinal = modulosFinal.filter(m => (MODULOS as readonly string[]).includes(m))
+
+  // Usuario y módulos en una sola sentencia (AUD-22): antes eran un INSERT por
+  // módulo y un fallo a mitad dejaba al usuario creado con módulos incompletos.
+  let nuevo
+  try {
+    ;[nuevo] = await sql`
+      WITH nuevo AS (
+        INSERT INTO usuarios (username, password_hash, nombre, rol, area, activo, debe_cambiar_password, punto_venta_id, acceso_movil)
+        VALUES (${username.trim()}, ${hash}, ${nombre.trim()}, ${rolFinal}, ${areaFinal}, true, true, ${puntoVentaId}, ${accesoMovilFinal})
+        RETURNING id, username, nombre, rol, area, activo, debe_cambiar_password, created_at, acceso_movil
+      ), mods AS (
+        INSERT INTO usuario_modulos (usuario_id, modulo)
+        SELECT nuevo.id, m FROM nuevo, unnest(${modulosFinal}::text[]) AS m
+        ON CONFLICT DO NOTHING
+      )
+      SELECT * FROM nuevo
+    `
+  } catch (e) {
+    // 23505: otro admin creó el mismo usuario entre el chequeo de arriba y este INSERT
+    if ((e as { code?: string })?.code === '23505') {
+      return NextResponse.json({ error: 'El nombre de usuario ya existe' }, { status: 409 })
+    }
+    throw e
   }
 
   await logAudit({
@@ -113,5 +133,6 @@ export async function POST(req: NextRequest) {
     datos: { usuario_creado: username.trim(), rol: rolFinal, area: areaFinal },
   })
 
-  return NextResponse.json(nuevo, { status: 201 })
+  // no-store: la respuesta lleva la contraseña temporal en claro
+  return NextResponse.json({ ...nuevo, password_temporal: passwordTemporal }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
 }

@@ -93,7 +93,7 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVent
                 <option value="usuario">Usuario</option>
                 <option value="pvn">PVN (Punto de Venta)</option>
                 <option value="pvv">PVV (Punto Principal — app móvil)</option>
-                <option value="lider">Líder de Área</option>
+                {esAdmin && <option value="lider">Líder de Área</option>}
                 {esAdmin && <option value="admin">Administrador</option>}
               </select>
             </div>
@@ -142,7 +142,7 @@ export function ModalEditar({ usuario, esAdmin, sessionUserId, areas, puntosVent
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: resetPassword ? '#991b1b' : '#1e293b' }}>Restablecer contraseña</div>
               <div style={{ fontSize: 12, color: resetPassword ? '#b91c1c' : '#64748b', marginTop: 2 }}>
-                Pone la contraseña genérica <strong>123456</strong> y el usuario deberá cambiarla al iniciar sesión.
+                Genera una contraseña temporal nueva (se muestra una sola vez al guardar) y el usuario deberá cambiarla al iniciar sesión.
               </div>
             </div>
           </div>

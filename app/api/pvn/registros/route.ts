@@ -89,8 +89,16 @@ export async function POST(req: NextRequest) {
   }
 
   if (!turno) return NextResponse.json({ error: 'El turno es obligatorio' }, { status: 400 })
-  const items = (detalle ?? []).filter(d => d.cantidad > 0)
+  // Number(): la app móvil puede enviar los números como texto ("3"), como antes se aceptaba.
+  const items = (Array.isArray(detalle) ? detalle : [])
+    .map(d => ({ producto_id: Number(d?.producto_id), producto_nombre: String(d?.producto_nombre ?? ''), cantidad: Number(d?.cantidad) }))
+    .filter(d => d.cantidad > 0)
   if (items.length === 0) return NextResponse.json({ error: 'Registra al menos un producto vendido' }, { status: 400 })
+  // Rango de INTEGER de PostgreSQL: un valor mayor hacía fallar el INSERT con un 500.
+  const MAX_INT = 2_147_483_647
+  if (items.some(d => !Number.isInteger(d.cantidad) || !Number.isInteger(d.producto_id) || d.cantidad > MAX_INT || d.producto_id <= 0 || d.producto_id > MAX_INT)) {
+    return NextResponse.json({ error: 'Detalle inválido: cantidades y productos deben ser números enteros' }, { status: 400 })
+  }
 
   const hoy = hoyBogota()
   // pvn solo puede registrar el día en curso (hora Colombia)
@@ -117,25 +125,38 @@ export async function POST(req: NextRequest) {
     LIMIT 1
   `
 
-  const [registro] = await sql`
-    INSERT INTO pvn_registros (usuario_id, usuario_nombre, fecha, turno, observaciones, punto_venta_id, punto_venta_nombre)
-    VALUES (
-      ${parseInt(user.id)},
-      ${user.name ?? 'PVN'},
-      ${fechaFinal}::date,
-      ${turno},
-      ${observaciones ?? null},
-      ${userInfo?.punto_venta_id ?? null},
-      ${userInfo?.punto_venta_nombre ?? null}
-    )
-    RETURNING id
-  `
-
-  for (const item of items) {
-    await sql`
-      INSERT INTO pvn_registros_detalle (registro_id, producto_id, producto_nombre, cantidad)
-      VALUES (${registro.id}, ${item.producto_id}, ${item.producto_nombre}, ${item.cantidad})
+  // Encabezado y detalle en una sola sentencia (CTE): antes eran un INSERT por
+  // producto y, si uno fallaba, quedaba un registro sin detalle que además
+  // bloqueaba reintentar (el chequeo de duplicado de arriba ya lo encontraba).
+  let registro
+  try {
+    ;[registro] = await sql`
+      WITH reg AS (
+        INSERT INTO pvn_registros (usuario_id, usuario_nombre, fecha, turno, observaciones, punto_venta_id, punto_venta_nombre)
+        VALUES (
+          ${parseInt(user.id)},
+          ${user.name ?? 'PVN'},
+          ${fechaFinal}::date,
+          ${turno},
+          ${observaciones ?? null},
+          ${userInfo?.punto_venta_id ?? null},
+          ${userInfo?.punto_venta_nombre ?? null}
+        )
+        RETURNING id
+      ), det AS (
+        INSERT INTO pvn_registros_detalle (registro_id, producto_id, producto_nombre, cantidad)
+        SELECT reg.id, d.pid, d.pnom, d.cant
+        FROM reg, unnest(${items.map(i => i.producto_id)}::int[], ${items.map(i => i.producto_nombre)}::text[],
+                         ${items.map(i => i.cantidad)}::int[]) AS d(pid, pnom, cant)
+      )
+      SELECT id FROM reg
     `
+  } catch (e) {
+    // 23505 = ux_pvn_registros_turno (scripts/migrate-add-indices-unicos.js): envío doble simultáneo
+    if ((e as { code?: string })?.code === '23505') {
+      return NextResponse.json({ error: `Ya existe un registro para el ${fechaFinal} en el turno ${turno}` }, { status: 409 })
+    }
+    throw e
   }
 
   await logAudit({

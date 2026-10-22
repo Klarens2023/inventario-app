@@ -7,7 +7,8 @@ import { canAccessRepuestos, CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpciona
 
 // PUT /api/sistemas/repuestos/[codigo] — editar datos del artículo.
 // El stock NO se edita aquí: solo cambia con movimientos (entrada / salida / ajuste).
-export async function PUT(req: NextRequest, { params }: { params: { codigo: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ codigo: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })

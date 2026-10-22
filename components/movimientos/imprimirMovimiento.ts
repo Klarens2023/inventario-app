@@ -1,4 +1,5 @@
 import type { MovimientoDetalle } from '@/types/movimientos'
+import { escapeHtml as esc } from '@/lib/html'
 
 const TIPOS_COL1 = [
   'Asignación / Reasignación', 'Traslado Interno', 'Cambio de responsable',
@@ -38,15 +39,15 @@ export function imprimirMovimiento(mov: MovimientoDetalle, baseUrl = '') {
   const activosRows = Array.from({ length: Math.max(10, mov.activos.length) }, (_, i) => {
     const a = mov.activos[i]
     return `<tr style="height:20px;">
-      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;">${a?.equipo_id ?? ''}</td>
-      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;">${a?.descripcion ?? ''}</td>
-      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;text-align:center;">${a?.cantidad ?? ''}</td>
-      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;">${a?.tipo_activo ?? ''}</td>
+      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;">${esc(a?.equipo_id)}</td>
+      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;">${esc(a?.descripcion)}</td>
+      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;text-align:center;">${esc(a?.cantidad)}</td>
+      <td style="border:1px solid #000;padding:2px 4px;font-size:8pt;">${esc(a?.tipo_activo)}</td>
     </tr>`
   }).join('')
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-<title>Movimiento ${mov.id}</title>
+<title>Movimiento ${esc(mov.id)}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0;
       -webkit-print-color-adjust:exact !important;
@@ -104,13 +105,13 @@ export function imprimirMovimiento(mov: MovimientoDetalle, baseUrl = '') {
   </tr>
   <tr>
     <td style="border:1px solid #000;width:8%;font-weight:bold;padding:3px 5px;">FECHA:</td>
-    <td style="border:1px solid #000;width:5%;text-align:center;padding:3px;">${dia}</td>
-    <td style="border:1px solid #000;width:5%;text-align:center;padding:3px;">${mes}</td>
-    <td style="border:1px solid #000;width:7%;text-align:center;padding:3px;">${anio}</td>
+    <td style="border:1px solid #000;width:5%;text-align:center;padding:3px;">${esc(dia)}</td>
+    <td style="border:1px solid #000;width:5%;text-align:center;padding:3px;">${esc(mes)}</td>
+    <td style="border:1px solid #000;width:7%;text-align:center;padding:3px;">${esc(anio)}</td>
     <td style="border:none;width:37%;padding:0;"></td>
     <td style="border:1px solid #000;width:20%;font-weight:bold;text-align:right;padding:3px 6px;white-space:nowrap;">CONSECUTIVO No.</td>
     <td style="border:1px solid #000;width:9%;text-align:center;font-weight:bold;padding:3px;">TIC</td>
-    <td style="border:1px solid #000;width:9%;text-align:center;padding:3px;">${nroConsec}</td>
+    <td style="border:1px solid #000;width:9%;text-align:center;padding:3px;">${esc(nroConsec)}</td>
   </tr>
 </table>
 
@@ -162,21 +163,21 @@ export function imprimirMovimiento(mov: MovimientoDetalle, baseUrl = '') {
   </tr>
   <tr>
     <td style="border:1px solid #000;width:12%;font-weight:bold;font-size:8pt;padding:2px 5px;">Nombre</td>
-    <td style="border:1px solid #000;width:38%;font-size:8pt;padding:2px 5px;text-align:center;">${mov.origen_nombre}</td>
+    <td style="border:1px solid #000;width:38%;font-size:8pt;padding:2px 5px;text-align:center;">${esc(mov.origen_nombre)}</td>
     <td style="border:1px solid #000;width:12%;font-weight:bold;font-size:8pt;padding:2px 5px;">Nombre</td>
-    <td style="border:1px solid #000;width:38%;font-size:8pt;padding:2px 5px;text-align:center;">${mov.destino_nombre}</td>
+    <td style="border:1px solid #000;width:38%;font-size:8pt;padding:2px 5px;text-align:center;">${esc(mov.destino_nombre)}</td>
   </tr>
   <tr>
     <td style="border:1px solid #000;font-weight:bold;font-size:8pt;padding:2px 5px;">No. De Documento</td>
-    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${mov.origen_documento}</td>
+    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${esc(mov.origen_documento)}</td>
     <td style="border:1px solid #000;font-weight:bold;font-size:8pt;padding:2px 5px;">No. De Documento</td>
-    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${mov.destino_documento}</td>
+    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${esc(mov.destino_documento)}</td>
   </tr>
   <tr>
     <td style="border:1px solid #000;font-weight:bold;font-size:8pt;padding:2px 5px;">Dependencia</td>
-    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${mov.origen_area}</td>
+    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${esc(mov.origen_area)}</td>
     <td style="border:1px solid #000;font-weight:bold;font-size:8pt;padding:2px 5px;">Dependencia</td>
-    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${mov.destino_area}</td>
+    <td style="border:1px solid #000;font-size:8pt;padding:2px 5px;text-align:center;">${esc(mov.destino_area)}</td>
   </tr>
 </table>
 
@@ -217,7 +218,7 @@ export function imprimirMovimiento(mov: MovimientoDetalle, baseUrl = '') {
     <td style="background:${S};color:#fff;font-weight:bold;font-size:8.5pt;text-align:center;padding:3px;border:1px solid #000;">OBSERVACIONES</td>
   </tr>
   <tr>
-    <td style="border:1px solid #000;height:30px;padding:3px 6px;font-size:8.5pt;">${mov.observaciones ?? ''}</td>
+    <td style="border:1px solid #000;height:30px;padding:3px 6px;font-size:8.5pt;">${esc(mov.observaciones)}</td>
   </tr>
 </table>
 

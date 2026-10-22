@@ -6,12 +6,14 @@ import { logAudit } from '@/lib/audit'
 
 // PUT /api/areas/[id] — editar label/color/roles/modulos por defecto (solo admin)
 // El `key` no se puede cambiar: es lo que queda guardado en usuarios.area.
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (session.user.rol !== 'admin') return NextResponse.json({ error: 'Solo un administrador puede editar áreas' }, { status: 403 })
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [existente] = await sql`SELECT * FROM areas WHERE id = ${id}`
   if (!existente) return NextResponse.json({ error: 'Área no encontrada' }, { status: 404 })
 
@@ -44,12 +46,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE /api/areas/[id] — solo admin; bloqueado si es protegida o tiene usuarios asignados
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   if (session.user.rol !== 'admin') return NextResponse.json({ error: 'Solo un administrador puede eliminar áreas' }, { status: 403 })
 
   const id = parseInt(params.id)
+  if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [existente] = await sql`SELECT * FROM areas WHERE id = ${id}`
   if (!existente) return NextResponse.json({ error: 'Área no encontrada' }, { status: 404 })
 
