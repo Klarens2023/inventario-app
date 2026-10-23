@@ -35,7 +35,6 @@ export function ModalCrear({ esAdmin, sesionArea, areas, puntosVenta, guardando,
 
   useEffect(() => {
     setAccesoMovil(rol !== 'lider')
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rol])
 
   useEffect(() => {

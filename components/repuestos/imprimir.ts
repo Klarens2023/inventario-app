@@ -2,6 +2,7 @@ import type {
   AsignacionImpresion, MovimientoImpresion, ReporteConsumo, FiltrosConsumo, DestinoRetiro,
 } from '@/types/repuestos'
 import { fetchAsignacionImpresion, fetchMovimientoImpresion } from '@/lib/api/repuestos'
+import { escribirEImprimir } from '@/components/imprimirVentana'
 
 // Encabezado de cada formato en el Sistema Integrado HSEQ.
 // TODO: reemplazar 'Por asignar' por el código oficial cuando HSEQ lo apruebe.
@@ -115,7 +116,6 @@ function documento(titulo: string, cuerpo: string, horizontal = false) {
   .nota { font-size:7.5pt; color:#333; margin-top:4px; }
   @page { size:A4 ${horizontal ? 'landscape' : 'portrait'}; margin:8mm; }
 </style></head><body>${cuerpo}
-<script>window.onload = function(){ window.print(); }</script>
 </body></html>`
 }
 
@@ -132,7 +132,7 @@ function nuevaVentana(): Window | null {
 function abrir(html: string) {
   const w = ventanaPendiente ?? nuevaVentana()
   ventanaPendiente = null
-  if (w) { w.document.open(); w.document.write(html); w.document.close() }
+  if (w) escribirEImprimir(w, html)
 }
 
 // Si al asignar no se escribió el nombre, se toma el usuario del equipo

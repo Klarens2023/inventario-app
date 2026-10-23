@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { exigirAcceso } from '@/lib/acceso'
 import { google } from 'googleapis'
 import sharp from 'sharp'
-import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
 
@@ -23,8 +23,9 @@ import { tieneModulo } from '@/lib/permissions'
 // se necesita revocar acceso a una foto puntual, hay que rotar/borrar el archivo
 // en Drive, no basta con cambiar permisos en la app.
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const fileId = req.nextUrl.searchParams.get('id')
   if (!fileId) return NextResponse.json({ error: 'Falta el id' }, { status: 400 })

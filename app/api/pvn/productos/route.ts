@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { getAuthUser } from '@/lib/api-auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
 import { conReintentoPorDuplicado } from '@/lib/reintentar'
@@ -28,8 +26,9 @@ const SELECT_PROD = `
 `
 
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const all = req.nextUrl.searchParams.get('all') === '1'
 
@@ -42,10 +41,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { modulos: ['pvn_catalogo'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
-  const { rol, modulos } = session.user
+  const { rol, modulos } = user
   if (!tieneModulo(rol, modulos, 'pvn_catalogo')) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }

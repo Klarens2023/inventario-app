@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { tieneModulo } from '@/lib/permissions'
 
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { modulos: ['pvn_catalogo'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
-  const { rol, modulos } = session.user
+  const { rol, modulos } = user
   if (!tieneModulo(rol, modulos, 'pvn_catalogo')) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }

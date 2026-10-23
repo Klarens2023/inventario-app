@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import type { NeonQueryPromise } from '@neondatabase/serverless'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
@@ -13,16 +12,17 @@ import { MODULOS } from '@/lib/permissions'
 // lider → solo puede modificar usuarios de su área, no puede cambiar admins ni crear admins
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['admin', 'lider'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
-  const sesionRol = session.user?.rol
+  const sesionRol = user.rol
   if (!['admin', 'lider'].includes(sesionRol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
   const id = parseInt(params.id)
   if (isNaN(id)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
-  const esSelf = String(id) === session.user?.id
+  const esSelf = String(id) === user.id
   if (esSelf && sesionRol !== 'admin') {
     return NextResponse.json({ error: 'No puedes modificar tu propia cuenta' }, { status: 400 })
   }
@@ -34,7 +34,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   // ni admins ni otros líderes, para que no pueda restablecerle la contraseña a otro
   // líder y actuar a su nombre.
   if (sesionRol === 'lider') {
-    if (usuario.area !== session.user?.area) {
+    if (usuario.area !== user.area) {
       return NextResponse.json({ error: 'No tienes permiso para modificar este usuario' }, { status: 403 })
     }
     if (usuario.rol === 'admin') {
@@ -156,8 +156,8 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   }
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'USUARIO_MODIFICADO',
     descripcion: resetPassword === true
       ? `Restableció la contraseña de "${usuario.nombre}" (${usuario.username})`

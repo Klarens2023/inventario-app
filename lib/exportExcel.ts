@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs'
 
-type Valor = string | number | null | undefined
+export type Valor = string | number | null | undefined
 
 // ── Paleta de colores ──────────────────────────────────────────────────────
 const C = {

@@ -23,6 +23,7 @@
 // API_v2_Items o a mano en Productos), no por código de barras: sin ítem la orden no se envía.
 // Los ítems con extensión 1 (f120_id_extension1 = "FB") llevan f431_id_ext1_detalle = "FN".
 import { sql } from '@/lib/db'
+import { hoyBogota } from '@/lib/fechas'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
 import { asignarItemsAutomaticamente } from './itemsSiesa'
 
@@ -45,7 +46,6 @@ export interface PreparacionPedido {
   resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; consecutivo: string; fechaEntrega: string; diasEntrega: number }
 }
 
-const hoyBogota = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) // AAAA-MM-DD
 const aaaammdd = (iso: string) => iso.replace(/-/g, '')
 const diasEntre = (desde: string, hasta: string) => Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000)
 const txt = (v: number) => String(Math.round(v * 10000) / 10000)

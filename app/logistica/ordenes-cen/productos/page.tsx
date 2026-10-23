@@ -54,7 +54,7 @@ export default function ProductosCenPage() {
       <p style={{ color: 'var(--text2)', fontSize: 14, maxWidth: 860, marginBottom: 12 }}>
         Código de barras (EAN) de cada producto que llega en las órdenes, con su <strong>ítem de Siesa</strong> (f120_id), peso y unidades por caja.
         El pedido se envía a Siesa con el código de barras; el ítem de Siesa se usa para verificar el precio. Se asigna solo cuando el código
-        anterior del producto (el de "BD 2026") coincide con las notas del ítem en Siesa; si no, escógelo en <strong>Editar</strong>.
+        anterior del producto (el de &quot;BD 2026&quot;) coincide con las notas del ítem en Siesa; si no, escógelo en <strong>Editar</strong>.
       </p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
         {sinItem > 0 && <span style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>{sinItem} sin ítem de Siesa</span>}

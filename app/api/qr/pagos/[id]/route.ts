@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/api-auth'
+import { exigirAcceso } from '@/lib/acceso'
+import { hoyBogota } from '@/lib/fechas'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { valorMonetario } from '@/lib/validacion'
 
-function hoyBogota(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
 
 // PUT /api/qr/pagos/[id]
 // admin: puede editar valor y/o punto_venta_id de cualquier pago, sin restricción
 // pvn/pvv: solo puede editar el valor de un pago propio de hoy, con turno activo
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['admin', 'pvn', 'pvv'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -99,8 +98,9 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 // pvn/pvv: solo un pago propio de hoy, con turno activo
 export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['admin', 'pvn', 'pvv'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })

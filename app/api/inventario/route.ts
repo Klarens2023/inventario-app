@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 
 function limpiarNum(val: string): number {
   let s = val.replace(/\$|\s/g, '').trim()
@@ -47,12 +45,10 @@ function mapearColumnas(headers: string[]) {
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const rol = session.user?.rol ?? ''
-  if (!tieneModulo(rol, session.user?.modulos, 'cargar') && !tieneModulo(rol, session.user?.modulos, 'consulta')) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { modulos: ['cargar', 'consulta'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
+  const rol = user.rol ?? ''
 
   const { searchParams } = new URL(req.url)
   const fecha = searchParams.get('fecha')
@@ -93,11 +89,9 @@ export async function GET(req: NextRequest) {
 
 // ── POST: cargar TXT ──────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!tieneModulo(session.user?.rol ?? '', session.user?.modulos, 'cargar')) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { modulos: ['cargar'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const formData = await req.formData()
   const file  = formData.get('file') as File
@@ -136,7 +130,7 @@ export async function POST(req: NextRequest) {
     if (tipo) tiposEnArchivo.add(tipo)
   }
 
-  const userId = session.user?.id ?? null
+  const userId = user.id ?? null
   const tipos = Array.from(tiposEnArchivo)
 
   // Integridad: la recarga reemplaza las filas del mismo modo + tipo de esa fecha,
@@ -199,7 +193,7 @@ export async function POST(req: NextRequest) {
 
   await logAudit({
     usuarioId: userId,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'CARGA_INVENTARIO',
     descripcion: `Cargó inventario ${modo} del día ${fechaStr} con ${insertados} registros`,
     datos: { fecha: fechaStr, insertados, tipos: tiposStr, modo, archivo: file.name },

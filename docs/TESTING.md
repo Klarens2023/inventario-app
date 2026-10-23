@@ -7,11 +7,37 @@ npm test                 # pruebas unitarias (node --test, Node 22.6+; probado c
 npx tsc --noEmit -p .    # tipos
 npx next build           # build de producción (lee .env.local)
 npm audit --omit=dev     # vulnerabilidades de dependencias de producción
+npm run lint             # ESLint (0 errores; quedan avisos de variables sin usar e <img>)
+
+# Integración (escriben en la BD: SOLO contra la rama de desarrollo de Neon).
+# Requiere la app corriendo con `npx next build && npm start` en el puerto 3000.
+BD_DESARROLLO_HOST=ep-broad-cake-anqz0ha7 npm run test:integracion
 ```
+
+Las pruebas de integración (`tests/integracion/`) crean usuarios `it_*` con una
+contraseña aleatoria, inician sesión como cada rol (cookie web y token móvil) y
+los borran al final. Si `BD_DESARROLLO_HOST` no coincide con el host de
+`DATABASE_URL`, no corren (protección contra producción).
 
 Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación de
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
+
+## Resultados del 23/10/2026 (rama `mejoras-seguridad-2026-10-23`)
+
+| Verificación | Resultado |
+|---|---|
+| `npx tsc --noEmit -p .` | 0 errores |
+| `npm run lint` | 0 errores, 56 avisos |
+| `npx next build` | correcto |
+| `npm test` | 13/13 (incluye la prueba estática de rutas protegidas) |
+| `npm run test:integracion` (rama de desarrollo) | 16/16: matriz de 43 casos de ruta × 8 roles + sin sesión, token móvil en rutas solo web, `alg: none`, usuario inactivo, cambio de contraseña pendiente, IDOR de pagos y fotos, líder contra líder, límite por IP (web y móvil) |
+| Prueba de mutación | Se quitó a propósito un permiso y se agregó una ruta sin control: ambas pruebas fallaron como debían |
+| CSP con nonce (navegador, build local) | 14 scripts con nonce, 0 sin nonce; un `<img onerror>` inyectado NO se ejecuta (violación `script-src-attr`); login, panel, usuarios, movimientos, repuestos y análisis cargan sin errores de consola |
+| Impresión sin script en línea | El script en línea viejo queda bloqueado por la CSP nueva; el flujo nuevo imprime después de cargar el logo (probado en un iframe). **23/10: el usuario imprimió en su Chrome un movimiento TIC y un acta de repuestos; salieron bien, con el logo** |
+| IPs de la empresa (`LOGIN_IPS_CONFIANZA`) | 3 pruebas unitarias del rango /29; 35 fallos desde 190.242.100.250 → siempre 401, sin bloqueo ni conteo guardado |
+| Rol mínimo de BD (rama de desarrollo) | Lee y escribe datos; niega CREATE/ALTER/DROP, CREATE ROLE, y UPDATE/DELETE en `audit_logs` |
+| `GET /api/salud` | 200 `{"ok":true,"bd":"ok"}`, `Cache-Control: no-store` |
 
 ## Resultados del 22/10/2026
 

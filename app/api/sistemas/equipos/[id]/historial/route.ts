@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
-import { tieneModulo } from '@/lib/permissions'
 
-function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
-  if (!session?.user) return false
-  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'equipos')
-}
 
 // POST /api/sistemas/equipos/[id]/historial
 // body.tipo: 'mantenimiento' | 'incidencia' | 'cambio'
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const [equipo] = await sql`SELECT id FROM equipos_tecnologicos WHERE id = ${params.id}`
   if (!equipo) return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })

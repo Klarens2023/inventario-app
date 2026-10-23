@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { exigirAcceso } from '@/lib/acceso'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 import { subirADrive, aUrlProxy, limpiarNombreArchivo, comprimirImagen } from '@/lib/google-drive'
 
 const MAX_BYTES = 8 * 1024 * 1024
@@ -12,11 +12,9 @@ const MAX_BYTES = 8 * 1024 * 1024
 // la sesión web como el JWT de la app móvil puedan subir la foto.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!tieneModulo(user.rol, user.modulos, 'movimientos_tic')) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { modulos: ['movimientos_tic'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const [mov] = await sql`SELECT id FROM tic_movimientos WHERE id = ${params.id}`
   if (!mov) return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 })

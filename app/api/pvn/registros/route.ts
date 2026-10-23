@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/api-auth'
+import { exigirAcceso } from '@/lib/acceso'
+import { hoyBogota } from '@/lib/fechas'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
 
-function hoyBogota(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
 
 const SELECT_SQL = `
   SELECT r.id, r.fecha::text AS fecha, r.turno, r.usuario_nombre, r.observaciones, r.created_at,
@@ -28,8 +26,9 @@ const SELECT_SQL = `
 `
 
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['pvn'], modulos: ['pvn_historial'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { rol, modulos } = user
   const { searchParams } = req.nextUrl
@@ -72,8 +71,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['pvn', 'admin', 'lider'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { rol } = user
   if (!['pvn', 'admin', 'lider'].includes(rol)) {

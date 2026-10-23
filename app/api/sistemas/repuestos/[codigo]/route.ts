@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { canAccessRepuestos, CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpcional, texto } from '@/lib/repuestos'
@@ -9,9 +8,9 @@ import { canAccessRepuestos, CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpciona
 // El stock NO se edita aquí: solo cambia con movimientos (entrada / salida / ajuste).
 export async function PUT(req: NextRequest, props: { params: Promise<{ codigo: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const body = await req.json()
 
@@ -23,8 +22,8 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ codigo: s
     `
     if (rows.length === 0) return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 })
     await logAudit({
-      usuarioId: session.user?.id ?? null,
-      usuarioNombre: session.user?.name ?? 'Desconocido',
+      usuarioId: user.id ?? null,
+      usuarioNombre: user.name ?? 'Desconocido',
       accion: 'TIC_ARTICULO_ACTUALIZADO',
       descripcion: `${body.activo ? 'Reactivó' : 'Desactivó'} el artículo ${params.codigo}`,
       datos: { codigo: params.codigo, activo: body.activo },
@@ -54,8 +53,8 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ codigo: s
   if (rows.length === 0) return NextResponse.json({ error: 'Artículo no encontrado' }, { status: 404 })
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'TIC_ARTICULO_ACTUALIZADO',
     descripcion: `Editó el artículo ${params.codigo}: ${descripcion}`,
     datos: { codigo: params.codigo },

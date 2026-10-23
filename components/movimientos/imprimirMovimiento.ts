@@ -1,5 +1,6 @@
 import type { MovimientoDetalle } from '@/types/movimientos'
 import { escapeHtml as esc } from '@/lib/html'
+import { escribirEImprimir } from '@/components/imprimirVentana'
 
 const TIPOS_COL1 = [
   'Asignación / Reasignación', 'Traslado Interno', 'Cambio de responsable',
@@ -232,9 +233,8 @@ export function imprimirMovimiento(mov: MovimientoDetalle, baseUrl = '') {
   </tr>
 </table>
 
-<script>window.onload = function(){ window.print(); }</script>
 </body></html>`
 
   const w = window.open('', '_blank', 'width=900,height=700')
-  if (w) { w.document.write(html); w.document.close() }
+  if (w) escribirEImprimir(w, html)
 }

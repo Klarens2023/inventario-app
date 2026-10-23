@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
 // GET /api/areas — admin y líder (necesitan la lista para los selectores de usuario)
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!['admin', 'lider'].includes(session.user.rol)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+export async function GET(req: NextRequest) {
+  const acceso = await exigirAcceso(req, { roles: ['admin', 'lider'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const areas = await sql`SELECT * FROM areas ORDER BY label`
   return NextResponse.json(areas)
@@ -27,9 +24,9 @@ function slugify(label: string) {
 
 // POST /api/areas — crear área nueva (solo admin)
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (session.user.rol !== 'admin') return NextResponse.json({ error: 'Solo un administrador puede crear áreas' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { roles: ['admin'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { label, color, bg, roles_permitidos, modulos_usuario, modulos_lider } = await req.json()
   if (!label?.trim()) return NextResponse.json({ error: 'El nombre del área es obligatorio' }, { status: 400 })
@@ -56,8 +53,8 @@ export async function POST(req: NextRequest) {
   `
 
   await logAudit({
-    usuarioId: session.user.id,
-    usuarioNombre: session.user.name,
+    usuarioId: user.id,
+    usuarioNombre: user.name,
     accion: 'AREA_CREADA',
     descripcion: `Creó el área "${label.trim()}"`,
     datos: { area_key: key, area_label: label.trim() },

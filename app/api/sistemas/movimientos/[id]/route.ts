@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
-import { tieneModulo } from '@/lib/permissions'
 import { logAudit } from '@/lib/audit'
 import { aUrlProxy } from '@/lib/google-drive'
 
-function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
-  if (!session?.user) return false
-  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'movimientos_tic')
-}
 
 // GET /api/sistemas/movimientos/[id] — getAuthUser (no solo sesión web) para
 // que la app móvil también pueda consultar el movimiento antes de subir la foto.
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!tieneModulo(user.rol, user.modulos, 'movimientos_tic')) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { modulos: ['movimientos_tic'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const [mov] = await sql`
     SELECT *, fecha::text AS fecha FROM tic_movimientos WHERE id = ${params.id}
@@ -43,9 +35,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 // PATCH /api/sistemas/movimientos/[id] — actualizar estado
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['movimientos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { estado } = await req.json()
   const validos = ['autorizado', 'entregado', 'recibido', 'cerrado']
@@ -61,8 +53,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   if (!upd) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Sistema',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Sistema',
     accion: 'TIC_MOVIMIENTO_ESTADO',
     descripcion: `Cambió estado de ${params.id} a "${estado}"`,
     datos: { id: params.id, estado },

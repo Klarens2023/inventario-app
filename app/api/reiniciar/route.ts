@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
@@ -9,9 +8,9 @@ import { logAudit } from '@/lib/audit'
 // por accidente. Si viene desde/hasta, solo borra ese rango; si no, borra
 // todo el historial (comportamiento original).
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { roles: ['admin'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { confirmar, desde, hasta } = await req.json().catch(() => ({} as Record<string, unknown>))
   if (confirmar !== 'ELIMINAR') {
@@ -34,8 +33,8 @@ export async function DELETE(req: NextRequest) {
 
   const rangoTexto = hayRango ? ` entre ${desde} y ${hasta}` : ''
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'HISTORIAL_REINICIADO',
     descripcion: `Eliminó ${total} registro(s) de inventario${rangoTexto}`,
     datos: { registros_eliminados: Number(total), desde: hayRango ? desde : null, hasta: hayRango ? hasta : null },

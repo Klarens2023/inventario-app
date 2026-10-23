@@ -5,9 +5,12 @@
 0. ~~Desplegar estos cambios~~: desplegado el 22/10/2026 (Next 15.5.28, CSP y `/contabilidad` protegida, verificado desde fuera).
 1. **Verificar credenciales por defecto (AUD-04).** Las contraseñas que publicaba el README siguen en el historial de Git. Confirmar que ningún usuario de producción las usa: iniciar sesión como `admin`, `usuario1`, `usuario2` con ellas debe fallar; si alguna entra, cambiarla de inmediato y revisar `audit_logs`. Si el repositorio es o fue público, tratarlas como comprometidas.
 2. ~~Correr `scripts/migrate-add-indices-unicos.js` en producción~~: ya quedó aplicada el 22/10/2026 (la base de `.env.local` es la de producción).
-2b. **Limpiar los datos de las pruebas guiadas**, que quedaron en producción: correr `limpieza-pruebas-auditoria.sql` en el SQL Editor de Neon (ver TESTING.md) y borrar en Google Drive la foto `…RG1_999999…`. Anular el pedido PVS-1 en Siesa QA.
-2c. **Crear una base de desarrollo** (rama de Neon) y usarla en `.env.local` y en el Preview de Vercel: hoy el entorno local apunta a producción.
+2b. ~~Limpiar los datos de las pruebas guiadas~~ (hecho el 22/10/2026; quedan por confirmar la foto de Drive y el pedido PVS-1 en Siesa QA):, que quedaron en producción: correr `limpieza-pruebas-auditoria.sql` en el SQL Editor de Neon (ver TESTING.md) y borrar en Google Drive la foto `…RG1_999999…`. Anular el pedido PVS-1 en Siesa QA.
+2c. ~~Crear una base de desarrollo~~: rama de Neon creada; `.env.local` apunta a ella desde el 22/10/2026.
 3. **Desplegar y probar** los pasos manuales de [TESTING.md](TESTING.md#lo-que-no-se-probó-y-cómo-probarlo) en un ambiente de pruebas antes de producción.
+4. **Al desplegar la rama `mejoras-seguridad-2026-10-23`:** correr `scripts/migrate-add-login-ip.js` contra producción (crea una tabla; sin ella el login funciona igual pero sin límite por IP, con un aviso en los logs). Ver [REVISION-2026-10-23.md](REVISION-2026-10-23.md).
+5. **Monitoreo:** registrar `https://operaciones.klarens.com.co/api/salud` en un monitor externo gratuito (p. ej. UptimeRobot) con aviso por correo.
+6. **Rol mínimo de BD:** correr `scripts/crear-rol-app.js` en producción y cambiar `DATABASE_URL` de Vercel a ese rol (las migraciones siguen con el dueño).
 
 ## Decisiones que requieren aprobación
 
@@ -19,9 +22,9 @@
 
 | Prioridad | ID | Riesgo | Siguiente paso |
 |---|---|---|---|
-| 1 | AUD-17 | Bloqueo de cuentas ajenas (el tiempo del login ya está igualado) | Límite por IP con Vercel WAF o una tabla de intentos por IP |
-| 3 | AUD-24 | CSP con `'unsafe-inline'` en scripts | Pasar a nonces por petición en el middleware |
-| 5 | AUD-25 | Cobertura de pruebas baja | Pruebas de integración de rutas API contra una rama de Neon de pruebas; ESLint |
+| 1 | AUD-17 | Bloqueo de cuentas ajenas: quien conozca un usuario puede bloquearlo 15 min con 5 fallos (el límite por IP del 23/10 lo frena desde una sola conexión, no desde muchas) | Vercel WAF / Attack Challenge si se observa abuso; 2FA para administradores |
+| 4 | AUD-25 | Las pruebas de integración cubren autorización, no la lógica de negocio de cada ruta (cálculos, Excel, EDI) | Agregar casos por módulo a `tests/integracion/` |
+| 4 | — | App móvil en Expo SDK 54 (la última es 58): 41 alertas de npm, casi todas de herramientas de compilación | Rama `prueba/expo-sdk58` lista (tsc, expo-doctor y bundle OK); falta build EAS y prueba en teléfono |
 | 6 | AUD-26 | Higiene | Sacar `tsconfig.tsbuildinfo` de Git (`git rm --cached` + `.gitignore`) al hacer el commit |
 
 ## Riesgos aceptados

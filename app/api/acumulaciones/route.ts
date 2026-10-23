@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 
 // POST /api/acumulaciones — bloquea los IDs indicados
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!tieneModulo(session.user?.rol ?? '', session.user?.modulos, 'acumulados')) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { modulos: ['acumulados'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { ids, fecha } = await req.json()
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
@@ -25,8 +21,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Si no es admin, verificar que solo acumule filas que él subió
-  if (session.user?.rol !== 'admin') {
-    const userId = parseInt(session.user?.id ?? '0')
+  if (user.rol !== 'admin') {
+    const userId = parseInt(user.id ?? '0')
     const filas = await sql`
       SELECT id, cargado_por FROM inventario_datos
       WHERE id = ANY(${idsValidos}::int[])
@@ -43,8 +39,8 @@ export async function POST(req: NextRequest) {
   `
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'CONTEO_ACUMULADO',
     descripcion: `Acumuló y bloqueó ${ids.length} registros del día ${fecha ?? ''}`,
     datos: { ids_count: ids.length, fecha },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { exigirAcceso } from '@/lib/acceso'
+import { hoyBogota } from '@/lib/fechas'
 import sharp from 'sharp'
-import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { tieneModulo } from '@/lib/permissions'
@@ -51,18 +52,13 @@ async function agregarEtiqueta(
   }
 }
 
-function hoyBogota(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
 
 const MAX_BYTES = 8 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!['pvn', 'pvv'].includes(user.rol)) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { roles: ['pvn', 'pvv'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const form = await req.formData()
   const foto = form.get('foto') as File | null
@@ -143,8 +139,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['pvn', 'pvv'], modulos: ['pvn_pagos_qr'], movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   // pvn/pvv solo ven los pagos de su turno actual (o de un turno específico
   // vía ?turno_id=, para "turnos anteriores") — no el historial completo.
