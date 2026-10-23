@@ -8,7 +8,7 @@
 2b. ~~Limpiar los datos de las pruebas guiadas~~ (hecho el 22/10/2026; quedan por confirmar la foto de Drive y el pedido PVS-1 en Siesa QA):, que quedaron en producción: correr `limpieza-pruebas-auditoria.sql` en el SQL Editor de Neon (ver TESTING.md) y borrar en Google Drive la foto `…RG1_999999…`. Anular el pedido PVS-1 en Siesa QA.
 2c. ~~Crear una base de desarrollo~~: rama de Neon creada; `.env.local` apunta a ella desde el 22/10/2026.
 3. **Desplegar y probar** los pasos manuales de [TESTING.md](TESTING.md#lo-que-no-se-probó-y-cómo-probarlo) en un ambiente de pruebas antes de producción.
-4. **Al desplegar la rama `mejoras-seguridad-2026-10-23`:** correr `scripts/migrate-add-login-ip.js` contra producción (crea una tabla; sin ella el login funciona igual pero sin límite por IP, con un aviso en los logs). Ver [REVISION-2026-10-23.md](REVISION-2026-10-23.md).
+4. ~~Desplegar la rama `mejoras-seguridad-2026-10-23`~~: desplegada el 23/10/2026 (commit `beb3c67`), con la tabla `login_intentos_ip` y la variable `LOGIN_IPS_CONFIANZA` en producción. Ver [REVISION-2026-10-23.md](REVISION-2026-10-23.md).
 5. **Monitoreo:** registrar `https://operaciones.klarens.com.co/api/salud` en un monitor externo gratuito (p. ej. UptimeRobot) con aviso por correo.
 6. **Rol mínimo de BD:** correr `scripts/crear-rol-app.js` en producción y cambiar `DATABASE_URL` de Vercel a ese rol (las migraciones siguen con el dueño).
 

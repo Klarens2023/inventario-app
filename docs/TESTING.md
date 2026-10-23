@@ -25,6 +25,8 @@ la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconf
 
 ## Resultados del 23/10/2026 (rama `mejoras-seguridad-2026-10-23`)
 
+**Producción (commit `beb3c67`, revisión externa de solo lectura):** `/login` con CSP con nonce distinto en cada petición (13/13 scripts con nonce); `/api/salud` 200 con la BD respondiendo; `/api/inventario` y `/api/usuarios` 401 sin sesión con `default-src 'none'`; `/dashboard` y `/contabilidad/…` redirigen al login. El usuario confirmó: inicio de sesión, navegación, impresión de un movimiento TIC, app móvil (APK 1.1.0) funcionando y ningún aviso "Límite por IP desactivado" en los logs de Vercel (la tabla existe).
+
 | Verificación | Resultado |
 |---|---|
 | `npx tsc --noEmit -p .` | 0 errores |
