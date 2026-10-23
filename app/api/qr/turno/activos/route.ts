@@ -1,24 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
+import { hoyBogota } from '@/lib/fechas'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 
-function hoyBogota(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
 
-function puedeVer(rol: string, modulos: string[]) {
-  return rol === 'admin' || tieneModulo(rol, modulos, 'pvn_pagos_qr')
-}
 
 // GET /api/qr/turno/activos — turnos abiertos ahora mismo, de cualquier usuario
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const { rol, modulos } = session.user
-  if (!puedeVer(rol, modulos ?? [])) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+export async function GET(req: NextRequest) {
+  const acceso = await exigirAcceso(req, { modulos: ['pvn_pagos_qr'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
+  const { rol, modulos } = user
 
   const turnos = await sql`
     SELECT id, usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at
@@ -31,10 +24,10 @@ export async function GET() {
 
 // POST /api/qr/turno/activos { turno_id } — cierre forzado por un admin
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const { rol, name, id } = session.user
-  if (rol !== 'admin') return NextResponse.json({ error: 'Solo un administrador puede cerrar el turno de otro usuario' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { roles: ['admin'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
+  const { rol, name, id } = user
 
   const { turno_id } = await req.json()
   const turnoId = parseInt(turno_id)

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { exigirAcceso } from '@/lib/acceso'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { getAuthUser } from '@/lib/api-auth'
 import type { NeonQueryPromise } from '@neondatabase/serverless'
 import { sql } from '@/lib/db'
@@ -12,8 +12,9 @@ import { tieneModulo } from '@/lib/permissions'
 // de contraseña pendiente, que getServerSession por sí solo no filtra.
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const user = await getAuthUser(req)
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { movil: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -42,10 +43,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { modulos: ['pvn_catalogo'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
-  const { rol, modulos } = session.user
+  const { rol, modulos } = user
   if (!tieneModulo(rol, modulos, 'pvn_catalogo')) {
     return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
   }

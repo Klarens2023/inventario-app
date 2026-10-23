@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 
-function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
-  if (!session?.user) return false
-  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'equipos')
-}
 
 // GET /api/sistemas/mantenimientos — equipos con mantenimiento programado, ordenados por próxima fecha
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const buscar = searchParams.get('buscar') ?? ''
@@ -40,9 +34,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/sistemas/mantenimientos — registrar si un mantenimiento programado se realizó o no
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const body = await req.json()
   const { equipo_id, fecha, realizado } = body
@@ -74,8 +68,8 @@ export async function POST(req: NextRequest) {
   }
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: realizado ? 'MANTENIMIENTO_REALIZADO' : 'MANTENIMIENTO_NO_REALIZADO',
     descripcion: `${realizado ? 'Registró mantenimiento realizado' : 'Registró mantenimiento NO realizado'} en equipo ${equipo_id}`,
     datos: { equipo_id, fecha, realizado },

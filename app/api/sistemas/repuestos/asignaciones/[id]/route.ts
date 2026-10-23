@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { canAccessRepuestos, DESTINOS_RETIRO, MOTIVO_RETORNO, texto, esFecha } from '@/lib/repuestos'
 import { reservarIds, qMovimientoStock, qCerrarAsignacion, asignacionVigente, ETIQUETA_DESTINO, type Query } from '@/lib/repuestos-db'
 
 // GET /api/sistemas/repuestos/asignaciones/[id] — detalle completo (para el acta impresa)
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id, 10)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Asignación no encontrada' }, { status: 404 })
@@ -47,9 +46,9 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 // devolución del usuario, daño, pérdida...). Si regresa al inventario, el stock sube y queda la entrada en el kardex.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id, 10)
   const asig = Number.isInteger(id) ? await asignacionVigente(id) : null
@@ -62,7 +61,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!destino || !DESTINOS_RETIRO.includes(destino)) return NextResponse.json({ error: 'Indica qué pasa con el artículo' }, { status: 400 })
   if (!motivo || !esFecha(fecha)) return NextResponse.json({ error: 'Fecha y motivo son obligatorios' }, { status: 400 })
 
-  const usuario = session.user?.name ?? 'Sistema'
+  const usuario = user.name ?? 'Sistema'
   const vuelve  = destino === 'inventario'
   const ids     = vuelve ? await reservarIds() : null
   const detalle = texto(body.detalle)
@@ -90,7 +89,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
+    usuarioId: user.id ?? null,
     usuarioNombre: usuario,
     accion: 'TIC_ARTICULO_MOVIMIENTO',
     descripcion: `Retiró asignación #${id}: ${asig.cantidad} × ${asig.articulo_codigo} (${asig.descripcion}) de ${donde}; ${ETIQUETA_DESTINO[destino]}. Motivo: ${motivo}`,

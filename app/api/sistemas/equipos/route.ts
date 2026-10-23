@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { conReintentoPorDuplicado } from '@/lib/reintentar'
-import { tieneModulo } from '@/lib/permissions'
 
-function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
-  if (!session?.user) return false
-  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'equipos')
-}
 
 async function generarId(): Promise<string> {
   const rows = await sql`SELECT id FROM equipos_tecnologicos ORDER BY id DESC LIMIT 1`
@@ -20,9 +14,9 @@ async function generarId(): Promise<string> {
 
 // GET /api/sistemas/equipos — lista con filtros opcionales
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const buscar = searchParams.get('buscar') ?? ''
@@ -54,9 +48,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/sistemas/equipos — crear equipo
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const body = await req.json()
   const { tipo_equipo, marca } = body
@@ -127,7 +121,7 @@ export async function POST(req: NextRequest) {
         ${body.tipo_mantenimiento || null}, ${body.frecuencia_mantenimiento || null},
         ${body.ultimo_mantenimiento || null}, ${body.proximo_mantenimiento || null},
         ${body.tecnico_responsable || null}, ${body.contrato_mantenimiento || null},
-        ${body.observaciones || null}, ${session.user?.name ?? 'Sistema'}
+        ${body.observaciones || null}, ${user.name ?? 'Sistema'}
       )
       RETURNING id
     `
@@ -135,8 +129,8 @@ export async function POST(req: NextRequest) {
   })
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'EQUIPO_CREADO',
     descripcion: `Registró equipo ${id}: ${marca.trim()} ${body.modelo ?? ''} (${tipo_equipo.trim()})`,
     datos: { id, tipo_equipo, marca },

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser, type AuthUser } from '@/lib/api-auth'
-import { tieneModulo } from '@/lib/permissions'
+import type { AuthUser } from '@/lib/api-auth'
+import { exigirAcceso } from '@/lib/acceso'
 
-// Devuelve el usuario si tiene el módulo de órdenes EDI, o la respuesta de error lista para retornar.
+/**
+ * Acceso a las rutas de órdenes EDI: módulo ordenes_cen, con sesión web o token
+ * móvil. Se conserva esta firma ({ user } | { respuesta }) porque la usan 13 rutas;
+ * por dentro delega en el control único de lib/acceso.ts.
+ */
 export async function verificarAcceso(req: NextRequest): Promise<{ user: AuthUser } | { respuesta: NextResponse }> {
-  const user = await getAuthUser(req)
-  if (!user) return { respuesta: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) }
-  if (!tieneModulo(user.rol, user.modulos, 'ordenes_cen')) {
-    return { respuesta: NextResponse.json({ error: 'Acceso restringido' }, { status: 403 }) }
-  }
-  return { user }
+  const acceso = await exigirAcceso(req, { modulos: ['ordenes_cen'], movil: true })
+  return acceso.ok ? { user: acceso.user } : { respuesta: acceso.respuesta }
 }

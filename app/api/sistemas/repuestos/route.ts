@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { conReintentoPorDuplicado } from '@/lib/reintentar'
@@ -15,9 +14,9 @@ async function generarCodigo(): Promise<string> {
 
 // GET /api/sistemas/repuestos — catálogo con stock
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const buscar    = searchParams.get('buscar') ?? ''
@@ -51,9 +50,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/sistemas/repuestos — crear artículo (el stock inicial queda como entrada en el kardex)
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const body = await req.json()
   const categoria   = texto(body.categoria)
@@ -68,7 +67,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Stock inicial y mínimo deben ser números enteros sin signo' }, { status: 400 })
   }
   const costo = numeroOpcional(body.costo_unitario)
-  const usuario = session.user?.name ?? 'Sistema'
+  const usuario = user.name ?? 'Sistema'
   let codigo = ''
 
   try {
@@ -99,7 +98,7 @@ export async function POST(req: NextRequest) {
   }
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
+    usuarioId: user.id ?? null,
     usuarioNombre: usuario,
     accion: 'TIC_ARTICULO_CREADO',
     descripcion: `Creó artículo ${codigo}: ${descripcion} (${categoria}) con stock inicial ${stockInicial}`,

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { MODULOS, modulosPorDefecto, type AreaInfo } from '@/lib/permissions'
@@ -24,10 +23,11 @@ const SELECT_CON_MODULOS = `
 // de punto de venta viven en su propia área "puntos_venta", distinta a la de
 // cualquier líder; el filtro de usuario en Pagos QR necesita verlos igual).
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['admin', 'lider'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
-  const rol = session.user?.rol
+  const rol = user.rol
   if (!['admin', 'lider'].includes(rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
   const soloPvnPvv = req.nextUrl.searchParams.get('rol') === 'pvn_pvv'
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   } else if (soloPvnPvv) {
     rows = await sql(`${SELECT_CON_MODULOS} WHERE u.rol IN ('pvn','pvv') ORDER BY u.area, u.created_at DESC`, [])
   } else {
-    const area = session.user?.area ?? 'logistica'
+    const area = user.area ?? 'logistica'
     rows = await sql(`${SELECT_CON_MODULOS} WHERE u.area = $1 ORDER BY u.created_at DESC`, [area])
   }
   return NextResponse.json(rows)
@@ -47,10 +47,11 @@ export async function GET(req: NextRequest) {
 // POST /api/usuarios
 // admin → cualquier área y rol; lider → solo su área, no puede crear admins
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { roles: ['admin', 'lider'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
-  const rol = session.user?.rol
+  const rol = user.rol
   if (!['admin', 'lider'].includes(rol)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
 
   const { username, nombre, rol: rolNuevo, area: areaNueva, punto_venta_id: pvId, modulos: modulosBody, acceso_movil: accesoMovilBody } = await req.json()
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Solo un administrador puede crear administradores o líderes' }, { status: 403 })
   }
 
-  const areaFinal = rol === 'admin' ? (areaNueva ?? 'logistica') : (session.user?.area ?? 'logistica')
+  const areaFinal = rol === 'admin' ? (areaNueva ?? 'logistica') : (user.area ?? 'logistica')
   const rolFinal  = ['admin', 'lider', 'usuario', 'pvn', 'pvv'].includes(rolNuevo) ? rolNuevo : 'usuario'
   // Por defecto pvn/pvv/usuario/admin entran a la app móvil y lider no,
   // pero el checkbox de Crear Usuario siempre puede sobreescribir esto.
@@ -126,8 +127,8 @@ export async function POST(req: NextRequest) {
   }
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'USUARIO_CREADO',
     descripcion: `Creó el usuario "${nombre.trim()}" (${username.trim()}) — área: ${areaFinal}`,
     datos: { usuario_creado: username.trim(), rol: rolFinal, area: areaFinal },

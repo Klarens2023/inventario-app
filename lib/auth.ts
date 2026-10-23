@@ -2,8 +2,23 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { sql } from './db'
-import { compararSenuelo, minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from './loginBruteForce'
+import {
+  compararSenuelo, ipCliente, mensajeBloqueoIp, minutosBloqueoIp, minutosRestantesBloqueo,
+  registrarFalloIp, registrarIntentoFallido, resetearIntentosFallidos,
+} from './loginBruteForce'
 import { cargarEstadoUsuario } from './estadoUsuario'
+
+// ════════════════════════════════════════════════════════════════════════════
+// Configuración de NextAuth: inicio de sesión WEB con usuario y contraseña.
+// (La app móvil usa su propio login: app/api/auth/mobile/login/route.ts.)
+//
+// Flujo:
+//  1. authorize(): valida credenciales contra la tabla usuarios, con límite de
+//     intentos por IP y por usuario (lib/loginBruteForce.ts).
+//  2. callbacks.jwt(): al iniciar sesión copia los datos al token (cookie
+//     cifrada); en cada lectura posterior los vuelve a leer de la BD.
+//  3. callbacks.session(): arma lo que ven las páginas y las rutas API.
+// ════════════════════════════════════════════════════════════════════════════
 
 const SESION_PVN_PVV_SEGUNDOS = 24 * 60 * 60 // 24 horas
 const SESION_DEFAULT_SEGUNDOS = 8 * 60 * 60  // 8 horas (admin, lider, usuario)
@@ -24,9 +39,17 @@ export const authOptions: NextAuthOptions = {
         username: { label: 'Usuario', type: 'text' },
         password: { label: 'Contraseña', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
+        // Sin usuario o sin contraseña no hay nada que validar
         if (!credentials?.username || !credentials?.password) return null
 
+        // Primero el límite por IP: si la conexión está bloqueada no se consulta
+        // ni se compara nada (tampoco se gasta tiempo de bcrypt).
+        const ip = ipCliente(req?.headers)
+        const minutosIp = await minutosBloqueoIp(ip)
+        if (minutosIp > 0) throw new Error(mensajeBloqueoIp(minutosIp))
+
+        // Solo usuarios activos; un usuario desactivado se trata como inexistente
         const rows = await sql`
           SELECT id, username, password_hash, nombre, rol, area, debe_cambiar_password, punto_venta_id,
                  bloqueado_hasta
@@ -37,22 +60,28 @@ export const authOptions: NextAuthOptions = {
         `
 
         if (rows.length === 0) {
+          // Usuario inexistente o inactivo: también cuenta como fallo de la IP
           await compararSenuelo(credentials.password)
+          await registrarFalloIp(ip)
           return null
         }
 
         const user = rows[0]
 
+        // Cuenta bloqueada por 5 fallos seguidos: se avisa sin comparar la contraseña
         const minutosRestantes = minutosRestantesBloqueo({ bloqueado_hasta: user.bloqueado_hasta })
         if (minutosRestantes > 0) {
           throw new Error(`Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes} minuto(s).`)
         }
 
+        // bcrypt compara contra el hash guardado (nunca se guarda la contraseña)
         const valid = await bcrypt.compare(credentials.password, user.password_hash)
         if (!valid) {
           await registrarIntentoFallido(user.id)
+          await registrarFalloIp(ip)
           return null
         }
+        // Contraseña correcta: el contador de fallos de la cuenta vuelve a cero
         await resetearIntentosFallidos(user.id)
 
         // try/catch: si la migración de usuario_modulos aún no se ha corrido,
@@ -66,6 +95,7 @@ export const authOptions: NextAuthOptions = {
         const rol = user.rol ?? 'usuario'
         // Admin siempre va a área 'general', sin importar lo que tenga en BD
         const area = rol === 'admin' ? 'general' : (user.area ?? 'logistica')
+        // Este objeto llega como `user` al callback jwt (solo en el inicio de sesión)
         return {
           id: String(user.id),
           name: user.nombre,

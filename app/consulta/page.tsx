@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { exportarExcel } from '@/lib/exportExcel'
+import { exportarExcel, type Valor } from '@/lib/exportExcel'
 import type { Modo, Row, EditState } from '@/types/consulta'
 import { getFechas, getInventario, putConteo, postAcumulaciones } from '@/lib/api/consulta'
 import { fmt, evaluarConteo } from '@/components/consulta/utils'
@@ -109,12 +109,12 @@ export default function ConsultaPage() {
       const e = edits[r.id]
       const conteo = e?.conteo !== '' ? Number(e?.conteo) : 0
       const dif    = conteo - Number(r.cantidad_sistema)
-      const base = [r.descripcion, r.localizacion, r.um, r.tipo, Number(r.cantidad_sistema), conteo || '', dif || '', Number(r.costo_unitario), dif * Number(r.costo_unitario) || '', Number(r.costo_bodega), e?.obs || '']
+      const base: Valor[] = [r.descripcion, r.localizacion, r.um, r.tipo, Number(r.cantidad_sistema), conteo || '', dif || '', Number(r.costo_unitario), dif * Number(r.costo_unitario) || '', Number(r.costo_bodega), e?.obs || '']
       return modo === 'lotes'
         ? [r.referencia, r.lote || '', ...base]
         : [r.referencia, ...base]
     })
-    await exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas as any, session?.user?.name ?? undefined)
+    await exportarExcel(`Conteo_${modo}_${tipoSel}_${fecha}`, cols, filas, session?.user?.name ?? undefined)
   }
 
   const esLotes            = modo === 'lotes'

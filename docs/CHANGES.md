@@ -39,6 +39,23 @@ quedan en el árbol de trabajo para revisarlos y probarlos antes del commit.
 | 15 | — | `.env.example` con todas las variables que usa el código (solo nombres) | `.env.example` |
 | 16 | — | Documentación | `docs/*` |
 
+## Mejoras del 23/10/2026 (rama `mejoras-seguridad-2026-10-23`, sin commit)
+
+| # | Hallazgo | Cambio | Archivos |
+|---|---|---|---|
+| 32 | Arquitectura, AUD-02 | Control de acceso único y declarativo: cada ruta API declara su regla (`modulos`, `roles`, `movil`) en `exigirAcceso`; el token móvil solo se acepta donde la regla lo pide | `lib/acceso.ts` (nuevo), `lib/api-auth.ts` (`soloSesion`), `lib/cen/acceso.ts`, 42 archivos `app/api/**/route.ts` |
+| 33 | Arquitectura | Fecha de Bogotá en un solo lugar; el análisis PVN usaba la fecha UTC por defecto (después de las 7 p. m. tomaba el día siguiente) | `lib/fechas.ts` (nuevo), 8 rutas, `components/pvn-registrar/utils.ts`, `app/api/pvn/analisis/route.ts` |
+| 34 | AUD-17 | Límite de fallos de login por IP (30 en 15 min → 15 min de bloqueo), web y móvil; el login web muestra el mensaje de bloqueo | `lib/loginBruteForce.ts`, `lib/auth.ts`, `app/api/auth/mobile/login/route.ts`, `app/login/page.tsx`, `scripts/migrate-add-login-ip.js` (nuevo; aplicada solo en la rama de desarrollo) |
+| 35 | AUD-24 | CSP de páginas con nonce por petición y `'strict-dynamic'` (sin `'unsafe-inline'` en scripts); API con `default-src 'none'`; las páginas pasan a generarse en cada petición | `middleware.ts`, `next.config.js`, `app/layout.tsx` |
+| 36 | AUD-24 | Formatos imprimibles sin script en línea: la impresión se lanza desde la página que abre la ventana | `components/imprimirVentana.ts` (nuevo), `components/movimientos/imprimirMovimiento.ts`, `components/repuestos/imprimir.ts` |
+| 37 | AUD-25 | Pruebas de integración contra la rama de desarrollo: matriz de 43 rutas × 8 roles, IDOR, token móvil, usuario inactivo, límite por IP; prueba estática que falla si una ruta nueva no usa el control de acceso | `tests/integracion/*` (nuevos), `tests/rutas-protegidas.test.ts` (nuevo), `package.json` |
+| 38 | AUD-25 | ESLint 9 con reglas de Next/TypeScript (`npm run lint`): 0 errores; se corrigieron 7 (tipos `any`, comillas sin escapar) | `eslint.config.mjs` (nuevo), `package.json`, `app/acumulados/page.tsx`, `app/api/acumulados/route.ts`, `app/api/inventario/tipos/route.ts`, `app/consulta/page.tsx`, `lib/exportExcel.ts`, `lib/google-drive.ts`, `app/logistica/ordenes-cen/productos/page.tsx`, `components/usuarios/ModalCrear.tsx` |
+| 39 | Operación | `GET /api/salud` (público, sin datos) para monitoreo externo | `app/api/salud/route.ts` (nuevo) |
+| 40 | Operación | Dependabot semanal para npm (sin saltos de versión mayor) y mensual para Actions | `.github/dependabot.yml` (nuevo) |
+| 41 | Mínimo privilegio | Script para crear un rol de BD sin DDL y con `audit_logs` solo lectura/inserción; probado en la rama de desarrollo y borrado después | `scripts/crear-rol-app.js` (nuevo) |
+| 42 | Mantenimiento | Comentarios explicativos en el núcleo de autenticación; la bitácora deja constancia en el log si no puede escribir | `lib/auth.ts`, `lib/api-auth.ts`, `lib/permissions.ts`, `lib/db.ts`, `lib/audit.ts`, `app/api/auth/mobile/login/route.ts` |
+| 43 | AUD-17 | El segmento público de la empresa (`LOGIN_IPS_CONFIANZA=190.242.100.248/29`) no cuenta para el límite por IP, para que los errores de varios empleados no bloqueen la oficina; el bloqueo por usuario sigue aplicando | `lib/ipConfianza.ts` (nuevo), `lib/loginBruteForce.ts`, `.env.example`, `tests/ip-confianza.test.ts` (nuevo), `tests/integracion/login-ip.test.ts` |
+
 ## Cambios de comportamiento visibles
 
 - Desactivar un usuario o cambiarle rol/módulos aplica de inmediato (web y app móvil), no al vencer la sesión.
@@ -54,6 +71,9 @@ quedan en el árbol de trabajo para revisarlos y probarlos antes del commit.
 - Contraseñas nuevas: mínimo 8 caracteres; para cambiarla voluntariamente se pide la actual.
 - El total que ve el operador al cerrar turno es solo el de ese turno.
 - Cada petición autenticada hace una consulta extra a la BD (por PK, con subconsulta de módulos).
+- (23/10) 30 logins fallidos desde una misma IP en 15 minutos la bloquean 15 minutos, con el mensaje "Demasiados intentos fallidos desde esta conexión…".
+- (23/10) Las páginas ya no se sirven pre-generadas: se generan en cada petición (lo exige la CSP con nonce). Puede sumar unos milisegundos por página.
+- (23/10) Las rutas solo web (administración, inventario, sistemas) ya no aceptan el token de la app móvil.
 
 ## Revertir
 

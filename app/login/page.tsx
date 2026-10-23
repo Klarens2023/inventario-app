@@ -24,7 +24,9 @@ export default function LoginPage() {
 
     setLoading(false)
     if (res?.ok) router.push('/dashboard')
-    else setError('Usuario o contraseña incorrectos')
+    // 'CredentialsSignin' = usuario o contraseña errados. Cualquier otro texto es
+    // un mensaje propio de lib/auth.ts (bloqueo por intentos), y se muestra tal cual.
+    else setError(res?.error && res.error !== 'CredentialsSignin' ? res.error : 'Usuario o contraseña incorrectos')
   }
 
   return (

@@ -1,5 +1,10 @@
 import { sql } from './db'
 
+/**
+ * Registra una acción en la bitácora de auditoría (tabla audit_logs, visible
+ * en /auditoria para el admin). Con el rol mínimo de BD (scripts/crear-rol-app.js)
+ * la app solo puede agregar y leer esta tabla, no modificarla ni borrarla.
+ */
 export async function logAudit(params: {
   usuarioId: string | null
   usuarioNombre: string
@@ -18,7 +23,9 @@ export async function logAudit(params: {
         ${params.datos ? JSON.stringify(params.datos) : null}
       )
     `
-  } catch {
-    // No interrumpir el flujo principal si falla el log
+  } catch (e) {
+    // No se interrumpe la operación del usuario si falla la bitácora, pero
+    // queda constancia en los logs del servidor (Vercel) para revisarlo.
+    console.error('[auditoria] No se pudo registrar', params.accion, e)
   }
 }

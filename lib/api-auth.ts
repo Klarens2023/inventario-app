@@ -20,6 +20,9 @@ type OpcionesAuth = {
   // pendiente de cambiar; cualquier otra ruta queda bloqueada hasta que la
   // cambie, para que no se pueda usar la API completa saltándose esa pantalla.
   permitirCambioPassword?: boolean
+  // true: solo la cookie de sesión web; un token Bearer de la app móvil no sirve
+  // (ver ReglaAcceso.movil en lib/acceso.ts).
+  soloSesion?: boolean
 }
 
 /**
@@ -39,10 +42,14 @@ type OpcionesAuth = {
  *          lo permita con `permitirCambioPassword`).
  */
 export async function getAuthUser(req: NextRequest, opciones: OpcionesAuth = {}): Promise<AuthUser | null> {
+  // 1) Sesión web: NextAuth descifra la cookie y corre callbacks.jwt/session,
+  //    que ya revalidaron al usuario contra la BD.
   const session = await getServerSession(authOptions)
   if (session?.user) {
     const u = session.user
+    // Usuario desactivado o eliminado después de iniciar sesión
     if (u.revocado) return null
+    // Contraseña temporal sin cambiar: solo /api/cambiar-password lo admite
     if (u.debe_cambiar_password && !opciones.permitirCambioPassword) return null
     return {
       id: u.id,
@@ -55,22 +62,29 @@ export async function getAuthUser(req: NextRequest, opciones: OpcionesAuth = {})
     }
   }
 
+  // Ruta solo web: no se mira el encabezado Authorization
+  if (opciones.soloSesion) return null
+
+  // 2) App móvil: token propio en "Authorization: Bearer <token>"
   const authHeader = req.headers.get('authorization')
   if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7)
+    const token = authHeader.slice(7) // quita el prefijo "Bearer "
     let payload: { id?: string | number; name?: string }
+    // Verifica firma y vencimiento; con algorithms fijo, un token "alg: none"
+    // o firmado con otro algoritmo se rechaza.
     try {
       payload = jwt.verify(token, process.env.NEXTAUTH_SECRET as string, { algorithms: ['HS256'] }) as typeof payload
     } catch {
       return null
     }
-    if (payload.id === undefined) return null
+    if (payload.id === undefined) return null // token válido pero sin usuario
 
     // Sin try/catch a propósito: si la BD falla, la ruta responde 500 en vez de
     // aceptar un token de 30 días sin poder comprobar que el usuario sigue activo.
     const estado = await cargarEstadoUsuario(payload.id)
     if (!estado) return null
     if (estado.debe_cambiar_password && !opciones.permitirCambioPassword) return null
+    // Del token solo se usan id y nombre; los permisos salen de la BD
     return {
       id: String(payload.id),
       name: payload.name ?? '',
@@ -82,5 +96,6 @@ export async function getAuthUser(req: NextRequest, opciones: OpcionesAuth = {})
     }
   }
 
+  // Sin cookie ni token: no autenticado
   return null
 }

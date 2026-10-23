@@ -33,7 +33,7 @@ export default function AcumuladosPage() {
       const { rows: rowsData, totales: totalesData, error: errorMsg, ok } = await getAcumulados({ desde, hasta, modo })
       if (!ok) { setError(errorMsg ?? 'Error al buscar'); setRows([]); setTotales(null) }
       else { setRows(rowsData); setTotales(totalesData) }
-    } catch (e: any) { setError('Error: ' + e.message) }
+    } catch (e) { setError('Error: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
 

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { canAccessRepuestos, MOTIVO_RETORNO, esFecha, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
 
@@ -28,9 +27,9 @@ const BASE = `
 
 // GET /api/sistemas/repuestos/consumo?desde=&hasta=&categoria=&equipo_id=&area=
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const sp = new URL(req.url).searchParams
   const desde = sp.get('desde') ?? ''

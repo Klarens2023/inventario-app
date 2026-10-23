@@ -41,7 +41,7 @@ costos (AUD-19).
 
 ## Reglas para código nuevo
 
-1. Toda ruta API valida autenticación **y** permiso en el servidor; usar `getAuthUser` (rechaza sesiones revocadas y con cambio de contraseña pendiente) o `getServerSession` + chequeo de rol/módulo.
+1. Toda ruta API empieza con `exigirAcceso(req, { modulos | roles, movil? })` de `lib/acceso.ts` (rechaza sesiones revocadas y con cambio de contraseña pendiente, y el token móvil salvo `movil: true`). `npm test` falla si una ruta nueva no lo usa; si debe ser pública, se declara con su motivo en `tests/rutas-protegidas.test.ts`.
 2. Filtrar por el usuario del token cuando el recurso es propio; nunca confiar en un `usuario_id` del body.
 3. SQL siempre parametrizado; nunca concatenar texto del usuario.
 4. Todo HTML/SVG armado como texto pasa por `escapeHtml`.

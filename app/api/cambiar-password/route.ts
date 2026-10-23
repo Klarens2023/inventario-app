@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthUser } from '@/lib/api-auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 
@@ -17,8 +17,9 @@ const PASSWORD_MAX = 100
 //   usuario acaba de entrar con ella.
 // - La nueva no puede ser igual a la actual.
 export async function PUT(req: NextRequest) {
-  const user = await getAuthUser(req, { permitirCambioPassword: true })
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const acceso = await exigirAcceso(req, { movil: true, permitirCambioPassword: true })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { nueva_password, password_actual } = await req.json().catch(() => ({})) as { nueva_password?: unknown; password_actual?: unknown }
 

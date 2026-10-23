@@ -1,6 +1,5 @@
-export function hoyBogota(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-}
+// Definición única en lib/fechas.ts; se reexporta para no cambiar los imports existentes
+export { hoyBogota } from '@/lib/fechas'
 
 export function limpiarNombre(n: string) {
   return n.replace(/ \(IVA\)$/, '').replace(/ IVA$/, '')

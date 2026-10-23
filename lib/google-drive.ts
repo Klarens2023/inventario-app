@@ -50,7 +50,8 @@ export async function subirADrive(file: File, nombreArchivo: string): Promise<st
 // Debe ser absoluta (no solo el path): la web la resuelve igual contra su propio
 // origen, pero la app móvil (React Native <Image>) no tiene un "origen actual" y
 // necesita la URL completa, o la imagen simplemente no carga.
-export function aUrlProxy(row: Record<string, any>, baseUrl: string, campo: string = 'foto_url'): Record<string, any> {
+// Genérico: devuelve el mismo tipo de fila que recibe (solo cambia el campo de la foto)
+export function aUrlProxy<T extends Record<string, unknown>>(row: T, baseUrl: string, campo: string = 'foto_url'): T {
   const valor = row[campo]
   if (!valor) return row
   const fileId = String(valor).match(/[?&]id=([^&]+)/)?.[1]

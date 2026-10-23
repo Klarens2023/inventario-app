@@ -2,16 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { sql } from '@/lib/db'
-import { compararSenuelo, minutosRestantesBloqueo, registrarIntentoFallido, resetearIntentosFallidos } from '@/lib/loginBruteForce'
+import {
+  compararSenuelo, ipCliente, mensajeBloqueoIp, minutosBloqueoIp, minutosRestantesBloqueo,
+  registrarFalloIp, registrarIntentoFallido, resetearIntentosFallidos,
+} from '@/lib/loginBruteForce'
 
 // Login para la app móvil (PVN/PVV) — emite un JWT propio, independiente de la
 // sesión por cookie de NextAuth (no accesible desde React Native).
 export async function POST(req: NextRequest) {
+  // Cuerpo JSON { username, password }; si no es JSON válido queda vacío → 400
   const { username, password } = await req.json().catch(() => ({})) as { username?: string; password?: string }
   if (!username || !password) {
     return NextResponse.json({ error: 'Usuario y contraseña requeridos' }, { status: 400 })
   }
 
+  // Límite por IP antes de tocar la BD de usuarios o bcrypt (ver lib/loginBruteForce.ts)
+  const ip = ipCliente(req.headers)
+  const minutosIp = await minutosBloqueoIp(ip)
+  if (minutosIp > 0) return NextResponse.json({ error: mensajeBloqueoIp(minutosIp) }, { status: 429 })
+
+  // Usuario activo con su punto de venta (la app muestra el nombre del punto)
   const rows = await sql`
     SELECT u.id, u.username, u.password_hash, u.nombre, u.rol, u.area, u.activo,
            u.punto_venta_id, pv.nombre AS punto_venta_nombre, u.debe_cambiar_password,
@@ -22,12 +32,15 @@ export async function POST(req: NextRequest) {
     LIMIT 1
   `
   if (rows.length === 0) {
+    // Mismo tiempo de respuesta que con un usuario real (no revela si existe)
     await compararSenuelo(password)
+    await registrarFalloIp(ip)
     return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 })
   }
 
   const user = rows[0]
 
+  // Cuenta bloqueada por fallos seguidos
   const minutosRestantes = minutosRestantesBloqueo({ bloqueado_hasta: user.bloqueado_hasta })
   if (minutosRestantes > 0) {
     return NextResponse.json(
@@ -36,13 +49,17 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Contraseña contra el hash bcrypt guardado
   const valid = await bcrypt.compare(password, user.password_hash)
   if (!valid) {
     await registrarIntentoFallido(user.id)
+    await registrarFalloIp(ip)
     return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 })
   }
   await resetearIntentosFallidos(user.id)
 
+  // Se valida DESPUÉS de la contraseña para no revelar a un tercero qué
+  // usuarios existen y cuáles tienen la app habilitada
   if (!user.acceso_movil) {
     return NextResponse.json({ error: 'Este usuario no tiene acceso a la app móvil' }, { status: 403 })
   }
@@ -55,6 +72,7 @@ export async function POST(req: NextRequest) {
     modulos = modulosRows.map(r => r.modulo as string)
   } catch {}
 
+  // Datos que la app guarda para mostrar (nombre, punto de venta, módulos)
   const payload = {
     id: String(user.id),
     name: user.nombre,

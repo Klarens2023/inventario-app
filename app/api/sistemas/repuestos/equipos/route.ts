@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { canAccessRepuestos } from '@/lib/repuestos'
 
 // GET /api/sistemas/repuestos/equipos?buscar= — buscador de equipos para ligar una salida.
 // Va aparte de /api/sistemas/equipos para no exigir el módulo de Equipos TI.
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const buscar = (new URL(req.url).searchParams.get('buscar') ?? '').trim()
   if (buscar.length < 2) return NextResponse.json([])

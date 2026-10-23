@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
+import type { AuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import {
@@ -12,9 +12,9 @@ import { reservarIds, qMovimientoStock, qCerrarAsignacion, esErrorStock, ETIQUET
 
 // GET /api/sistemas/repuestos/movimientos — kardex (opcional ?articulo=REP-0001)
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const articulo = searchParams.get('articulo') ?? ''
@@ -55,9 +55,9 @@ export async function GET(req: NextRequest) {
 // Salida con destino 'equipo' o 'persona' crea además una asignación (y puede reemplazar otra);
 // destino 'consumo' (tóner, elementos gastados) solo descuenta stock.
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const body = await req.json()
   const codigo = texto(body.articulo_codigo)
@@ -93,10 +93,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'El contador de páginas debe ser un número entero' }, { status: 400 })
   }
 
-  const usuario = session.user?.name ?? 'Sistema'
+  const usuario = user.name ?? 'Sistema'
 
   if (destino === 'equipo' || destino === 'persona') {
-    return salidaConAsignacion({ body, session, usuario, codigo, fecha, motivo, cantidad, destino, equipoId })
+    return salidaConAsignacion({ body, user, usuario, codigo, fecha, motivo, cantidad, destino, equipoId })
   }
 
   // Entrada, ajuste o salida por consumo: lectura, validación de stock, actualización y registro en un solo statement
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 
   const mov = rows[0]
   await logAudit({
-    usuarioId: session.user?.id ?? null,
+    usuarioId: user.id ?? null,
     usuarioNombre: usuario,
     accion: 'TIC_ARTICULO_MOVIMIENTO',
     descripcion: `${tipo[0].toUpperCase() + tipo.slice(1)} de ${codigo} (${motivo}): ${mov.cantidad > 0 ? '+' : ''}${mov.cantidad}, stock queda en ${mov.stock_resultante}`
@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
 
 type DatosSalida = {
   body: Record<string, unknown>
-  session: { user?: { id?: string; name?: string | null } }
+  user: AuthUser
   usuario: string
   codigo: string
   fecha: string
@@ -163,7 +163,7 @@ type DatosSalida = {
 // Salida que queda asignada a un equipo o a una persona. Si el equipo ya tiene asignado un artículo
 // del mismo tipo, exige decidir si es reemplazo (y qué pasa con el anterior) o una asignación adicional.
 async function salidaConAsignacion(d: DatosSalida) {
-  const { body, session, usuario, codigo, fecha, motivo, cantidad, destino, equipoId } = d
+  const { body, user, usuario, codigo, fecha, motivo, cantidad, destino, equipoId } = d
   const personaNombre = texto(body.destino_nombre)
   const personaArea   = texto(body.destino_area)
   const observaciones = texto(body.observaciones)
@@ -263,7 +263,7 @@ async function salidaConAsignacion(d: DatosSalida) {
 
   const destinoTxt = destino === 'equipo' ? `equipo ${equipoId}` : `${personaNombre} (sin equipo)`
   await logAudit({
-    usuarioId: session.user?.id ?? null,
+    usuarioId: user.id ?? null,
     usuarioNombre: usuario,
     accion: 'TIC_ARTICULO_MOVIMIENTO',
     descripcion: `Asignó ${cantidad} × ${codigo} (${art.descripcion}) a ${destinoTxt}`

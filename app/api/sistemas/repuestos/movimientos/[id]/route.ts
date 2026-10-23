@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { canAccessRepuestos } from '@/lib/repuestos'
 
 // GET /api/sistemas/repuestos/movimientos/[id] — detalle para el comprobante impreso.
 // Si el movimiento creó o cerró una asignación, lo indica para imprimir el acta correspondiente.
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccessRepuestos(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id, 10)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 })

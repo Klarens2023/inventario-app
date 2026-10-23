@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 
@@ -8,9 +7,9 @@ import { logAudit } from '@/lib/audit'
 // El `key` no se puede cambiar: es lo que queda guardado en usuarios.area.
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (session.user.rol !== 'admin') return NextResponse.json({ error: 'Solo un administrador puede editar áreas' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { roles: ['admin'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -35,8 +34,8 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
   `
 
   await logAudit({
-    usuarioId: session.user.id,
-    usuarioNombre: session.user.name,
+    usuarioId: user.id,
+    usuarioNombre: user.name,
     accion: 'AREA_MODIFICADA',
     descripcion: `Editó el área "${existente.label}"`,
     datos: { area_key: existente.key, label_anterior: existente.label, label_nuevo: nuevoLabel },
@@ -48,9 +47,9 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 // DELETE /api/areas/[id] — solo admin; bloqueado si es protegida o tiene usuarios asignados
 export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (session.user.rol !== 'admin') return NextResponse.json({ error: 'Solo un administrador puede eliminar áreas' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { roles: ['admin'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -69,8 +68,8 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
   await sql`DELETE FROM areas WHERE id = ${id}`
 
   await logAudit({
-    usuarioId: session.user.id,
-    usuarioNombre: session.user.name,
+    usuarioId: user.id,
+    usuarioNombre: user.name,
     accion: 'AREA_ELIMINADA',
     descripcion: `Eliminó el área "${existente.label}"`,
     datos: { area_key: existente.key, label: existente.label },

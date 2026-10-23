@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 
 // PUT /api/conteo  → guarda conteo físico y observaciones
 export async function PUT(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!tieneModulo(session.user?.rol ?? '', session.user?.modulos, 'consulta')) {
-    return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
-  }
+  const acceso = await exigirAcceso(req, { modulos: ['consulta'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const { id_inventario, conteo_fisico, observaciones } = await req.json()
 
@@ -19,7 +15,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Falta id_inventario' }, { status: 400 })
   }
 
-  const userId = session.user?.id ?? null
+  const userId = user.id ?? null
 
   // Validar que el item no esté acumulado y que el usuario tenga permiso
   const [item] = await sql`
@@ -27,7 +23,7 @@ export async function PUT(req: NextRequest) {
   `
   if (!item) return NextResponse.json({ error: 'Registro no encontrado' }, { status: 404 })
   if (item.acumulado) return NextResponse.json({ error: 'Este conteo ya fue acumulado y no puede modificarse' }, { status: 403 })
-  if (session.user?.rol !== 'admin' && String(item.cargado_por) !== userId) {
+  if (user.rol !== 'admin' && String(item.cargado_por) !== userId) {
     return NextResponse.json({ error: 'Solo puede modificar el conteo quien subió este inventario' }, { status: 403 })
   }
 
@@ -54,7 +50,7 @@ export async function PUT(req: NextRequest) {
 
   await logAudit({
     usuarioId: userId,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'CONTEO_ACTUALIZADO',
     descripcion: `Actualizó conteo del ítem #${id_inventario}`,
     datos: { id_inventario, conteo_fisico: conteo_fisico ?? null, tiene_observacion: !!observaciones },

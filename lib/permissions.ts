@@ -1,3 +1,12 @@
+// ════════════════════════════════════════════════════════════════════════════
+// Permisos por módulo.
+// Cada usuario tiene un rol (admin, lider, usuario, pvn, pvv) y una lista de
+// módulos en la tabla usuario_modulos. El rol admin tiene todos los módulos.
+// Las rutas API exigen módulos con exigirAcceso (lib/acceso.ts) y las páginas
+// con middleware.ts; ambos usan tieneModulo().
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Lista cerrada de módulos que existen; agregar uno nuevo empieza aquí. */
 export const MODULOS = [
   'cargar', 'consulta', 'acumulados', 'ordenes_cen',
   'pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr',
@@ -7,6 +16,7 @@ export const MODULOS = [
 
 export type Modulo = typeof MODULOS[number]
 
+/** Agrupación de módulos para el checklist de la pantalla de usuarios. */
 export const GRUPOS_MODULOS: Array<{ key: string; label: string; modulos: Modulo[] }> = [
   { key: 'logistica',    label: 'Logística',      modulos: ['cargar', 'consulta', 'acumulados', 'ordenes_cen'] },
   { key: 'puntos_venta', label: 'Puntos de Venta', modulos: ['pvn_historial', 'pvn_analisis', 'pvn_catalogo', 'pvn_pagos_qr'] },
@@ -14,6 +24,7 @@ export const GRUPOS_MODULOS: Array<{ key: string; label: string; modulos: Modulo
   { key: 'contabilidad', label: 'Contabilidad',    modulos: ['planos', 'conciliacion_facturas'] },
 ]
 
+/** Nombre visible de cada módulo en la interfaz. */
 export const MODULO_LABELS: Record<Modulo, string> = {
   cargar: 'Cargar Inventario',
   consulta: 'Conteo Físico',
@@ -53,6 +64,10 @@ export function modulosPorDefecto(rol: string, area: AreaInfo | undefined): Modu
   return (rol === 'lider' ? area.modulos_lider : area.modulos_usuario) as Modulo[]
 }
 
+/**
+ * ¿El usuario puede usar este módulo? Regla única para páginas y API.
+ * El admin siempre puede; el resto solo si lo tiene asignado.
+ */
 export function tieneModulo(rol: string, modulos: string[] | undefined, modulo: Modulo): boolean {
   if (rol === 'admin') return true
   return (modulos ?? []).includes(modulo)

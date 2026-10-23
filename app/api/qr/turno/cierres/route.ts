@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
-import { tieneModulo } from '@/lib/permissions'
 import { aUrlProxy } from '@/lib/google-drive'
 
-function puedeVer(rol: string, modulos: string[]) {
-  return rol === 'admin' || tieneModulo(rol, modulos, 'pvn_pagos_qr')
-}
 
 // GET /api/qr/turno/cierres — cierres de turno PVV con foto de cierre de
 // datafono y número de recogida del cuadre de caja (solo turnos que pasaron
 // por ese flujo obligatorio; los turnos PVN no tienen estos datos)
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const { rol, modulos } = session.user
-  if (!puedeVer(rol, modulos ?? [])) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['pvn_pagos_qr'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
+  const { rol, modulos } = user
 
   const { searchParams } = req.nextUrl
   const desde = searchParams.get('desde')

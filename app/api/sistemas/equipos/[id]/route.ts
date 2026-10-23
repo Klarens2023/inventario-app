@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { tieneModulo } from '@/lib/permissions'
 
-function canAccess(session: { user?: { rol?: string; modulos?: string[] } } | null) {
-  if (!session?.user) return false
-  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'equipos')
-}
 
 // GET /api/sistemas/equipos/[id]
-export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const [equipo] = await sql`SELECT * FROM equipos_tecnologicos WHERE id = ${params.id}`
   if (!equipo) return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })
@@ -65,9 +59,9 @@ export async function GET(_req: NextRequest, props: { params: Promise<{ id: stri
 // PUT /api/sistemas/equipos/[id]
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (!canAccess(session)) return NextResponse.json({ error: 'Acceso restringido' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const [existe] = await sql`SELECT id FROM equipos_tecnologicos WHERE id = ${params.id}`
   if (!existe) return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })
@@ -158,13 +152,13 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       contrato_mantenimiento = ${body.contrato_mantenimiento || null},
       observaciones = ${body.observaciones || null},
       fecha_actualizacion = NOW(),
-      usuario_actualizacion = ${session.user?.name ?? 'Sistema'}
+      usuario_actualizacion = ${user.name ?? 'Sistema'}
     WHERE id = ${params.id}
   `
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'EQUIPO_ACTUALIZADO',
     descripcion: `Actualizó equipo ${params.id}: ${body.marca} ${body.modelo ?? ''}`,
     datos: { id: params.id },
@@ -174,11 +168,11 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 }
 
 // DELETE /api/sistemas/equipos/[id]
-export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const session = await getServerSession(authOptions)
-  if (!session) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  if (session.user?.rol !== 'admin') return NextResponse.json({ error: 'Solo el admin puede eliminar equipos' }, { status: 403 })
+  const acceso = await exigirAcceso(req, { roles: ['admin'] })
+  if (!acceso.ok) return acceso.respuesta
+  const { user } = acceso
 
   const [existe] = await sql`SELECT id, marca, modelo FROM equipos_tecnologicos WHERE id = ${params.id}`
   if (!existe) return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })
@@ -186,8 +180,8 @@ export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: s
   await sql`DELETE FROM equipos_tecnologicos WHERE id = ${params.id}`
 
   await logAudit({
-    usuarioId: session.user?.id ?? null,
-    usuarioNombre: session.user?.name ?? 'Desconocido',
+    usuarioId: user.id ?? null,
+    usuarioNombre: user.name ?? 'Desconocido',
     accion: 'EQUIPO_ELIMINADO',
     descripcion: `Eliminó equipo ${params.id}: ${existe.marca} ${existe.modelo ?? ''}`,
     datos: { id: params.id },
