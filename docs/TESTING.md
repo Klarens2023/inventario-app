@@ -23,6 +23,10 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Alerta de consumo de Neon (26/10/2026)
+
+`.github/workflows/alerta-consumo.yml` en Klarens2023, ejecutado a mano con umbral 1% contra la API real de Neon: cómputo 25,0 de 100 CU-h (25%, proyección 30% al cierre), transferencia 0,05 de 5 GB, almacenamiento de la rama mayor 0,037 de 1 GB. Terminó en rojo como se esperaba. Con el umbral real (50%) hoy no alerta.
+
 ## Respaldo diario (26/10/2026)
 
 Primera ejecución completa de `.github/workflows/respaldo-bd.yml` en Klarens2023: `pg_dump` de producción con `app_respaldo` (solo lectura), cifrado AES-256, subida a Drive (0.63 MB, tamaño verificado), descarga desde Drive, descifrado y `pg_restore` en una base temporal de la rama de desarrollo: 35 tablas, 32 usuarios y 6635 pagos, igual que producción vista con Preview data de Neon ese día. La protección contra usar producción como destino de la prueba se activó correctamente en un intento previo con el secreto mal puesto.
