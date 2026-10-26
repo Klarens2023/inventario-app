@@ -32,6 +32,7 @@
 - **AUD-29:** placas libres en movimientos TIC (decisión del 22/10/2026).
 
 - **AUD-19:** caché pública de fotos en la CDN (decisión de costos).
+- **Repositorios públicos (decisión del 26/10/2026):** `louis-rook/inventario-app`, `Klarens2023/inventario-app` y los dos de `control-pv-mobile` siguen públicos; cualquiera puede leer el código y su historial. Se revisó el historial completo (171 y 46 commits): no hay archivos `.env`, llaves ni cadenas de conexión reales; solo valores de ejemplo (`user:password@ep-xxx`). Lo único sensible del historial son las contraseñas por defecto que publicaba el README (AUD-04), que ya no deben estar en uso. Regla mientras sigan públicos: nunca subir secretos, IPs internas ni datos de clientes; `npm test` y `.gitignore` (`.env*.local`) ayudan, pero hay que revisar cada commit. Para hacerlos privados: primero `louis-rook/…` (GitHub separa el fork de Klarens2023, que sigue público), luego `Klarens2023/…`; confirmar en GitHub → Settings → Applications → Vercel que tiene acceso al repositorio y probar con un Redeploy. Desde ahí no hay "Sync fork": se despliega con `git push klarens main`. En plan Hobby, Vercel puede bloquear despliegues de repositorios privados si el autor del commit no es el dueño de la cuenta.
 - Si la BD no responde al revalidar una sesión web, se usan los datos del token hasta su vencimiento (máx. 8–24 h) en vez de cerrar todas las sesiones (AUD-01).
 - Si la función de Vercel se corta en medio del envío de un pedido EDI, la orden queda "enviada" sin consecutivo y se corrige con "Reversar" (AUD-07).
 
