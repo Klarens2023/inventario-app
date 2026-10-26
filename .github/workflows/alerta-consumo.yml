@@ -1,0 +1,43 @@
+# Alerta diaria de consumo de Neon (plan Free).
+#
+# Cada mañana revisa el consumo del mes de la base de datos. Si algún recurso
+# pasa del 50% del límite del plan, la ejecución termina en rojo y GitHub envía
+# un correo; el resumen de la ejecución muestra la tabla con el uso y la
+# proyección al cierre del mes. Mientras siga por encima, avisa cada día.
+#
+# Vercel (plan Hobby) no permite leer el consumo por API: sus avisos llegan por
+# correo desde Vercel al acercarse al límite. Ver docs/REMAINING-RISKS.md.
+#
+# Solo corre en Klarens2023/inventario-app. Secreto requerido:
+#   NEON_API_KEY   Neon → Account settings (o Organization settings) → API keys
+name: Alerta de consumo
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 7:00 a. m. de Bogotá
+  workflow_dispatch:
+    inputs:
+      porcentaje:
+        description: 'Umbral de aviso (% del límite). Pon 1 para probar que llega el correo.'
+        default: '50'
+
+jobs:
+  neon:
+    if: github.repository == 'Klarens2023/inventario-app'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Revisar consumo de Neon
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: quiet-meadow-57860269
+          ALERTA_PORCENTAJE: ${{ inputs.porcentaje || '50' }}
+          LIMITE_CU_HORAS: '100'
+          LIMITE_TRANSFER_GB: '5'
+        run: node scripts/alerta-consumo.mjs

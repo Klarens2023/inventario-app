@@ -14,6 +14,8 @@
 
 7. **Respaldos:** Neon (plan actual) solo restaura las últimas 6 horas (comprobado el 26/10/2026 con Preview data). Se agregó un respaldo diario cifrado en Drive con 30 días y prueba semanal de restauración ([RESPALDOS.md](RESPALDOS.md)); activo desde el 26/10/2026: la primera ejecución restauró 35 tablas, 32 usuarios y 6635 pagos en una base temporal. La rama `production` de Neon no está protegida (Branch protection).
 
+8. **Consumo y planes (revisado el 26/10/2026):** en Vercel Hobby el equipo (inventario-app + klarens-frontend) usa el 34% de la CPU activa (81 de 240 min/mes; inventario-app 51 min). Lo demás está por debajo del 15%. En Neon Free, `inventario` usa unas 25 CU-h de 100 al mes. Si se pasa del límite, **Vercel pausa los dos proyectos y Neon suspende la base** hasta el mes siguiente. Neon tiene una alerta diaria al 50% ([`.github/workflows/alerta-consumo.yml`](../.github/workflows/alerta-consumo.yml)). Vercel Hobby no expone el consumo por API (`/v1/billing/charges` responde *costs not found*): solo envía sus propios correos al acercarse al límite. Además, Hobby es para uso personal no comercial: se recomienda Vercel Pro (alertas de gasto al 50/75/100%).
+
 ## Decisiones que requieren aprobación
 
 | ID | Propuesta | Impacto en la operación |
