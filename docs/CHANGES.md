@@ -53,6 +53,7 @@ quedan en el árbol de trabajo para revisarlos y probarlos antes del commit.
 | 39 | Operación | `GET /api/salud` (público, sin datos) para monitoreo externo | `app/api/salud/route.ts` (nuevo) |
 | 40 | Operación | Dependabot semanal para npm (sin saltos de versión mayor) y mensual para Actions | `.github/dependabot.yml` (nuevo) |
 | 41 | Mínimo privilegio | Script para crear un rol de BD sin DDL y con `audit_logs` solo lectura/inserción; probado en la rama de desarrollo y borrado después | `scripts/crear-rol-app.js` (nuevo) |
+| 41b | Mínimo privilegio | Versión SQL del rol mínimo para el SQL Editor de Neon, con consultas de comprobación; `.gitignore` ignora todos los `.env*.local`. Probado en desarrollo con la app completa (17/17 integración y escrituras reales) y aplicado en producción el 26/10/2026 | `scripts/crear-rol-app.sql` (nuevo), `.gitignore` |
 | 42 | Mantenimiento | Comentarios explicativos en el núcleo de autenticación; la bitácora deja constancia en el log si no puede escribir | `lib/auth.ts`, `lib/api-auth.ts`, `lib/permissions.ts`, `lib/db.ts`, `lib/audit.ts`, `app/api/auth/mobile/login/route.ts` |
 | 43 | AUD-17 | El segmento público de la empresa (`LOGIN_IPS_CONFIANZA=190.242.100.248/29`) no cuenta para el límite por IP, para que los errores de varios empleados no bloqueen la oficina; el bloqueo por usuario sigue aplicando | `lib/ipConfianza.ts` (nuevo), `lib/loginBruteForce.ts`, `.env.example`, `tests/ip-confianza.test.ts` (nuevo), `tests/integracion/login-ip.test.ts` |
 

@@ -10,7 +10,7 @@
 3. **Desplegar y probar** los pasos manuales de [TESTING.md](TESTING.md#lo-que-no-se-probó-y-cómo-probarlo) en un ambiente de pruebas antes de producción.
 4. ~~Desplegar la rama `mejoras-seguridad-2026-10-23`~~: desplegada el 23/10/2026 (commit `beb3c67`), con la tabla `login_intentos_ip` y la variable `LOGIN_IPS_CONFIANZA` en producción. Ver [REVISION-2026-10-23.md](REVISION-2026-10-23.md).
 5. **Monitoreo:** registrar `https://operaciones.klarens.com.co/api/salud` en un monitor externo gratuito (p. ej. UptimeRobot) con aviso por correo.
-6. **Rol mínimo de BD:** correr `scripts/crear-rol-app.js` en producción y cambiar `DATABASE_URL` de Vercel a ese rol (las migraciones siguen con el dueño).
+6. ~~Rol mínimo de BD~~: hecho el 26/10/2026. Producción usa `app_operaciones` (creado con `scripts/crear-rol-app.sql`). Las migraciones se corren con la cadena de `neondb_owner`, que se copia en Neon → Connect y ya no está en Vercel.
 
 ## Decisiones que requieren aprobación
 
@@ -24,7 +24,7 @@
 |---|---|---|---|
 | 1 | AUD-17 | Bloqueo de cuentas ajenas: quien conozca un usuario puede bloquearlo 15 min con 5 fallos (el límite por IP del 23/10 lo frena desde una sola conexión, no desde muchas) | Vercel WAF / Attack Challenge si se observa abuso; 2FA para administradores |
 | 4 | AUD-25 | Las pruebas de integración cubren autorización, no la lógica de negocio de cada ruta (cálculos, Excel, EDI) | Agregar casos por módulo a `tests/integracion/` |
-| 4 | — | App móvil en Expo SDK 54 (la última es 58): 41 alertas de npm, casi todas de herramientas de compilación | Rama `prueba/expo-sdk58` lista (tsc, expo-doctor y bundle OK); falta build EAS y prueba en teléfono |
+| 4 | — | App móvil en Expo SDK 54 (la última es 58): 41 alertas de npm, casi todas de herramientas de compilación | 23/10: APK 1.2.0 con SDK 58 (rama `prueba/expo-sdk58`) probado en teléfono: login, turno, pagos QR con cámara y galería, cierre de datáfono e historial OK. Falta unirlo a `main` del repo móvil y distribuirlo |
 | 6 | AUD-26 | Higiene | Sacar `tsconfig.tsbuildinfo` de Git (`git rm --cached` + `.gitignore`) al hacer el commit |
 
 ## Riesgos aceptados

@@ -23,6 +23,10 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Rol mínimo de BD en producción (26/10/2026)
+
+Antes, en la rama de desarrollo: `next start` con `DATABASE_URL` de `app_operaciones` (confirmado quitando un permiso: el login pasó a 500 y volvió a 401 al devolverlo); `npm run test:integracion` 17/17, `npm test` 16/16; crear usuario, crear repuesto (secuencias), abrir y cerrar turno y escribir en la bitácora sin errores; único `permission denied` en el log, el provocado a propósito. En producción, tras cambiar `DATABASE_URL` en Vercel: `/api/salud` 200 con la BD respondiendo; el usuario inició sesión en la web y en la app móvil sin errores y sin `permission denied` en los logs.
+
 ## Resultados del 23/10/2026 (rama `mejoras-seguridad-2026-10-23`)
 
 **Producción (commit `beb3c67`, revisión externa de solo lectura):** `/login` con CSP con nonce distinto en cada petición (13/13 scripts con nonce); `/api/salud` 200 con la BD respondiendo; `/api/inventario` y `/api/usuarios` 401 sin sesión con `default-src 'none'`; `/dashboard` y `/contabilidad/…` redirigen al login. El usuario confirmó: inicio de sesión, navegación, impresión de un movimiento TIC, app móvil (APK 1.1.0) funcionando y ningún aviso "Límite por IP desactivado" en los logs de Vercel (la tabla existe).
