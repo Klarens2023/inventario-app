@@ -12,6 +12,8 @@
 5. ~~Monitoreo~~: hecho el 26/10/2026 en UptimeRobot, con aviso al correo de sistemas. Monitor `Operaciones - sitio` sobre `/login`, cada 5 min y sin tocar la BD. Monitor `Operaciones - base de datos` tipo Keyword `"ok":true` sobre `/api/salud`, cada 60 min para no mantener despierto el cómputo de Neon.
 6. ~~Rol mínimo de BD~~: hecho el 26/10/2026. Producción usa `app_operaciones` (creado con `scripts/crear-rol-app.sql`). Las migraciones se corren con la cadena de `neondb_owner`, que se copia en Neon → Connect y ya no está en Vercel.
 
+7. **Respaldos:** Neon (plan actual) solo restaura las últimas 6 horas (comprobado el 26/10/2026 con Preview data). Se agregó un respaldo diario cifrado en Drive con 30 días y prueba semanal de restauración ([RESPALDOS.md](RESPALDOS.md)); queda activo cuando se creen el rol `app_respaldo`, la carpeta de Drive y los secretos en Klarens2023. La rama `production` de Neon no está protegida (Branch protection).
+
 ## Decisiones que requieren aprobación
 
 | ID | Propuesta | Impacto en la operación |

@@ -1,0 +1,141 @@
+# Respaldo diario de la base de datos de producción en Google Drive.
+#
+# Neon (plan actual) solo permite restaurar las últimas 6 horas. Este workflow
+# guarda una copia completa (pg_dump) cifrada cada noche y conserva 30 días.
+# Los domingos (o a mano con "Run workflow") además prueba que la copia se
+# puede restaurar: la carga en una base temporal de la rama de DESARROLLO,
+# revisa que tenga datos y la borra. Detalle y restauración en docs/RESPALDOS.md.
+#
+# Solo corre en Klarens2023/inventario-app. Secretos (Settings → Secrets and variables → Actions):
+#   RESPALDO_DATABASE_URL       producción, rol de solo lectura app_respaldo, host SIN "-pooler"
+#   RESPALDO_CLAVE              contraseña de cifrado (guárdala también en el gestor de contraseñas)
+#   GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY   los mismos de Vercel
+#   RESPALDO_DRIVE_FOLDER_ID    carpeta de Drive SOLO para respaldos
+#   PRUEBA_RESTAURACION_DATABASE_URL  rama de DESARROLLO, rol neondb_owner (opcional: sin él no se prueba)
+#
+# El repositorio es público: ningún paso imprime datos de la base, solo tamaños y conteos de tablas.
+name: Respaldo de la base de datos
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 3:00 a. m. de Bogotá
+  workflow_dispatch:
+    inputs:
+      probar_restauracion:
+        description: 'Probar también la restauración en la rama de desarrollo'
+        type: boolean
+        default: true
+
+concurrency:
+  group: respaldo-bd
+  cancel-in-progress: false
+
+jobs:
+  respaldo:
+    if: github.repository == 'Klarens2023/inventario-app'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      PG_VERSION: '17'   # igual o mayor que la versión de Postgres de Neon
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # Solo para el script de Drive (googleapis); sin scripts de instalación
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Instalar pg_dump ${{ env.PG_VERSION }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common > /dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y > /dev/null
+          sudo apt-get install -y -qq postgresql-client-${PG_VERSION} > /dev/null
+          echo "/usr/lib/postgresql/${PG_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Volcar la base (pg_dump)
+        env:
+          RESPALDO_DATABASE_URL: ${{ secrets.RESPALDO_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RESPALDO_DATABASE_URL" ]; then echo "Falta el secreto RESPALDO_DATABASE_URL"; exit 1; fi
+          ARCHIVO="respaldo-neondb-$(TZ=America/Bogota date +%Y-%m-%d_%H%M).dump"
+          # Formato "custom" (-Fc): comprimido y restaurable tabla por tabla con pg_restore.
+          # Sin dueños ni permisos, para poder restaurarlo en cualquier base.
+          pg_dump --format=custom --no-owner --no-acl --file="$ARCHIVO" "$RESPALDO_DATABASE_URL"
+          # Comprobación: el archivo se puede leer y trae datos de las tablas principales
+          # (la lista va a un archivo: grep -q en una tubería con pipefail da falsos errores)
+          pg_restore --list "$ARCHIVO" > contenido.txt
+          TABLAS=$(grep -c "TABLE DATA public" contenido.txt || true)
+          for t in usuarios pvn_pagos_qr pvn_turnos audit_logs; do
+            grep -q "TABLE DATA public $t " contenido.txt || { echo "El respaldo no trae la tabla $t"; exit 1; }
+          done
+          rm -f contenido.txt
+          echo "Volcado OK: $TABLAS tablas, $(du -h "$ARCHIVO" | cut -f1)"
+          echo "ARCHIVO=$ARCHIVO" >> "$GITHUB_ENV"
+
+      - name: Cifrar (AES-256)
+        env:
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        run: |
+          set -euo pipefail
+          if [ ${#RESPALDO_CLAVE} -lt 20 ]; then echo "RESPALDO_CLAVE falta o es muy corta (mínimo 20)"; exit 1; fi
+          printf '%s' "$RESPALDO_CLAVE" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output "$ARCHIVO.gpg" "$ARCHIVO"
+          rm -f "$ARCHIVO"   # el volcado sin cifrar no sale de la máquina
+          echo "ARCHIVO_CIFRADO=$ARCHIVO.gpg" >> "$GITHUB_ENV"
+
+      - name: Subir a Google Drive y borrar los viejos
+        env:
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          RESPALDO_DRIVE_FOLDER_ID: ${{ secrets.RESPALDO_DRIVE_FOLDER_ID }}
+          RESPALDO_DIAS: '30'
+        run: |
+          node scripts/respaldo-drive.mjs subir "$ARCHIVO_CIFRADO"
+          node scripts/respaldo-drive.mjs limpiar
+
+      # ─── Prueba de restauración: domingos, o a mano ─────────────────────────
+      - name: Probar la restauración en una base temporal (rama de desarrollo)
+        # Programado: el paso decide abajo si es domingo. A mano: según la casilla.
+        if: github.event_name == 'schedule' || inputs.probar_restauracion
+        env:
+          PRUEBA_URL: ${{ secrets.PRUEBA_RESTAURACION_DATABASE_URL }}
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+          RESPALDO_DRIVE_FOLDER_ID: ${{ secrets.RESPALDO_DRIVE_FOLDER_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PRUEBA_URL" ]; then echo "Sin PRUEBA_RESTAURACION_DATABASE_URL: no se prueba la restauración"; exit 0; fi
+          # Programado: solo los domingos (hora de Bogotá); a mano: siempre
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=America/Bogota date +%u)" != "7" ]; then
+            echo "Hoy no es domingo: la prueba de restauración se salta"; exit 0
+          fi
+          # Seguridad: nunca contra producción (el respaldo sale del host de RESPALDO_DATABASE_URL)
+          case "$PRUEBA_URL" in *ep-small-wind*) echo "PRUEBA_RESTAURACION_DATABASE_URL apunta a producción: se cancela"; exit 1;; esac
+
+          # Se baja de Drive el último respaldo: así se prueba la cadena completa, no solo el archivo local
+          node scripts/respaldo-drive.mjs descargar-ultimo prueba.dump.gpg
+          printf '%s' "$RESPALDO_CLAVE" | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 0 \
+            --decrypt --output prueba.dump prueba.dump.gpg
+
+          BASE="prueba_restauracion_${GITHUB_RUN_ID}"
+          # URL de la base temporal: misma conexión, otra base de datos
+          URL_TEMP=$(node -e 'const u=new URL(process.argv[1]); u.pathname="/"+process.argv[2]; console.log(u.toString())' "$PRUEBA_URL" "$BASE")
+          psql "$PRUEBA_URL" -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE $BASE"
+          trap 'psql "$PRUEBA_URL" -q -c "DROP DATABASE IF EXISTS $BASE WITH (FORCE)" || true' EXIT
+
+          pg_restore --no-owner --no-acl --exit-on-error --dbname="$URL_TEMP" prueba.dump
+          # Debe haber usuarios y pagos; se informan solo cantidades
+          USUARIOS=$(psql "$URL_TEMP" -tAc "SELECT count(*) FROM usuarios")
+          PAGOS=$(psql "$URL_TEMP" -tAc "SELECT count(*) FROM pvn_pagos_qr")
+          TABLAS=$(psql "$URL_TEMP" -tAc "SELECT count(*) FROM pg_tables WHERE schemaname='public'")
+          echo "Restaurado en base temporal: $TABLAS tablas, $USUARIOS usuarios, $PAGOS pagos"
+          [ "$USUARIOS" -gt 0 ] || { echo "La restauración no trajo usuarios"; exit 1; }
+          rm -f prueba.dump prueba.dump.gpg

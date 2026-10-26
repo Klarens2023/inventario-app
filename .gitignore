@@ -12,3 +12,7 @@ muestras-cen/
 
 # Caché de compilación de TypeScript (se regenera sola)
 tsconfig.tsbuildinfo
+
+# Respaldos de la base (nunca al repositorio: es público)
+*.dump
+*.dump.gpg
