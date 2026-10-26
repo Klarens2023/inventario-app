@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
-import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { subirADrive, aUrlProxy, limpiarNombreArchivo, comprimirImagen } from '@/lib/google-drive'

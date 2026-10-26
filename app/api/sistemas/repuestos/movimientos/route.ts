@@ -4,7 +4,7 @@ import type { AuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import {
-  canAccessRepuestos, TIPOS_MOV_VALIDOS, DESTINOS_SALIDA, DESTINOS_RETIRO, MOTIVO_RETORNO, MOTIVO_BAJA,
+  TIPOS_MOV_VALIDOS, DESTINOS_SALIDA, DESTINOS_RETIRO, MOTIVO_RETORNO, MOTIVO_BAJA,
   enteroNoNegativo, numeroOpcional, texto, esFecha,
   faltaMigracion, MSG_FALTA_MIGRACION,
 } from '@/lib/repuestos'
@@ -14,7 +14,6 @@ import { reservarIds, qMovimientoStock, qCerrarAsignacion, esErrorStock, ETIQUET
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const articulo = searchParams.get('articulo') ?? ''

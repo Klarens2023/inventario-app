@@ -7,7 +7,6 @@ import { logAudit } from '@/lib/audit'
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { roles: ['admin', 'lider'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const areas = await sql`SELECT * FROM areas ORDER BY label`
   return NextResponse.json(areas)

@@ -9,7 +9,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const params = await props.params
   const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const [equipo] = await sql`SELECT id FROM equipos_tecnologicos WHERE id = ${params.id}`
   if (!equipo) return NextResponse.json({ error: 'Equipo no encontrado' }, { status: 404 })

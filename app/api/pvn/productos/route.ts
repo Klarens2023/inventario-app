@@ -28,7 +28,6 @@ const SELECT_PROD = `
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { movil: true })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const all = req.nextUrl.searchParams.get('all') === '1'
 

@@ -61,7 +61,7 @@ export default function ConciliacionFacturasPage() {
       const guardado = cargarMapeoGuardado(hoja.encabezados, encabezadosErp)
       setMapeoInvoicing(guardado?.mapeoInvoicing ?? sugerirMapeoInvoicing(hoja.encabezados))
       setResultados(null)
-    } catch (e) {
+    } catch {
       setError('No se pudo leer el archivo de Invoicing. Verifica que sea un Excel válido (.xls o .xlsx).')
     } finally { setCargandoArchivo(false) }
   }
@@ -77,7 +77,7 @@ export default function ConciliacionFacturasPage() {
       const guardado = cargarMapeoGuardado(encabezadosInvoicing, hoja.encabezados)
       setMapeoErp(guardado?.mapeoErp ?? sugerirMapeoErp(hoja.encabezados))
       setResultados(null)
-    } catch (e) {
+    } catch {
       setError('No se pudo leer el archivo del ERP. Verifica que sea un Excel válido (.xls o .xlsx).')
     } finally { setCargandoArchivo(false) }
   }
@@ -95,7 +95,7 @@ export default function ConciliacionFacturasPage() {
           encabezadosInvoicing, encabezadosErp, mapeoInvoicing, mapeoErp,
         } satisfies MapeoGuardado))
       } catch {}
-    } catch (e) {
+    } catch {
       setError('Ocurrió un error al procesar los archivos. Revisa el mapeo de columnas.')
     } finally { setProcesando(false) }
   }

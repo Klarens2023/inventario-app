@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
-import { canAccessRepuestos } from '@/lib/repuestos'
 
 // GET /api/sistemas/repuestos/movimientos/[id] — detalle para el comprobante impreso.
 // Si el movimiento creó o cerró una asignación, lo indica para imprimir el acta correspondiente.
@@ -9,7 +8,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params
   const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const id = parseInt(params.id, 10)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Movimiento no encontrado' }, { status: 404 })

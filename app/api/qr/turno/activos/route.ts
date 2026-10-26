@@ -10,8 +10,6 @@ import { logAudit } from '@/lib/audit'
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['pvn_pagos_qr'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
-  const { rol, modulos } = user
 
   const turnos = await sql`
     SELECT id, usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre, fecha::text AS fecha, abierto_at
@@ -27,7 +25,7 @@ export async function POST(req: NextRequest) {
   const acceso = await exigirAcceso(req, { roles: ['admin'] })
   if (!acceso.ok) return acceso.respuesta
   const { user } = acceso
-  const { rol, name, id } = user
+  const { name, id } = user
 
   const { turno_id } = await req.json()
   const turnoId = parseInt(turno_id)

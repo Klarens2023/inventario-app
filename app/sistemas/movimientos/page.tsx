@@ -93,6 +93,9 @@ function MovimientosTICContent() {
   // el consecutivo aún no se había podido calcular — se completa aquí.
   useEffect(() => {
     if (vista === 'nuevo' && !proximoId && !cargando) setProximoId(siguienteId())
+  // siguienteId solo depende de `lista`, que ya está en las dependencias; incluir
+  // la función (se crea de nuevo en cada render) haría correr el efecto siempre.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vista, proximoId, cargando, lista])
 
   function abrirNuevo() {

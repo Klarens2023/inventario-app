@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
-import { getAuthUser } from '@/lib/api-auth'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { aUrlProxy } from '@/lib/google-drive'
@@ -12,7 +11,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params
   const acceso = await exigirAcceso(req, { modulos: ['movimientos_tic'], movil: true })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const [mov] = await sql`
     SELECT *, fecha::text AS fecha FROM tic_movimientos WHERE id = ${params.id}

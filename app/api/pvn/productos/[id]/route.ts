@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
-import { getServerSession } from 'next-auth'
-import { getAuthUser } from '@/lib/api-auth'
 import type { NeonQueryPromise } from '@neondatabase/serverless'
 import { sql } from '@/lib/db'
 import { qInsertarComponentes } from '@/lib/pvn-componentes'
@@ -14,7 +12,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params
   const acceso = await exigirAcceso(req, { movil: true })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })

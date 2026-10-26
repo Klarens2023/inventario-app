@@ -1,4 +1,3 @@
-import { tieneModulo } from '@/lib/permissions'
 
 export const CATEGORIAS_VALIDAS = ['Repuesto', 'Insumo', 'Periférico']
 export const TIPOS_MOV_VALIDOS  = ['entrada', 'salida', 'ajuste']
@@ -24,11 +23,6 @@ export const MSG_FALTA_MIGRACION =
 
 export function faltaMigracion(e: unknown): boolean {
   return (e as { code?: string })?.code === '42P01'
-}
-
-export function canAccessRepuestos(session: { user?: { rol?: string; modulos?: string[] } } | null) {
-  if (!session?.user) return false
-  return tieneModulo(session.user.rol ?? '', session.user.modulos, 'repuestos_tic')
 }
 
 // Entero >= 0 a partir de lo que llegue del formulario; null si no es válido

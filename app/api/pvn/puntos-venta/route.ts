@@ -6,7 +6,6 @@ import { tieneModulo } from '@/lib/permissions'
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { movil: true })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const tipo = req.nextUrl.searchParams.get('tipo')
 

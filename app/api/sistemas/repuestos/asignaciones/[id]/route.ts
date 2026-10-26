@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { canAccessRepuestos, DESTINOS_RETIRO, MOTIVO_RETORNO, texto, esFecha } from '@/lib/repuestos'
+import { DESTINOS_RETIRO, MOTIVO_RETORNO, texto, esFecha } from '@/lib/repuestos'
 import { reservarIds, qMovimientoStock, qCerrarAsignacion, asignacionVigente, ETIQUETA_DESTINO, type Query } from '@/lib/repuestos-db'
 
 // GET /api/sistemas/repuestos/asignaciones/[id] — detalle completo (para el acta impresa)
@@ -10,7 +10,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params
   const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const id = parseInt(params.id, 10)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'Asignación no encontrada' }, { status: 404 })

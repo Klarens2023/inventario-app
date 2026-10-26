@@ -202,7 +202,6 @@ export async function exportarExcel(
   }
 
   // ── Fila de firma ─────────────────────────────────────────────────────────
-  const filaFirmaIdx = 5 + filas.length + (filas.length > 0 ? 1 : 0) + 2  // 2 filas de separación
   ws.addRow([])
   ws.addRow([])
   const firmaTexto = exportadoPor

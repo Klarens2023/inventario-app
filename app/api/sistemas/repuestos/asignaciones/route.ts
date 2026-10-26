@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
-import { canAccessRepuestos, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
+import { faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
 
 // GET /api/sistemas/repuestos/asignaciones
 // ?estado=vigente|cerrada (vacío = todas) · ?equipo_id= · ?buscar= · ?vencidos=1 (préstamos vencidos)
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const estado   = searchParams.get('estado') ?? ''

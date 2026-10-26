@@ -5,7 +5,6 @@ import { sql } from '@/lib/db'
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['acumulados'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const desde = searchParams.get('desde') || null

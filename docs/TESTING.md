@@ -7,7 +7,7 @@ npm test                 # pruebas unitarias (node --test, Node 22.6+; probado c
 npx tsc --noEmit -p .    # tipos
 npx next build           # build de producción (lee .env.local)
 npm audit --omit=dev     # vulnerabilidades de dependencias de producción
-npm run lint             # ESLint (0 errores; quedan avisos de variables sin usar e <img>)
+npm run lint             # ESLint (0 errores y 0 avisos desde el 26/10/2026)
 
 # Integración (escriben en la BD: SOLO contra la rama de desarrollo de Neon).
 # Requiere la app corriendo con `npx next build && npm start` en el puerto 3000.

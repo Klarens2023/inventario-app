@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
-import { canAccessRepuestos, CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpcional, texto } from '@/lib/repuestos'
+import { CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpcional, texto } from '@/lib/repuestos'
 
 // PUT /api/sistemas/repuestos/[codigo] — editar datos del artículo.
 // El stock NO se edita aquí: solo cambia con movimientos (entrada / salida / ajuste).

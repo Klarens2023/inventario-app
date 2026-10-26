@@ -10,8 +10,6 @@ import { aUrlProxy } from '@/lib/google-drive'
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['pvn_pagos_qr'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
-  const { rol, modulos } = user
 
   const { searchParams } = req.nextUrl
   const desde = searchParams.get('desde')

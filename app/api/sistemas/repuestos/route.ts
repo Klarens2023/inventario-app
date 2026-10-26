@@ -3,7 +3,7 @@ import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
 import { logAudit } from '@/lib/audit'
 import { conReintentoPorDuplicado } from '@/lib/reintentar'
-import { canAccessRepuestos, CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpcional, texto, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
+import { CATEGORIAS_VALIDAS, enteroNoNegativo, numeroOpcional, texto, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
 
 async function generarCodigo(): Promise<string> {
   const rows = await sql`SELECT codigo FROM tic_articulos ORDER BY codigo DESC LIMIT 1`
@@ -16,7 +16,6 @@ async function generarCodigo(): Promise<string> {
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const buscar    = searchParams.get('buscar') ?? ''

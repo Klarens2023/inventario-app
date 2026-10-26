@@ -47,8 +47,6 @@ function mapearColumnas(headers: string[]) {
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['cargar', 'consulta'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
-  const rol = user.rol ?? ''
 
   const { searchParams } = new URL(req.url)
   const fecha = searchParams.get('fecha')

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { exigirAcceso } from '@/lib/acceso'
 import { sql } from '@/lib/db'
-import { canAccessRepuestos, MOTIVO_RETORNO, esFecha, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
+import { MOTIVO_RETORNO, esFecha, faltaMigracion, MSG_FALTA_MIGRACION } from '@/lib/repuestos'
 
 // Movimientos que representan gasto: toda salida (consumo, asignación, reemplazo, baja) y, restando,
 // lo que regresó al inventario desde una asignación. Gasto = unidades × costo vigente en ese momento.
@@ -29,7 +29,6 @@ const BASE = `
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['repuestos_tic'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const sp = new URL(req.url).searchParams
   const desde = sp.get('desde') ?? ''

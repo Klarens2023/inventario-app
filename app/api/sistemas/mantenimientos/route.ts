@@ -8,7 +8,6 @@ import { logAudit } from '@/lib/audit'
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { modulos: ['equipos'] })
   if (!acceso.ok) return acceso.respuesta
-  const { user } = acceso
 
   const { searchParams } = new URL(req.url)
   const buscar = searchParams.get('buscar') ?? ''
