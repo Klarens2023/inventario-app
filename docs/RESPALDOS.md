@@ -19,6 +19,10 @@
 
 Si el workflow falla, GitHub envía un correo a la cuenta Klarens2023. Revisar también la pestaña **Actions**.
 
+**Ojo con los horarios de GitHub Actions** (aplica también a la sincronización EDI):
+- En un repositorio público, GitHub **desactiva los workflows programados tras 60 días sin actividad** (avisa antes por correo). Cualquier commit reinicia el conteo; si ya se desactivaron: Actions → el workflow → **Enable workflow**.
+- Si el fork de Klarens2023 se borra y se vuelve a crear, hay que habilitar Actions, recrear **todos** los secretos (`APP_URL`, `CRON_SECRET` y los de esta tabla) y subir un commit nuevo a `main` (Sync fork) para que los horarios se registren. Revisar además en Vercel → Settings → Git que siga conectado.
+
 ### Secretos (Klarens2023/inventario-app → Settings → Secrets and variables → Actions)
 
 | Secreto | Valor |

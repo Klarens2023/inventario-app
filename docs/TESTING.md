@@ -23,6 +23,10 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Respaldo diario (26/10/2026)
+
+Primera ejecución completa de `.github/workflows/respaldo-bd.yml` en Klarens2023: `pg_dump` de producción con `app_respaldo` (solo lectura), cifrado AES-256, subida a Drive (0.63 MB, tamaño verificado), descarga desde Drive, descifrado y `pg_restore` en una base temporal de la rama de desarrollo: 35 tablas, 32 usuarios y 6635 pagos, igual que producción vista con Preview data de Neon ese día. La protección contra usar producción como destino de la prueba se activó correctamente en un intento previo con el secreto mal puesto.
+
 ## Rol mínimo de BD en producción (26/10/2026)
 
 Antes, en la rama de desarrollo: `next start` con `DATABASE_URL` de `app_operaciones` (confirmado quitando un permiso: el login pasó a 500 y volvió a 401 al devolverlo); `npm run test:integracion` 17/17, `npm test` 16/16; crear usuario, crear repuesto (secuencias), abrir y cerrar turno y escribir en la bitácora sin errores; único `permission denied` en el log, el provocado a propósito. En producción, tras cambiar `DATABASE_URL` en Vercel: `/api/salud` 200 con la BD respondiendo; el usuario inició sesión en la web y en la app móvil sin errores y sin `permission denied` en los logs.
