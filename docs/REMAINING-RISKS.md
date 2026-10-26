@@ -9,7 +9,7 @@
 2c. ~~Crear una base de desarrollo~~: rama de Neon creada; `.env.local` apunta a ella desde el 22/10/2026.
 3. **Desplegar y probar** los pasos manuales de [TESTING.md](TESTING.md#lo-que-no-se-probó-y-cómo-probarlo) en un ambiente de pruebas antes de producción.
 4. ~~Desplegar la rama `mejoras-seguridad-2026-10-23`~~: desplegada el 23/10/2026 (commit `beb3c67`), con la tabla `login_intentos_ip` y la variable `LOGIN_IPS_CONFIANZA` en producción. Ver [REVISION-2026-10-23.md](REVISION-2026-10-23.md).
-5. **Monitoreo:** registrar `https://operaciones.klarens.com.co/api/salud` en un monitor externo gratuito (p. ej. UptimeRobot) con aviso por correo.
+5. ~~Monitoreo~~: hecho el 26/10/2026 en UptimeRobot, con aviso al correo de sistemas. Monitor `Operaciones - sitio` sobre `/login`, cada 5 min y sin tocar la BD. Monitor `Operaciones - base de datos` tipo Keyword `"ok":true` sobre `/api/salud`, cada 60 min para no mantener despierto el cómputo de Neon.
 6. ~~Rol mínimo de BD~~: hecho el 26/10/2026. Producción usa `app_operaciones` (creado con `scripts/crear-rol-app.sql`). Las migraciones se corren con la cadena de `neondb_owner`, que se copia en Neon → Connect y ya no está en Vercel.
 
 ## Decisiones que requieren aprobación
