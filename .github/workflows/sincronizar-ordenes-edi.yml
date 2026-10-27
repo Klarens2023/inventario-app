@@ -7,6 +7,8 @@
 #     APP_URL      URL de producción, sin "/" al final (ej. https://mi-app.vercel.app)
 #     CRON_SECRET  la misma clave que la variable CRON_SECRET del proyecto en Vercel
 # GitHub puede retrasar unos minutos las ejecuciones programadas; también se puede correr a mano (Run workflow).
+# Red de seguridad: vercel.json programa además un Vercel Cron diario (6:00 a. m. Bogotá) a la misma ruta,
+# por si GitHub deja de correr los horarios (pasa en forks recreados y tras 60 días sin actividad).
 name: Sincronizar órdenes EDI
 
 on:

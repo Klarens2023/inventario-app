@@ -3,5 +3,11 @@
   "buildCommand": "next build",
   "devCommand": "next dev",
   "installCommand": "npm install",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/logistica/ordenes-cen/sincronizar",
+      "schedule": "0 11 * * *"
+    }
+  ]
 }
