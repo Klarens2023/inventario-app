@@ -9,6 +9,7 @@ código, actualiza el documento correspondiente.
 | [AUDIT-REPORT.md](AUDIT-REPORT.md) | Informe de la auditoría: resumen ejecutivo, alcance, cobertura, resultados y estado final |
 | [FINDINGS.md](FINDINGS.md) | Hallazgos con ID, severidad, evidencia, corrección y estado |
 | [CHANGES.md](CHANGES.md) | Cambios aplicados al código en la auditoría, con motivo y archivos |
+| [SECRETOS.md](SECRETOS.md) | Inventario de claves y credenciales (sin valores): dónde viven, qué rompen y cómo se cambian |
 | [RESPALDOS.md](RESPALDOS.md) | Respaldo diario cifrado en Drive, ventana de 6 h de Neon y cómo restaurar |
 | [REVISION-2026-10-23.md](REVISION-2026-10-23.md) | Trabajo de la noche del 22 al 23/10: qué se hizo, qué revisar y qué necesita acceso a Vercel/Neon/GitHub/Expo |
 | [REMAINING-RISKS.md](REMAINING-RISKS.md) | Riesgos pendientes, decisiones que requieren aprobación y próximos pasos |
