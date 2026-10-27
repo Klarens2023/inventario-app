@@ -1,6 +1,6 @@
 'use client'
 import type { Usuario } from '@/types/auditoria'
-import { labelStyle, inputStyle, btnStyle } from './constants'
+import { ACCIONES, labelStyle, inputStyle, btnStyle } from './constants'
 
 type Props = {
   desde: string; onDesdeChange: (v: string) => void
@@ -34,12 +34,10 @@ export function FiltrosBar({
         <label style={labelStyle}>Accion</label>
         <select value={accion} onChange={e => onAccionChange(e.target.value)} style={inputStyle}>
           <option value="todas">Todas</option>
-          <option value="CARGA_INVENTARIO">Carga Inventario</option>
-          <option value="CONTEO_ACTUALIZADO">Conteo Actualizado</option>
-          <option value="CONTEO_ACUMULADO">Conteo Acumulado</option>
-          <option value="HISTORIAL_REINICIADO">Historial Reiniciado</option>
-          <option value="USUARIO_CREADO">Usuario Creado</option>
-          <option value="USUARIO_MODIFICADO">Usuario Modificado</option>
+          {/* Sale de la lista de acciones: antes solo había 6 de ~30 */}
+          {Object.entries(ACCIONES).map(([clave, meta]) => (
+            <option key={clave} value={clave}>{meta.label}</option>
+          ))}
         </select>
       </div>
       <div>

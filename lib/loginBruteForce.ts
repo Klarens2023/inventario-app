@@ -17,8 +17,12 @@ export function minutosRestantesBloqueo(usuario: Pick<EstadoUsuarioLogin, 'bloqu
   return restante > 0 ? Math.ceil(restante / 60000) : 0
 }
 
-export async function registrarIntentoFallido(usuarioId: number): Promise<void> {
-  await sql`
+/**
+ * Suma un fallo a la cuenta y la bloquea al llegar a MAX_INTENTOS seguidos.
+ * @returns true si ESTE fallo dejó la cuenta bloqueada (para registrarlo en la bitácora)
+ */
+export async function registrarIntentoFallido(usuarioId: number): Promise<boolean> {
+  const [fila] = await sql`
     UPDATE usuarios
     SET intentos_fallidos = intentos_fallidos + 1,
         bloqueado_hasta = CASE
@@ -27,7 +31,9 @@ export async function registrarIntentoFallido(usuarioId: number): Promise<void> 
           ELSE bloqueado_hasta
         END
     WHERE id = ${usuarioId}
+    RETURNING (bloqueado_hasta IS NOT NULL AND bloqueado_hasta > NOW()) AS bloqueado
   `
+  return Boolean(fila?.bloqueado)
 }
 
 export async function resetearIntentosFallidos(usuarioId: number): Promise<void> {

@@ -4,8 +4,10 @@ import { ACCIONES } from './constants'
 export function ResumenAcciones({ rows }: { rows: AuditRow[] }) {
   return (
     <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+      {/* Solo las acciones que aparecen en el resultado (hay ~30 posibles) */}
       {Object.entries(ACCIONES).map(([key, meta]) => {
         const count = rows.filter(r => r.accion === key).length
+        if (!count) return null
         return (
           <div key={key} style={{
             background: '#fff', borderRadius: 10, padding: '14px 20px',

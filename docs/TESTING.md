@@ -23,6 +23,10 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Bitácora de inicios de sesión (27/10/2026)
+
+`npm run test:integracion` 20/20 (3 nuevas): inicio web y móvil registran `LOGIN_EXITOSO` con canal e IP; 4 contraseñas erradas dan `LOGIN_FALLIDO` y la 5.ª `LOGIN_BLOQUEADO`, sin más registros durante el bloqueo; un usuario inexistente no deja rastro. En el navegador, /auditoria muestra el evento con su etiqueta. (En local la hora sale corrida 5 horas porque el driver de Neon interpreta `timestamp` sin zona con la hora del equipo; en Vercel el servidor está en UTC y se ve bien.)
+
 ## Alerta de consumo de Neon (26/10/2026)
 
 `.github/workflows/alerta-consumo.yml` en Klarens2023, ejecutado a mano con umbral 1% contra la API real de Neon: cómputo 25,0 de 100 CU-h (25%, proyección 30% al cierre), transferencia 0,05 de 5 GB, almacenamiento de la rama mayor 0,037 de 1 GB. Terminó en rojo como se esperaba. Con el umbral real (50%) hoy no alerta.

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { sql } from '@/lib/db'
+import { registrarInicioSesion } from '@/lib/audit'
 import {
   compararSenuelo, ipCliente, mensajeBloqueoIp, minutosBloqueoIp, minutosRestantesBloqueo,
   registrarFalloIp, registrarIntentoFallido, resetearIntentosFallidos,
@@ -52,8 +53,12 @@ export async function POST(req: NextRequest) {
   // Contraseña contra el hash bcrypt guardado
   const valid = await bcrypt.compare(password, user.password_hash)
   if (!valid) {
-    await registrarIntentoFallido(user.id)
+    const quedoBloqueado = await registrarIntentoFallido(user.id)
     await registrarFalloIp(ip)
+    await registrarInicioSesion({
+      resultado: quedoBloqueado ? 'bloqueado' : 'fallido', usuarioId: user.id, username: user.username,
+      canal: 'movil', ip, navegador: req.headers.get('user-agent'), motivo: 'contraseña incorrecta',
+    })
     return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 })
   }
   await resetearIntentosFallidos(user.id)
@@ -61,6 +66,10 @@ export async function POST(req: NextRequest) {
   // Se valida DESPUÉS de la contraseña para no revelar a un tercero qué
   // usuarios existen y cuáles tienen la app habilitada
   if (!user.acceso_movil) {
+    await registrarInicioSesion({
+      resultado: 'fallido', usuarioId: user.id, username: user.username,
+      canal: 'movil', ip, navegador: req.headers.get('user-agent'), motivo: 'sin acceso a la app móvil',
+    })
     return NextResponse.json({ error: 'Este usuario no tiene acceso a la app móvil' }, { status: 403 })
   }
 
@@ -71,6 +80,12 @@ export async function POST(req: NextRequest) {
     const modulosRows = await sql`SELECT modulo FROM usuario_modulos WHERE usuario_id = ${user.id}`
     modulos = modulosRows.map(r => r.modulo as string)
   } catch {}
+
+  // Rastro del ingreso (quién, cuándo, desde qué IP): ver /auditoria
+  await registrarInicioSesion({
+    resultado: 'exitoso', usuarioId: user.id, username: user.username,
+    canal: 'movil', ip, navegador: req.headers.get('user-agent'),
+  })
 
   // Datos que la app guarda para mostrar (nombre, punto de venta, módulos)
   const payload = {

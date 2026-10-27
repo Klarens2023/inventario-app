@@ -7,6 +7,7 @@ import {
   registrarFalloIp, registrarIntentoFallido, resetearIntentosFallidos,
 } from './loginBruteForce'
 import { cargarEstadoUsuario } from './estadoUsuario'
+import { registrarInicioSesion } from './audit'
 
 // ════════════════════════════════════════════════════════════════════════════
 // Configuración de NextAuth: inicio de sesión WEB con usuario y contraseña.
@@ -77,12 +78,21 @@ export const authOptions: NextAuthOptions = {
         // bcrypt compara contra el hash guardado (nunca se guarda la contraseña)
         const valid = await bcrypt.compare(credentials.password, user.password_hash)
         if (!valid) {
-          await registrarIntentoFallido(user.id)
+          const quedoBloqueado = await registrarIntentoFallido(user.id)
           await registrarFalloIp(ip)
+          await registrarInicioSesion({
+            resultado: quedoBloqueado ? 'bloqueado' : 'fallido', usuarioId: user.id, username: user.username,
+            canal: 'web', ip, navegador: req?.headers?.['user-agent'] as string | undefined, motivo: 'contraseña incorrecta',
+          })
           return null
         }
         // Contraseña correcta: el contador de fallos de la cuenta vuelve a cero
         await resetearIntentosFallidos(user.id)
+        // Rastro del ingreso (quién, cuándo, desde qué IP): ver /auditoria
+        await registrarInicioSesion({
+          resultado: 'exitoso', usuarioId: user.id, username: user.username,
+          canal: 'web', ip, navegador: req?.headers?.['user-agent'] as string | undefined,
+        })
 
         // try/catch: si la migración de usuario_modulos aún no se ha corrido,
         // no debe romper el login de nadie — simplemente no hay módulos extra.
