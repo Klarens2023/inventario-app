@@ -13,7 +13,7 @@ name: Sincronizar órdenes EDI
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '7,37 * * * *'   # cada 30 min en minutos poco usados: GitHub descarta más los del minuto 0
   workflow_dispatch:
 
 jobs:

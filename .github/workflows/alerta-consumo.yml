@@ -14,7 +14,7 @@ name: Alerta de consumo
 
 on:
   schedule:
-    - cron: '0 12 * * *'   # 7:00 a. m. de Bogotá
+    - cron: '23 12 * * *'   # 7:23 a. m. de Bogotá (minuto poco usado: GitHub descarta más los del minuto 0)
   workflow_dispatch:
     inputs:
       porcentaje:

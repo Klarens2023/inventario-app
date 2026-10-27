@@ -18,7 +18,7 @@ name: Respaldo de la base de datos
 
 on:
   schedule:
-    - cron: '0 8 * * *'   # 3:00 a. m. de Bogotá
+    - cron: '17 8 * * *'   # 3:17 a. m. de Bogotá (minuto poco usado: GitHub descarta más los del minuto 0)
   workflow_dispatch:
     inputs:
       probar_restauracion:
