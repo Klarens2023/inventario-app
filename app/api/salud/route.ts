@@ -5,7 +5,7 @@ import { sql } from '@/lib/db'
 // Es PÚBLICO a propósito (está en la lista de tests/rutas-protegidas.test.ts):
 // no devuelve datos, solo si la app responde y si la base de datos contesta.
 // Nunca incluye el detalle del error, para no filtrar información interna.
-// ----
+// ------
 
 // Siempre se ejecuta en el momento (nada de caché), o el monitoreo mentiría.
 export const dynamic = 'force-dynamic'
