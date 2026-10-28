@@ -20,16 +20,16 @@ function rutas(dir: string): string[] {
   })
 }
 
-test('toda ruta API usa el control de acceso único o está declarada como pública', () => {
+test('toda ruta API usa el control de acceso único (o verificarCron) o está declarada como pública', () => {
   const sinControl: string[] = []
   for (const r of rutas('app/api')) {
     if (PUBLICAS[r]) continue
     const s = readFileSync(r, 'utf8')
     const metodos = s.match(/export async function (GET|POST|PUT|PATCH|DELETE)\b/g) ?? []
-    const controles = (s.match(/\b(exigirAcceso|verificarAcceso)\(req/g) ?? []).length
-    // Excepción conocida: el GET de sincronizar se autentica con CRON_SECRET (timingSafeEqual)
-    const cron = /timingSafeEqual/.test(s) ? 1 : 0
-    if (controles + cron < metodos.length) sinControl.push(`${r}: ${metodos.length} método(s), ${controles + cron} con control`)
+    // exigirAcceso / verificarAcceso: sesión web o token móvil.
+    // verificarCron: tareas programadas con CRON_SECRET (lib/cron.ts).
+    const controles = (s.match(/\b(exigirAcceso|verificarAcceso|verificarCron)\(req/g) ?? []).length
+    if (controles < metodos.length) sinControl.push(`${r}: ${metodos.length} método(s), ${controles} con control`)
   }
   assert.deepEqual(sinControl, [])
 })

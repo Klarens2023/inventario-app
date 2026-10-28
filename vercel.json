@@ -28,6 +28,14 @@
     {
       "path": "/api/logistica/ordenes-cen/sincronizar?franja=2",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/tareas/disparar?workflow=respaldo",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/tareas/disparar?workflow=alerta",
+      "schedule": "0 12 * * *"
     }
   ]
 }

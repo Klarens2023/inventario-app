@@ -12,6 +12,23 @@ type Resumen = { pendientes: number; sin_punto: number; enviadas: number; con_er
 
 type ResultadoEnvio = { id: number; oc: string; ok: boolean; mensaje: string }
 
+/** Una sincronización registrada (tabla cen_sincronizaciones, ver lib/cen/registroSincronizacion.ts). */
+type Sincronizacion = { id: number; inicio: string; origen: 'vercel-cron' | 'github' | 'manual'; ok: boolean; error: string | null; usuario: string | null }
+
+const ORIGENES: Record<Sincronizacion['origen'], string> = { 'vercel-cron': 'automática (Vercel)', github: 'automática (GitHub)', manual: 'manual' }
+
+/** "hace 5 min", "hace 3 h", "hace 2 días" */
+function haceCuanto(fecha: string): string {
+  const min = Math.max(0, Math.round((Date.now() - new Date(fecha).getTime()) / 60000))
+  if (min < 1) return 'hace un momento'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.round(min / 60)
+  return h < 48 ? `hace ${h} h` : `hace ${Math.round(h / 24)} días`
+}
+
+/** Más de 6 h sin sincronizar ya es raro: hay programadas cada ~4 h (Vercel Cron). */
+const HORAS_ALERTA = 6
+
 // Solo se pueden enviar en lote las órdenes con sucursal asociada que aún no tienen pedido.
 const enviable = (o: OrdenCen) => (o.estado === 'pendiente' || o.estado === 'error') && Boolean(o.nit)
 
@@ -42,6 +59,13 @@ export default function OrdenesCenPage() {
   const [seleccion, setSeleccion] = useState<Set<number>>(new Set())
   const [envio, setEnvio] = useState<{ total: number; resultados: ResultadoEnvio[]; enCurso: boolean } | null>(null)
   const [totales, setTotales] = useState<{ titulo: string; ruta: string | null; ids: number[] } | null>(null)
+  const [sincronizaciones, setSincronizaciones] = useState<Sincronizacion[]>([])
+
+  // Últimas sincronizaciones (programadas y manuales); si la API falla, simplemente no se muestran
+  const cargarSincronizaciones = useCallback(() => {
+    fetch('/api/logistica/ordenes-cen/sincronizaciones').then(r => r.ok ? r.json() : []).then(setSincronizaciones).catch(() => {})
+  }, [])
+  useEffect(() => { cargarSincronizaciones() }, [cargarSincronizaciones])
 
   const cargar = useCallback(async () => {
     setCargando(true); setError('')
@@ -75,6 +99,7 @@ export default function OrdenesCenPage() {
       if (!res.ok) throw new Error(data.error ?? 'No se pudo sincronizar')
       setResultadoSync(data)
       await cargar()
+      cargarSincronizaciones()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
     } finally {
@@ -162,6 +187,22 @@ export default function OrdenesCenPage() {
           </button>
         </div>
       </div>
+
+      {sincronizaciones.length > 0 && (() => {
+        const ultima = sincronizaciones[0]
+        const vieja = Date.now() - new Date(ultima.inicio).getTime() > HORAS_ALERTA * 3600_000
+        const color = !ultima.ok ? 'var(--danger)' : vieja ? '#b45309' : 'var(--text2)'
+        // Al pasar el mouse: las últimas 10, para ver si las programadas están corriendo
+        const historial = sincronizaciones.map(s =>
+          `${new Date(s.inicio).toLocaleString('es-CO')} · ${ORIGENES[s.origen]}${s.usuario ? ' (' + s.usuario + ')' : ''} · ${s.ok ? 'ok' : 'con error'}`).join('\n')
+        return (
+          <p title={historial} style={{ fontSize: 13, color, marginTop: -8, marginBottom: 16 }}>
+            {ultima.ok ? '●' : '⚠'} Última sincronización: <strong>{haceCuanto(ultima.inicio)}</strong> · {ORIGENES[ultima.origen]}
+            {!ultima.ok && ' · terminó con error, revisa las credenciales del SFTP o vuelve a intentar'}
+            {ultima.ok && vieja && ` · más de ${HORAS_ALERTA} h sin sincronizar: revisa los Cron Jobs de Vercel`}
+          </p>
+        )
+      })()}
 
       {resultadoSync && (
         <div className="card" style={{ marginBottom: 16, fontSize: 13 }}>

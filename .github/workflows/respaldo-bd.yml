@@ -2,7 +2,7 @@
 #
 # Neon (plan actual) solo permite restaurar las últimas 6 horas. Este workflow
 # guarda una copia completa (pg_dump) cifrada cada noche y conserva 30 días.
-# Los domingos (o a mano con "Run workflow") además prueba que la copia se
+# Los domingos (lo decide Vercel Cron) o a mano, además prueba que la copia se
 # puede restaurar: la carga en una base temporal de la rama de DESARROLLO,
 # revisa que tenga datos y la borra. Detalle y restauración en docs/RESPALDOS.md.
 #
@@ -16,9 +16,10 @@
 # El repositorio es público: ningún paso imprime datos de la base, solo tamaños y conteos de tablas.
 name: Respaldo de la base de datos
 
+# Sin "schedule": GitHub descartaba casi todas las ejecuciones programadas. Lo lanza
+# Vercel Cron cada día a las 3 a. m. (Bogotá) por API → /api/tareas/disparar?workflow=respaldo,
+# que marca probar_restauracion solo los domingos. También se puede lanzar a mano.
 on:
-  schedule:
-    - cron: '17 8 * * *'   # 3:17 a. m. de Bogotá (minuto poco usado: GitHub descarta más los del minuto 0)
   workflow_dispatch:
     inputs:
       probar_restauracion:
@@ -102,8 +103,8 @@ jobs:
 
       # ─── Prueba de restauración: domingos, o a mano ─────────────────────────
       - name: Probar la restauración en una base temporal (rama de desarrollo)
-        # Programado: el paso decide abajo si es domingo. A mano: según la casilla.
-        if: github.event_name == 'schedule' || inputs.probar_restauracion
+        # Según la casilla (a mano) o lo que mande Vercel Cron (true solo los domingos)
+        if: inputs.probar_restauracion
         env:
           PRUEBA_URL: ${{ secrets.PRUEBA_RESTAURACION_DATABASE_URL }}
           RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
@@ -113,10 +114,6 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$PRUEBA_URL" ]; then echo "Sin PRUEBA_RESTAURACION_DATABASE_URL: no se prueba la restauración"; exit 0; fi
-          # Programado: solo los domingos (hora de Bogotá); a mano: siempre
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(TZ=America/Bogota date +%u)" != "7" ]; then
-            echo "Hoy no es domingo: la prueba de restauración se salta"; exit 0
-          fi
           # Seguridad: nunca contra producción (el respaldo sale del host de RESPALDO_DATABASE_URL)
           case "$PRUEBA_URL" in *ep-small-wind*) echo "PRUEBA_RESTAURACION_DATABASE_URL apunta a producción: se cancela"; exit 1;; esac
 

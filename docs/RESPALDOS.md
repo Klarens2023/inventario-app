@@ -10,12 +10,12 @@
 
 ## Respaldo diario
 
-[`.github/workflows/respaldo-bd.yml`](../.github/workflows/respaldo-bd.yml) corre todos los días a las 3:17 a. m. (Bogotá) en `Klarens2023/inventario-app`:
+[`.github/workflows/respaldo-bd.yml`](../.github/workflows/respaldo-bd.yml) corre todos los días cerca de las 3 a. m. (Bogotá) en `Klarens2023/inventario-app`. No usa los horarios de GitHub (los descartaba): lo lanza **Vercel Cron** por API mediante `/api/tareas/disparar?workflow=respaldo`, con el token `GITHUB_DISPATCH_TOKEN` (ver [SECRETOS.md](SECRETOS.md)). La alerta de consumo se lanza igual, cerca de las 7 a. m.
 
 1. `pg_dump` de producción con el rol de solo lectura `app_respaldo` ([`scripts/crear-rol-respaldo.sql`](../scripts/crear-rol-respaldo.sql)). Revisa que la copia traiga las tablas principales.
 2. La cifra con AES-256 (`gpg`) usando la clave `RESPALDO_CLAVE`. **Sin esa clave la copia no sirve**: debe estar también en el gestor de contraseñas.
 3. La sube a Drive como `respaldo-neondb-AAAA-MM-DD_HHMM.dump.gpg` ([`scripts/respaldo-drive.mjs`](../scripts/respaldo-drive.mjs)) y borra las de más de 30 días (nunca la más reciente).
-4. Los domingos, o a mano con **Run workflow**, baja de Drive la última copia, la descifra, la restaura en una base temporal de la rama de desarrollo, comprueba que tenga usuarios y la borra.
+4. Los domingos (lo indica Vercel Cron), o a mano con **Run workflow**, baja de Drive la última copia, la descifra, la restaura en una base temporal de la rama de desarrollo, comprueba que tenga usuarios y la borra.
 
 Si el workflow falla, GitHub envía un correo a la cuenta Klarens2023. Revisar también la pestaña **Actions**.
 

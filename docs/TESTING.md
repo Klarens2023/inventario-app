@@ -23,6 +23,12 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Tareas programadas (28/10/2026)
+
+`npm run test:integracion` 24/24. Las 4 nuevas (`tests/integracion/tareas-programadas.test.ts`) necesitan la app corriendo con un `CRON_SECRET` de prueba y **sin** credenciales de SFTP ni Siesa, para no conectarse a Carvajal o Subrik reales. Para eso se usa un `.env.production.local` temporal (está en `.gitignore`) con `CRON_SECRET=<aleatorio>` y `CARVAJAL_SFTP_HOST=`, `SUBRIK_SFTP_HOST=`, `SIESA_CLIENT_ID=`, `GITHUB_DISPATCH_TOKEN=` vacíos, y se corre con `PRUEBAS_CRON_SECRET=<el mismo>`. Sin esa variable, las pruebas se saltan.
+
+Cubren: 401 sin clave en `/api/logistica/ordenes-cen/sincronizar` y `/api/tareas/disparar`; registro con origen `vercel-cron`, `github` y `manual` (con el usuario); la API de últimas sincronizaciones solo con el módulo `ordenes_cen` (403 sin él); el disparador rechaza workflows fuera de la lista (400) y sin token responde 503. En el navegador: "Última sincronización" en gris y, con un registro de hace 7 h, en ámbar con el aviso.
+
 ## Bitácora de inicios de sesión (27/10/2026)
 
 `npm run test:integracion` 20/20 (3 nuevas): inicio web y móvil registran `LOGIN_EXITOSO` con canal e IP; 4 contraseñas erradas dan `LOGIN_FALLIDO` y la 5.ª `LOGIN_BLOQUEADO`, sin más registros durante el bloqueo; un usuario inexistente no deja rastro. En el navegador, /auditoria muestra el evento con su etiqueta. (En local la hora sale corrida 5 horas porque el driver de Neon interpreta `timestamp` sin zona con la hora del equipo; en Vercel el servidor está en UTC y se ve bien.)

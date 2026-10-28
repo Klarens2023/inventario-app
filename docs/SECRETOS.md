@@ -37,6 +37,7 @@ Revisado: 27/10/2026. Actualizar cada vez que se agregue o cambie un secreto.
 | `SUBRIK_SFTP_PASSWORD` 🔑 | Contraseña SFTP de Subrik | Igual | Pedir cambio a Subrik → Vercel → Redeploy |
 | `SIESA_CLIENT_ID`, `SIESA_CONNI_KEY` 🔑, `SIESA_CONNI_TOKEN` 🔑 | Credenciales de la API Connekta de Siesa | No se envían pedidos a Siesa | Las genera el administrador de Siesa/Connekta |
 | `SIESA_API_URL`, `SIESA_CIA`, `SIESA_ID_COMPANIA`, `SIESA_*_DOCTO*`, `SIESA_EXT1_DETALLE` | Configuración de Siesa (no son secretas) | Pedidos rechazados o a la compañía equivocada | — |
+| `GITHUB_DISPATCH_TOKEN` 🔑 | Token *fine-grained* de la cuenta Klarens2023, solo para el repositorio `inventario-app`, permiso **Actions: Read and write**. Vercel Cron lo usa para lanzar el respaldo (3 a. m.) y la alerta de consumo (7 a. m.) | No se lanzan el respaldo ni la alerta (la ruta responde 503 y queda en el log) | GitHub (Klarens2023) → Settings → Developer settings → Fine-grained tokens → Regenerate; **vence**: anotar la fecha y renovarlo antes |
 | `LOGIN_IPS_CONFIANZA` | Segmento de la empresa `190.242.100.248/29`, exento del límite de login por IP (no es secreto) | La oficina queda con el límite normal | Si cambia la IP pública de la empresa |
 
 Después de cambiar cualquier variable en Vercel: **Deployments → el último → Redeploy**. Las variables solo aplican a despliegues nuevos.
