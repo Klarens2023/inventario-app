@@ -94,6 +94,10 @@ Todas deben tener verificación en dos pasos y la contraseña en el gestor 🔑.
 | Google Cloud / Workspace | Cuenta de servicio y unidad compartida de Drive |
 | UptimeRobot | Monitoreo de `/login` y `/api/salud` |
 
+## Si alguien con acceso deja la empresa
+
+Ver [BAJA-EMPLEADOS.md](BAJA-EMPLEADOS.md).
+
 ## Si un secreto se filtra
 
 1. **Cambiarlo de inmediato** según su fila de arriba. Primero en el servicio de origen (Neon, Google, Siesa…), luego donde se usa (Vercel o GitHub) y Redeploy.
