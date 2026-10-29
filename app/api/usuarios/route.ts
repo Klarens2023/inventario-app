@@ -9,6 +9,7 @@ import { generarPasswordTemporal } from '@/lib/passwordTemporal'
 const SELECT_CON_MODULOS = `
   SELECT u.id, u.username, u.nombre, u.rol, u.area, u.activo, u.debe_cambiar_password, u.created_at,
          u.punto_venta_id, pv.nombre AS punto_venta_nombre, u.acceso_movil,
+         COALESCE((to_jsonb(u) ->> 'totp_activo')::boolean, false) AS totp_activo,
          COALESCE(
            (SELECT json_agg(m.modulo) FROM usuario_modulos m WHERE m.usuario_id = u.id),
            '[]'

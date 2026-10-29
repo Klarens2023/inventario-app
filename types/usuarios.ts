@@ -11,6 +11,8 @@ export type Usuario = {
   punto_venta_nombre?: string | null
   modulos?: string[]
   acceso_movil?: boolean
+  /** Verificación en dos pasos activa (solo administradores) */
+  totp_activo?: boolean
 }
 
 export type PuntoVenta = { id: number; nombre: string; activo: boolean; tipo: string }

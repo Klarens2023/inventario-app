@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
 import type { Usuario, PuntoVenta } from '@/types/usuarios'
 import type { AreaInfo } from '@/lib/permissions'
-import { fetchUsuarios, crearUsuario, editarUsuario, toggleActivo } from '@/lib/api/usuarios'
+import { fetchUsuarios, crearUsuario, editarUsuario, toggleActivo, reiniciarDosPasos } from '@/lib/api/usuarios'
 import { UsuariosList }  from '@/components/usuarios/UsuariosList'
 import { AreaFilterBar } from '@/components/usuarios/AreaFilterBar'
 import { BusquedaBar }   from '@/components/usuarios/BusquedaBar'
@@ -110,6 +110,14 @@ export default function GestionUsuariosPage() {
     if (ok) cargar()
   }
 
+  // Celular perdido o cambiado: al siguiente ingreso deberá escanear un QR nuevo
+  async function handleReiniciarDosPasos(u: Usuario) {
+    if (!confirm(`¿Reiniciar la verificación en dos pasos de ${u.nombre}? Al entrar deberá activarla de nuevo con su celular.`)) return
+    const r = await reiniciarDosPasos(u.id)
+    if (!r.ok) { alert(r.error ?? 'No se pudo reiniciar'); return }
+    cargar()
+  }
+
   if (status === 'loading' || !esLider) return null
 
   const busquedaNorm = busqueda.trim().toLowerCase()
@@ -182,6 +190,7 @@ export default function GestionUsuariosPage() {
             esAdmin={esAdmin}
             onEditar={u => { setUsuarioEdit(u); setModalEditar(true) }}
             onToggleActivo={handleToggleActivo}
+            onReiniciarDosPasos={handleReiniciarDosPasos}
           />
         </>
       )}

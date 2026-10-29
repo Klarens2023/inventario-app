@@ -10,6 +10,7 @@
 import { neon } from '@neondatabase/serverless'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
+import { claveMaestra, cifrarClave, generarClave, generarCodigosRecuperacion, huellaRecuperacion } from '../../lib/totp.ts'
 
 /** URL de la app bajo prueba. */
 export const BASE = process.env.PRUEBAS_BASE_URL ?? 'http://localhost:3000'
@@ -47,9 +48,36 @@ const PREFIJO = 'it_'
 /** Ids de los usuarios creados, para usarlos y borrarlos al final. */
 export const ids: Partial<Record<Rol | 'otroPvn', number>> = {}
 
+/**
+ * Verificación en dos pasos del admin de prueba: si el servidor la tiene
+ * habilitada (TOTP_CLAVE), el admin la trae activa y cada inicio de sesión
+ * gasta uno de estos códigos de recuperación (así no hay que esperar 30 s entre
+ * códigos de la app). Si no hay TOTP_CLAVE, queda vacío y no se usa.
+ */
+const codigosAdmin: string[] = []
+
+/** Activa la verificación en dos pasos del admin de prueba con 40 códigos de recuperación. */
+async function activarDosPasosAdmin(id: number) {
+  const maestra = claveMaestra()
+  if (!maestra) return
+  const codigos = generarCodigosRecuperacion(40)
+  await sql`UPDATE usuarios SET totp_clave = ${cifrarClave(generarClave(), maestra)}, totp_activo = TRUE, totp_activado_en = NOW() WHERE id = ${id}`
+  await sql`INSERT INTO usuario_codigos_recuperacion (usuario_id, huella) SELECT ${id}, unnest(${codigos.map(c => huellaRecuperacion(c, maestra))}::text[])`
+  codigosAdmin.splice(0, codigosAdmin.length, ...codigos)
+}
+
+/** Código para el login del admin de prueba (vacío si la verificación no aplica). */
+function codigoAdmin(clave: Rol | 'otroPvn'): string | undefined {
+  if (clave !== 'admin' || !codigosAdmin.length) return undefined
+  return codigosAdmin.shift()
+}
+
 /** Crea (o recrea) los usuarios de prueba con sus módulos. */
 export async function crearUsuarios() {
   await borrarUsuarios()
+  // Las pruebas fallan logins a propósito desde este equipo: sin esto, al correr la
+  // suite varias veces seguidas el límite por IP (30 fallos) bloquea las siguientes
+  await sql`DELETE FROM login_intentos_ip WHERE ip IN ('desconocida', '::1', '127.0.0.1', '::ffff:127.0.0.1')`
   const hash = await bcrypt.hash(PASSWORD, 10)
   // Un punto de venta nacional existente para los pvn (el pvv queda rotativo)
   const [pv] = await sql`SELECT id FROM pvn_puntos_venta WHERE tipo = 'nacional' AND activo ORDER BY id LIMIT 1`
@@ -60,6 +88,7 @@ export async function crearUsuarios() {
               ${def.rol === 'pvn' ? pv?.id ?? null : null}, true)
       RETURNING id`
     ids[clave] = u.id
+    if (def.rol === 'admin') await activarDosPasosAdmin(u.id)
     for (const m of def.modulos) await sql`INSERT INTO usuario_modulos (usuario_id, modulo) VALUES (${u.id}, ${m})`
   }
   // Segundo pvn: dueño de datos que el primero NO debe poder ver (pruebas de IDOR)
@@ -85,6 +114,7 @@ export async function borrarUsuarios() {
 
 /** Sesión web (cookie de NextAuth) de un rol, igual que el login del navegador. */
 export async function loginWeb(clave: Rol | 'otroPvn'): Promise<string> {
+  const codigo = codigoAdmin(clave)
   const usuario = PREFIJO + (clave === 'otroPvn' ? 'otro_pvn' : clave)
   const r1 = await fetch(`${BASE}/api/auth/csrf`)
   const { csrfToken } = await r1.json() as { csrfToken: string }
@@ -92,7 +122,7 @@ export async function loginWeb(clave: Rol | 'otroPvn'): Promise<string> {
   const r2 = await fetch(`${BASE}/api/auth/callback/credentials`, {
     method: 'POST', redirect: 'manual',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookies },
-    body: new URLSearchParams({ csrfToken, username: usuario, password: PASSWORD, json: 'true' }),
+    body: new URLSearchParams({ csrfToken, username: usuario, password: PASSWORD, json: 'true', ...(codigo ? { codigo } : {}) }),
   })
   cookies = unirCookies(cookies, r2.headers.getSetCookie())
   if (!cookies.includes('session-token')) throw new Error(`No se pudo iniciar sesión web como ${usuario} (HTTP ${r2.status})`)
@@ -101,10 +131,11 @@ export async function loginWeb(clave: Rol | 'otroPvn'): Promise<string> {
 
 /** Token de la app móvil (Bearer) de un rol. */
 export async function loginMovil(clave: Rol | 'otroPvn'): Promise<string> {
+  const codigo = codigoAdmin(clave)
   const usuario = PREFIJO + (clave === 'otroPvn' ? 'otro_pvn' : clave)
   const r = await fetch(`${BASE}/api/auth/mobile/login`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: usuario, password: PASSWORD }),
+    body: JSON.stringify({ username: usuario, password: PASSWORD, ...(codigo ? { codigo } : {}) }),
   })
   const d = await r.json() as { token?: string; error?: string }
   if (!d.token) throw new Error(`Login móvil de ${usuario}: ${d.error ?? r.status}`)

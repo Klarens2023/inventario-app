@@ -37,7 +37,7 @@ const PATH_MODULO: Array<[string, Modulo]> = [
 /** Páginas que exigen sesión. El resto (login, inicio) es público. */
 const PROTEGIDAS = [
   '/dashboard', '/cargar', '/consulta', '/acumulados', '/auditoria', '/admin',
-  '/sistemas', '/pvn', '/planos', '/logistica', '/contabilidad', '/cambiar-password',
+  '/sistemas', '/pvn', '/planos', '/logistica', '/contabilidad', '/cambiar-password', '/seguridad',
 ]
 
 const esDesarrollo = process.env.NODE_ENV !== 'production'
@@ -83,6 +83,10 @@ async function controlAcceso(req: NextRequest): Promise<NextResponse | null> {
 
   // Con cambio de contraseña pendiente solo puede estar en /cambiar-password
   if (token.debe_cambiar_password && pathname !== '/cambiar-password') return ir('/cambiar-password')
+
+  // Admin sin verificación en dos pasos: solo puede estar en /seguridad hasta activarla
+  // (después de cambiar la contraseña, si también la tenía pendiente)
+  if (token.debe_configurar_2fa && pathname !== '/seguridad') return ir('/seguridad')
 
   const rol     = token.rol as string
   const modulos = (token.modulos as string[]) ?? []

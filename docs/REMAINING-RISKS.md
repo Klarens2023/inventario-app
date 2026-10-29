@@ -26,7 +26,7 @@
 
 | Prioridad | ID | Riesgo | Siguiente paso |
 |---|---|---|---|
-| 1 | AUD-17 | Bloqueo de cuentas ajenas: quien conozca un usuario puede bloquearlo 15 min con 5 fallos (el límite por IP del 23/10 lo frena desde una sola conexión, no desde muchas) | Vercel WAF / Attack Challenge si se observa abuso; 2FA para administradores |
+| 1 | AUD-17 | Bloqueo de cuentas ajenas: quien conozca un usuario puede bloquearlo 15 min con 5 fallos (el límite por IP del 23/10 lo frena desde una sola conexión, no desde muchas) | Vercel WAF / Attack Challenge si se observa abuso. Desde el 29/10 los administradores tienen verificación en dos pasos (una contraseña de admin filtrada ya no basta) |
 | 4 | AUD-25 | Las pruebas de integración cubren autorización, no la lógica de negocio de cada ruta (cálculos, Excel, EDI) | Agregar casos por módulo a `tests/integracion/` |
 | 4 | — | App móvil en Expo SDK 54 (la última es 58): 41 alertas de npm, casi todas de herramientas de compilación | 23/10: APK 1.2.0 con SDK 58 (rama `prueba/expo-sdk58`) probado en teléfono: login, turno, pagos QR con cámara y galería, cierre de datáfono e historial OK. Falta unirlo a `main` del repo móvil y distribuirlo |
 | 6 | AUD-26 | Higiene | Sacar `tsconfig.tsbuildinfo` de Git (`git rm --cached` + `.gitignore`) al hacer el commit |

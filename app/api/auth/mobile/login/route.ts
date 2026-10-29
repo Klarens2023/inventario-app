@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { sql } from '@/lib/db'
 import { registrarInicioSesion } from '@/lib/audit'
+import { segundoFactorLogin } from '@/lib/dosPasos'
+import { CODIGO_2FA_INCORRECTO } from '@/lib/dosPasosConstantes'
 import {
   compararSenuelo, ipCliente, mensajeBloqueoIp, minutosBloqueoIp, minutosRestantesBloqueo,
   registrarFalloIp, registrarIntentoFallido, resetearIntentosFallidos,
@@ -12,7 +14,8 @@ import {
 // sesión por cookie de NextAuth (no accesible desde React Native).
 export async function POST(req: NextRequest) {
   // Cuerpo JSON { username, password }; si no es JSON válido queda vacío → 400
-  const { username, password } = await req.json().catch(() => ({})) as { username?: string; password?: string }
+  // codigo: solo administradores con verificación en dos pasos (6 dígitos o de recuperación)
+  const { username, password, codigo } = await req.json().catch(() => ({})) as { username?: string; password?: string; codigo?: string }
   if (!username || !password) {
     return NextResponse.json({ error: 'Usuario y contraseña requeridos' }, { status: 400 })
   }
@@ -26,7 +29,9 @@ export async function POST(req: NextRequest) {
   const rows = await sql`
     SELECT u.id, u.username, u.password_hash, u.nombre, u.rol, u.area, u.activo,
            u.punto_venta_id, pv.nombre AS punto_venta_nombre, u.debe_cambiar_password,
-           u.bloqueado_hasta, u.acceso_movil
+           u.bloqueado_hasta, u.acceso_movil,
+           -- to_jsonb: NULL en vez de error si la migración de 2FA aún no se corrió
+           COALESCE((to_jsonb(u) ->> 'totp_activo')::boolean, false) AS totp_activo
     FROM usuarios u
     LEFT JOIN pvn_puntos_venta pv ON pv.id = u.punto_venta_id
     WHERE u.username = ${username} AND u.activo = true
@@ -61,6 +66,27 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ error: 'Credenciales inválidas' }, { status: 401 })
   }
+  // Segundo paso (solo administradores). La app muestra el campo del código
+  // cuando la respuesta trae requiere2fa: true.
+  const factor = await segundoFactorLogin(user as { id: number; rol: string; totp_activo: boolean }, codigo)
+  if (factor === 'sin-configurar') {
+    // La activación (QR) se hace en la web; sin ella el admin no entra a la app
+    return NextResponse.json({ error: 'Activa primero la verificación en dos pasos desde la web (Seguridad de mi cuenta)' }, { status: 403 })
+  }
+  if (factor === 'falta-codigo') {
+    return NextResponse.json({ error: 'Ingresa el código de verificación de tu app autenticadora', requiere2fa: true }, { status: 401 })
+  }
+  if (factor === 'invalido') {
+    // Cuenta como intento fallido: a los 5 se bloquea la cuenta
+    const quedoBloqueado = await registrarIntentoFallido(user.id)
+    await registrarFalloIp(ip)
+    await registrarInicioSesion({
+      resultado: quedoBloqueado ? 'bloqueado' : 'fallido', usuarioId: user.id, username: user.username,
+      canal: 'movil', ip, navegador: req.headers.get('user-agent'), motivo: 'código de verificación incorrecto',
+    })
+    return NextResponse.json({ error: CODIGO_2FA_INCORRECTO, requiere2fa: true }, { status: 401 })
+  }
+
   await resetearIntentosFallidos(user.id)
 
   // Se valida DESPUÉS de la contraseña para no revelar a un tercero qué
@@ -85,6 +111,7 @@ export async function POST(req: NextRequest) {
   await registrarInicioSesion({
     resultado: 'exitoso', usuarioId: user.id, username: user.username,
     canal: 'movil', ip, navegador: req.headers.get('user-agent'),
+    motivo: factor === 'recuperacion' ? 'con código de recuperación' : factor === 'totp' ? 'con verificación en dos pasos' : undefined,
   })
 
   // Datos que la app guarda para mostrar (nombre, punto de venta, módulos)

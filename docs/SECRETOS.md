@@ -38,6 +38,7 @@ Revisado: 27/10/2026. Actualizar cada vez que se agregue o cambie un secreto.
 | `SIESA_CLIENT_ID`, `SIESA_CONNI_KEY` 🔑, `SIESA_CONNI_TOKEN` 🔑 | Credenciales de la API Connekta de Siesa | No se envían pedidos a Siesa | Las genera el administrador de Siesa/Connekta |
 | `SIESA_API_URL`, `SIESA_CIA`, `SIESA_ID_COMPANIA`, `SIESA_*_DOCTO*`, `SIESA_EXT1_DETALLE` | Configuración de Siesa (no son secretas) | Pedidos rechazados o a la compañía equivocada | — |
 | `GITHUB_DISPATCH_TOKEN` 🔑 | Token *fine-grained* de la cuenta Klarens2023, solo para el repositorio `inventario-app`, permiso **Actions: Read and write**. Vercel Cron lo usa para lanzar el respaldo (3 a. m.) y la alerta de consumo (7 a. m.) | No se lanzan el respaldo ni la alerta (la ruta responde 503 y queda en el log) | GitHub (Klarens2023) → Settings → Developer settings → Fine-grained tokens → Regenerate; **vence**: anotar la fecha y renovarlo antes |
+| `TOTP_CLAVE` 🔑 | Clave maestra (32 bytes, base64) que cifra en la base la clave de la verificación en dos pasos de cada administrador y firma sus códigos de recuperación | Sin ella la verificación en dos pasos queda **apagada** (los admins entran solo con contraseña). Si se cambia o se pierde, las claves guardadas ya no se pueden leer: **todos los administradores deben activarla de nuevo** (reiniciarla en /admin/usuarios) | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` → Vercel → Redeploy → reiniciar la 2FA de cada admin. Solo cambiarla si se filtró |
 | `LOGIN_IPS_CONFIANZA` | Segmento de la empresa `190.242.100.248/29`, exento del límite de login por IP (no es secreto) | La oficina queda con el límite normal | Si cambia la IP pública de la empresa |
 
 Después de cambiar cualquier variable en Vercel: **Deployments → el último → Redeploy**. Las variables solo aplican a despliegues nuevos.
@@ -93,6 +94,23 @@ Todas deben tener verificación en dos pasos y la contraseña en el gestor 🔑.
 | Expo | Builds de la app y keystore |
 | Google Cloud / Workspace | Cuenta de servicio y unidad compartida de Drive |
 | UptimeRobot | Monitoreo de `/login` y `/api/salud` |
+
+## Si un administrador pierde el acceso de dos pasos
+
+En orden, de la opción más simple a la de emergencia:
+
+1. **Código de recuperación:** en el login, en el campo del código, escribir uno de los 10 códigos `XXXX-XXXX` que se mostraron al activar la verificación. Cada uno sirve una vez. Luego, en /seguridad, generar códigos nuevos y, si cambió de celular, pedir el reinicio.
+2. **Otro administrador:** /admin/usuarios → **Reiniciar 2 pasos**. Al entrar, vuelve a escanear un QR.
+3. **Emergencia (no hay otro admin ni códigos):** quien tenga acceso a Neon, en el SQL Editor (rama production, rol `neondb_owner`), reemplazando `admin` por el usuario:
+   ```sql
+   DELETE FROM usuario_codigos_recuperacion WHERE usuario_id = (SELECT id FROM usuarios WHERE username = 'admin');
+   UPDATE usuarios SET totp_clave = NULL, totp_pendiente = NULL, totp_activo = FALSE,
+          totp_activado_en = NULL, totp_ultimo_paso = NULL
+   WHERE username = 'admin';
+   ```
+   Al entrar con su contraseña, la app lo lleva a /seguridad para activarla otra vez. Dejar constancia: este cambio no queda en la bitácora de la app.
+
+Para no llegar al paso 3: mantener **al menos dos administradores** y guardar los códigos de recuperación en el gestor de contraseñas.
 
 ## Si alguien con acceso deja la empresa
 

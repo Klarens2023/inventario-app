@@ -17,7 +17,7 @@ const PASSWORD_MAX = 100
 //   usuario acaba de entrar con ella.
 // - La nueva no puede ser igual a la actual.
 export async function PUT(req: NextRequest) {
-  const acceso = await exigirAcceso(req, { movil: true, permitirCambioPassword: true })
+  const acceso = await exigirAcceso(req, { movil: true, permitirCambioPassword: true, permitirConfigurar2fa: true })
   if (!acceso.ok) return acceso.respuesta
   const { user } = acceso
 

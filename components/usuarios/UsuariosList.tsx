@@ -12,9 +12,11 @@ type Props = {
   esAdmin: boolean
   onEditar: (u: Usuario) => void
   onToggleActivo: (u: Usuario) => void
+  /** Solo admin: reiniciar la verificación en dos pasos de otro administrador */
+  onReiniciarDosPasos?: (u: Usuario) => void
 }
 
-export function UsuariosList({ usuarios, areas, loading, sessionUserId, esAdmin, onEditar, onToggleActivo }: Props) {
+export function UsuariosList({ usuarios, areas, loading, sessionUserId, esAdmin, onEditar, onToggleActivo, onReiniciarDosPasos }: Props) {
   return (
     <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
       <div style={{ overflowX: 'auto' }}>
@@ -65,6 +67,12 @@ export function UsuariosList({ usuarios, areas, loading, sessionUserId, esAdmin,
                     {u.debe_cambiar_password
                       ? <span style={{ fontSize: 12, color: '#d97706', fontWeight: 600 }}>Pendiente</span>
                       : <span style={{ fontSize: 12, color: '#64748b' }}>Personalizada</span>}
+                    {/* Administradores: si ya activaron la verificación en dos pasos */}
+                    {u.rol === 'admin' && (
+                      <div style={{ fontSize: 11, marginTop: 2, color: u.totp_activo ? '#065f46' : '#b45309' }}>
+                        {u.totp_activo ? '✓ 2 pasos' : '2 pasos pendiente'}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '12px 16px', color: '#64748b', fontSize: 13 }}>
                     {format(new Date(u.created_at), 'dd/MM/yyyy')}
@@ -79,6 +87,11 @@ export function UsuariosList({ usuarios, areas, loading, sessionUserId, esAdmin,
                       {puedeDesactivar && (
                         <button onClick={() => onToggleActivo(u)} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #e2e8f0', background: u.activo ? '#fff5f5' : '#f0fdf4', color: u.activo ? '#dc2626' : '#16a34a', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                           {u.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      )}
+                      {esAdmin && onReiniciarDosPasos && u.rol === 'admin' && u.totp_activo && String(u.id) !== sessionUserId && (
+                        <button onClick={() => onReiniciarDosPasos(u)} title="Si perdió o cambió el celular: deberá activarla de nuevo al entrar" style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid #fde68a', background: '#fffbeb', color: '#b45309', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                          Reiniciar 2 pasos
                         </button>
                       )}
                     </div>

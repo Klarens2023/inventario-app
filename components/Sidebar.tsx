@@ -338,6 +338,12 @@ export default function Sidebar() {
             <a href="/cambiar-password" style={{ display: 'inline-block', fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 6, textDecoration: 'underline' }}>
               Cambiar contraseña
             </a>
+            {/* Solo administradores: verificación en dos pasos (códigos de recuperación) */}
+            {session?.user?.rol === 'admin' && (
+              <a href="/seguridad" style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 4, textDecoration: 'underline' }}>
+                Verificación en dos pasos
+              </a>
+            )}
           </div>
         )}
         <button

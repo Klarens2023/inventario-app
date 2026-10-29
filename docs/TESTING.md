@@ -23,6 +23,12 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Verificación en dos pasos (29/10/2026)
+
+- `npm test` 23/23: `tests/totp.test.ts` comprueba los códigos contra los **vectores oficiales del RFC 6238**, la ventana de ±30 s, que no se reuse un código, el cifrado AES-256-GCM (falla si se altera o con otra clave maestra) y los códigos de recuperación.
+- `npm run test:integracion` 27/27 (con `TOTP_CLAVE` en `.env.local`): un admin sin 2FA entra con la sesión restringida a /seguridad (API 401, páginas redirigen) y la app móvil lo rechaza; la activación rechaza un código errado y con el correcto entrega 10 códigos; el login web pide el código, rechaza uno errado y no acepta el mismo dos veces; los códigos de recuperación sirven una vez, en web y móvil; 5 códigos errados bloquean la cuenta; otro admin puede reiniciarla y uno mismo no; un usuario que no es admin no la puede reiniciar ni nota cambios. El admin de las pruebas existentes la trae activa y entra con códigos de recuperación.
+- Navegador (build local): redirección a /seguridad, QR y clave manual, activación con el código calculado, pantalla de códigos de recuperación, entrada al panel y nuevo login pidiendo el código.
+
 ## Tareas programadas (28/10/2026)
 
 `npm run test:integracion` 24/24. Las 4 nuevas (`tests/integracion/tareas-programadas.test.ts`) necesitan la app corriendo con un `CRON_SECRET` de prueba y **sin** credenciales de SFTP ni Siesa, para no conectarse a Carvajal o Subrik reales. Para eso se usa un `.env.production.local` temporal (está en `.gitignore`) con `CRON_SECRET=<aleatorio>` y `CARVAJAL_SFTP_HOST=`, `SUBRIK_SFTP_HOST=`, `SIESA_CLIENT_ID=`, `GITHUB_DISPATCH_TOKEN=` vacíos, y se corre con `PRUEBAS_CRON_SECRET=<el mismo>`. Sin esa variable, las pruebas se saltan.

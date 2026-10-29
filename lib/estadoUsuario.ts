@@ -1,4 +1,5 @@
 import { sql } from './db'
+import { rolRequiereDosPasos } from './dosPasos'
 
 /**
  * Estado vigente de un usuario según la base de datos.
@@ -15,6 +16,8 @@ export type EstadoUsuario = {
   area: string
   punto_venta_id: number | null
   debe_cambiar_password: boolean
+  /** Admin que aún no activó la verificación en dos pasos (lib/dosPasos.ts) */
+  debe_configurar_2fa: boolean
   modulos: string[]
 }
 
@@ -33,6 +36,8 @@ export async function cargarEstadoUsuario(id: string | number): Promise<EstadoUs
 
   const [u] = await sql`
     SELECT u.rol, u.area, u.punto_venta_id, u.debe_cambiar_password,
+           -- to_jsonb: si la columna aún no existe (migración sin correr) da NULL en vez de error
+           COALESCE((to_jsonb(u) ->> 'totp_activo')::boolean, false) AS totp_activo,
            COALESCE((SELECT array_agg(m.modulo) FROM usuario_modulos m WHERE m.usuario_id = u.id), '{}') AS modulos
     FROM usuarios u
     WHERE u.id = ${idNum} AND u.activo = true
@@ -46,6 +51,7 @@ export async function cargarEstadoUsuario(id: string | number): Promise<EstadoUs
     area: rol === 'admin' ? 'general' : ((u.area as string | null) ?? 'logistica'),
     punto_venta_id: (u.punto_venta_id as number | null) ?? null,
     debe_cambiar_password: Boolean(u.debe_cambiar_password),
+    debe_configurar_2fa: rolRequiereDosPasos(rol) && !u.totp_activo,
     modulos: (u.modulos as string[] | null) ?? [],
   }
 }

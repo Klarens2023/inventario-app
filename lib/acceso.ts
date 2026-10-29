@@ -40,6 +40,11 @@ export type ReglaAcceso = {
    * usa /api/cambiar-password).
    */
   permitirCambioPassword?: boolean
+  /**
+   * true: deja pasar a un admin que aún no activó la verificación en dos pasos
+   * (solo /api/seguridad/dos-pasos y /api/cambiar-password).
+   */
+  permitirConfigurar2fa?: boolean
 }
 
 /** Resultado: o el usuario autorizado, o la respuesta de error lista para devolver. */
@@ -60,6 +65,7 @@ export async function exigirAcceso(req: NextRequest, regla: ReglaAcceso = {}): P
   const user = await getAuthUser(req, {
     soloSesion: !regla.movil,
     permitirCambioPassword: regla.permitirCambioPassword,
+    permitirConfigurar2fa: regla.permitirConfigurar2fa,
   })
   if (!user) return { ok: false, respuesta: NO_AUTORIZADO() }
 

@@ -40,3 +40,10 @@ export async function toggleActivo(id: number, activo: boolean): Promise<boolean
   })
   return res.ok
 }
+
+/** Reinicia la verificación en dos pasos de otro administrador (celular perdido o cambiado). */
+export async function reiniciarDosPasos(id: number): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch(`/api/usuarios/${id}/dos-pasos`, { method: 'DELETE' })
+  const data = await res.json().catch(() => ({}))
+  return { ok: res.ok, error: data.error }
+}

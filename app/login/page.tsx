@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { CODIGO_2FA_REQUERIDO } from '@/lib/dosPasosConstantes'
 
 export default function LoginPage() {
   const router   = useRouter()
@@ -10,6 +11,9 @@ export default function LoginPage() {
   const [pass,   setPass]   = useState('')
   const [error,  setError]  = useState('')
   const [loading, setLoading] = useState(false)
+  // Verificación en dos pasos (administradores): al pedir el código aparece el tercer campo
+  const [pideCodigo, setPideCodigo] = useState(false)
+  const [codigo, setCodigo] = useState('')
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -19,11 +23,15 @@ export default function LoginPage() {
     const res = await signIn('credentials', {
       username: user,
       password: pass,
+      // Solo se envía cuando la app lo pidió (administradores con verificación en dos pasos)
+      ...(pideCodigo ? { codigo } : {}),
       redirect: false,
     })
 
     setLoading(false)
-    if (res?.ok) router.push('/dashboard')
+    if (res?.ok) { router.push('/dashboard'); return }
+    // Contraseña correcta de un administrador: falta el código de su app autenticadora
+    if (res?.error === CODIGO_2FA_REQUERIDO) { setPideCodigo(true); return }
     // 'CredentialsSignin' = usuario o contraseña errados. Cualquier otro texto es
     // un mensaje propio de lib/auth.ts (bloqueo por intentos), y se muestra tal cual.
     else setError(res?.error && res.error !== 'CredentialsSignin' ? res.error : 'Usuario o contraseña incorrectos')
@@ -127,6 +135,30 @@ export default function LoginPage() {
               />
             </div>
 
+            {pideCodigo && (
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--text2)', marginBottom: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Código de verificación
+                </label>
+                <input
+                  value={codigo}
+                  onChange={e => setCodigo(e.target.value)}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  placeholder="123456"
+                  required
+                  style={{
+                    width: '100%', padding: '14px 16px', background: '#FFFFFF', border: '1px solid var(--border)',
+                    borderRadius: 10, color: 'var(--text)', fontSize: 18, letterSpacing: 4, textAlign: 'center', outline: 'none',
+                  }}
+                />
+                <p style={{ fontSize: 12, color: 'var(--text2)', marginTop: 6 }}>
+                  Los 6 dígitos de tu app autenticadora. Sin el celular, usa uno de tus códigos de recuperación (XXXX-XXXX).
+                </p>
+              </div>
+            )}
+
             {error && (
               <div style={{
                 padding: '12px 16px', borderRadius: 10,
@@ -152,7 +184,7 @@ export default function LoginPage() {
                 justifyContent: 'center'
               }}
             >
-              {loading ? 'Validando credenciales...' : 'Ingresar al Sistema'}
+              {loading ? 'Validando credenciales...' : pideCodigo ? 'Verificar e ingresar' : 'Ingresar al Sistema'}
             </button>
           </form>
         </div>

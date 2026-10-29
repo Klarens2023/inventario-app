@@ -23,6 +23,9 @@ type OpcionesAuth = {
   // true: solo la cookie de sesión web; un token Bearer de la app móvil no sirve
   // (ver ReglaAcceso.movil en lib/acceso.ts).
   soloSesion?: boolean
+  // Solo las rutas de /seguridad (activar la verificación en dos pasos) y el
+  // cambio de contraseña aceptan a un admin que aún no la activó.
+  permitirConfigurar2fa?: boolean
 }
 
 /**
@@ -51,6 +54,7 @@ export async function getAuthUser(req: NextRequest, opciones: OpcionesAuth = {})
     if (u.revocado) return null
     // Contraseña temporal sin cambiar: solo /api/cambiar-password lo admite
     if (u.debe_cambiar_password && !opciones.permitirCambioPassword) return null
+    if (u.debe_configurar_2fa && !opciones.permitirConfigurar2fa) return null
     return {
       id: u.id,
       name: u.name,
@@ -84,6 +88,7 @@ export async function getAuthUser(req: NextRequest, opciones: OpcionesAuth = {})
     const estado = await cargarEstadoUsuario(payload.id)
     if (!estado) return null
     if (estado.debe_cambiar_password && !opciones.permitirCambioPassword) return null
+    if (estado.debe_configurar_2fa && !opciones.permitirConfigurar2fa) return null
     // Del token solo se usan id y nombre; los permisos salen de la BD
     return {
       id: String(payload.id),

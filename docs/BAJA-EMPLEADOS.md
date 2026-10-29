@@ -29,6 +29,7 @@ Además del paso 1:
 1. En **/auditoria**, filtrar las acciones **Usuario Creado** y **Usuario Modificado** de esa persona en las últimas semanas. Revisar que no haya dejado cuentas creadas, reactivadas o con más módulos de lo necesario.
 2. Si conocía la contraseña de **otros** usuarios (por ejemplo, la temporal que entregó a alguien), **restablecerlas** desde /admin/usuarios.
 3. Si era el **único** administrador, confirmar antes de desactivarlo que queda otra persona con rol admin.
+4. Su verificación en dos pasos deja de servir al desactivarlo; no hace falta reiniciarla. Si **otro** admin le había dado sus códigos de recuperación o su celular estaba en su poder, reiniciar la verificación de ese otro admin.
 
 ## 3. Personal de Sistemas con acceso técnico
 
