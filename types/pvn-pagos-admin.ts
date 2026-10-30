@@ -8,7 +8,8 @@ export type PagoAdmin = {
   punto_venta_nombre: string | null
   fecha: string
   valor: number
-  foto_url: string
+  /** null si la foto ya se depuró (más de 60 días): el pago se conserva */
+  foto_url: string | null
   created_at: string
 }
 export type Usuario = { id: number; nombre: string; rol: string }

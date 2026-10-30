@@ -74,10 +74,17 @@ export function PagosTable({
           onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
           onMouseLeave={e => e.currentTarget.style.background = '#fff'}
         >
-          <img
-            src={`${p.foto_url}&thumb=1`} alt="Comprobante" onClick={() => setLightboxIndex(i)} loading="lazy"
-            style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
-          />
+          {p.foto_url ? (
+            <img
+              src={`${p.foto_url}&thumb=1`} alt="Comprobante" onClick={() => setLightboxIndex(i)} loading="lazy"
+              style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
+            />
+          ) : (
+            // Foto depurada a los 60 días (lib/depurarFotos.ts): el pago sigue contando
+            <div title="La foto se borró automáticamente a los 60 días; el pago se conserva" style={{ width: 44, height: 44, borderRadius: 8, border: '1px dashed #cbd5e1', background: '#f8fafc', color: '#94a3b8', fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', flexShrink: 0, lineHeight: 1.1 }}>
+              Foto<br />depurada
+            </div>
+          )}
           <div style={{ minWidth: 150 }}>
             <div style={{ fontSize: 13, color: '#0f172a', fontWeight: 600 }}>Turno {fmtFecha(p.fecha)}</div>
             <div style={{ fontSize: 11, color: '#94a3b8' }}>Subido {fmtFechaHora(p.created_at)}</div>

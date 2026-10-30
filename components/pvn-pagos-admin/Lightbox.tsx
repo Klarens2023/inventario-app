@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 export type LightboxItem = {
-  src: string
+  /** null: foto depurada (más de 60 días) */
+  src: string | null
   info: { label: string; value: string }[]
 }
 
@@ -109,7 +110,9 @@ export function Lightbox({ items, index, onClose, onNavigate }: Props) {
         onMouseLeave={soltar}
         style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <img
+        {!item.src ? (
+          <div style={{ color: '#cbd5e1', fontSize: 15, textAlign: 'center' }}>La foto de este pago se borró automáticamente a los 60 días.<br />El registro del pago se conserva.</div>
+        ) : <img
           src={item.src}
           alt="Comprobante ampliado"
           onClick={alternarZoom}
@@ -121,7 +124,7 @@ export function Lightbox({ items, index, onClose, onNavigate }: Props) {
             transition: arrastrando ? 'none' : 'transform 0.15s ease-out',
             userSelect: 'none',
           }}
-        />
+        />}
 
         {index > 0 && (
           <button onClick={(e) => { e.stopPropagation(); onNavigate(index - 1) }} style={{ ...flechaEstilo, left: 16 }} title="Anterior (←)">‹</button>

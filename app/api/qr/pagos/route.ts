@@ -138,6 +138,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(aUrlProxy(registro, req.nextUrl.origin), { status: 201 })
 }
 
+// Foto depurada (más de 60 días, lib/depurarFotos.ts): las consultas la devuelven NULL.
+// to_jsonb tolera que la columna foto_eliminada_en aún no exista.
 export async function GET(req: NextRequest) {
   const acceso = await exigirAcceso(req, { roles: ['pvn', 'pvv'], modulos: ['pvn_pagos_qr'], movil: true })
   if (!acceso.ok) return acceso.respuesta
@@ -155,7 +157,7 @@ export async function GET(req: NextRequest) {
     // días anteriores salían siempre "Sin pagos".
     if (turnoIdParam) {
       const rows = await sql(
-        `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, foto_url, created_at
+        `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, CASE WHEN (to_jsonb(pvn_pagos_qr) ->> 'foto_eliminada_en') IS NULL THEN foto_url END AS foto_url, created_at
          FROM pvn_pagos_qr
          WHERE usuario_id = $1 AND turno_id = $2
          ORDER BY created_at DESC`,
@@ -173,7 +175,7 @@ export async function GET(req: NextRequest) {
     if (!turnoActivo) return NextResponse.json([])
 
     const rows = await sql(
-      `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, foto_url, created_at
+      `SELECT id, punto_venta_nombre, fecha::text AS fecha, valor, CASE WHEN (to_jsonb(pvn_pagos_qr) ->> 'foto_eliminada_en') IS NULL THEN foto_url END AS foto_url, created_at
        FROM pvn_pagos_qr
        WHERE usuario_id = $1 AND fecha = $2::date AND turno_id = $3
        ORDER BY created_at DESC`,
@@ -197,7 +199,7 @@ export async function GET(req: NextRequest) {
   // filtrado sin avisar (las más antiguas, por el ORDER BY fecha DESC).
   const rows = await sql(
     `SELECT id, usuario_id, usuario_nombre, punto_venta_id, punto_venta_nombre,
-            fecha::text AS fecha, valor, foto_url, created_at
+            fecha::text AS fecha, valor, CASE WHEN (to_jsonb(pvn_pagos_qr) ->> 'foto_eliminada_en') IS NULL THEN foto_url END AS foto_url, created_at
      FROM pvn_pagos_qr
      WHERE ($1::date IS NULL OR fecha >= $1::date)
        AND ($2::date IS NULL OR fecha <= $2::date)

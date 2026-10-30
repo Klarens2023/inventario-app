@@ -59,3 +59,7 @@ No se restaura encima de producción a ciegas: primero se carga en una base apar
    - **Recuperar solo algunas filas o tablas:** copiarlas a `neondb` con SQL.
    - **Volver a todo ese día:** cambiar `DATABASE_URL` en Vercel a `neondb_restaurado` (con el rol `app_operaciones`) y redesplegar. Antes, conectado a `neondb_restaurado`, darle permisos: las sentencias `GRANT` y `ALTER DEFAULT PRIVILEGES` de `scripts/crear-rol-app.sql`, cambiando `neondb` por `neondb_restaurado` (el `CREATE ROLE` no, porque el rol ya existe).
 8. Borrar `respaldo.dump` del equipo: contiene todos los datos sin cifrar.
+
+## Fotos de pagos QR: se depuran a los 60 días
+
+Las **fotos** de los comprobantes de pagos QR de más de 60 días se borran solas cada madrugada (`/api/tareas/depurar-fotos`, Vercel Cron, ver `lib/depurarFotos.ts`); los **registros** de los pagos se conservan. Las fotos van a la **papelera de la unidad compartida de Drive**: durante 30 días se pueden restaurar desde ahí; después Google las elimina. Cada ejecución queda en /auditoria como "Fotos depuradas". Los respaldos de la base no incluyen fotos (solo la dirección de cada una).

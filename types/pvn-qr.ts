@@ -5,5 +5,5 @@ export type TurnoHist = {
   foto_datafono_url?: string | null; numero_recogida?: string | null
 }
 export type PuntoVenta = { id: number; nombre: string; activo: boolean; tipo: string }
-export type Pago = { id: number; punto_venta_nombre: string | null; fecha: string; valor: number; foto_url: string; created_at: string }
+export type Pago = { id: number; punto_venta_nombre: string | null; fecha: string; valor: number; foto_url: string | null; created_at: string }
 export type ResumenCierre = { total_pagos: number; total_valor: number }

@@ -112,10 +112,12 @@ export function MisPagosPanel({
               {!cargandoPagos && pagosHoy.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', padding: 30 }}>Sin pagos</div>}
               {!cargandoPagos && pagosHoy.map(p => (
                 <div key={p.id} style={{ background: '#fff', borderRadius: 10, padding: '12px 14px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <img
-                    src={p.foto_url} alt="" onClick={() => onSetLightbox(p.foto_url)}
-                    style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
-                  />
+                  {p.foto_url ? (
+                    <img
+                      src={p.foto_url} alt="" onClick={() => onSetLightbox(p.foto_url!)}
+                      style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}
+                    />
+                  ) : <span style={{ width: 40, fontSize: 9, color: '#94a3b8', textAlign: 'center' }}>Foto depurada</span>}
                   <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>{fmtHora(p.created_at)}</span>
                   <span style={{ flex: 1 }} />
                   {verTurnoId !== null ? (

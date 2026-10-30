@@ -11,7 +11,7 @@ npm run lint             # ESLint (0 errores y 0 avisos desde el 26/10/2026)
 
 # Integración (escriben en la BD: SOLO contra la rama de desarrollo de Neon).
 # Requiere la app corriendo con `npx next build && npm start` en el puerto 3000.
-BD_DESARROLLO_HOST=ep-broad-cake-anqz0ha7 npm run test:integracion
+BD_DESARROLLO_HOST=ep-green-boat-ani2f7vo npm run test:integracion
 ```
 
 Las pruebas de integración (`tests/integracion/`) crean usuarios `it_*` con una
@@ -22,6 +22,10 @@ los borran al final. Si `BD_DESARROLLO_HOST` no coincide con el host de
 Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación de
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
+
+## Depuración de fotos y suite completa (30/10/2026)
+
+Rama de desarrollo nueva (QA, `ep-green-boat-ani2f7vo`; la anterior se había borrado sola por "Auto-delete"). Con el entorno temporal de tareas programadas (`.env.production.local`, ver abajo): `npm run test:integracion` **34/34, ninguna omitida**; `npm test` 23/23. Las 3 nuevas de `depurar-fotos.test.ts`: 401 sin clave; sin `DEPURAR_FOTOS=activo` solo simula y cuenta el pago de 70 días sin marcarlo; un pago con la foto depurada sigue en el listado con `foto_url` nulo y el reciente conserva su foto. La copia de producción del 30/10 confirmó que allí están todas las migraciones (login por IP, sincronizaciones, 2FA), los roles `app_operaciones` y `app_respaldo`, y un admin con 2FA activa.
 
 ## Verificación en dos pasos (29/10/2026)
 

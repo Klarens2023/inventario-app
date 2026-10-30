@@ -39,6 +39,8 @@ Revisado: 27/10/2026. Actualizar cada vez que se agregue o cambie un secreto.
 | `SIESA_API_URL`, `SIESA_CIA`, `SIESA_ID_COMPANIA`, `SIESA_*_DOCTO*`, `SIESA_EXT1_DETALLE` | Configuración de Siesa (no son secretas) | Pedidos rechazados o a la compañía equivocada | — |
 | `GITHUB_DISPATCH_TOKEN` 🔑 | Token *fine-grained* de la cuenta Klarens2023, solo para el repositorio `inventario-app`, permiso **Actions: Read and write**. Vercel Cron lo usa para lanzar el respaldo (3 a. m.) y la alerta de consumo (7 a. m.) | No se lanzan el respaldo ni la alerta (la ruta responde 503 y queda en el log) | GitHub (Klarens2023) → Settings → Developer settings → Fine-grained tokens → Regenerate; **vence**: anotar la fecha y renovarlo antes |
 | `TOTP_CLAVE` 🔑 | Clave maestra (32 bytes, base64) que cifra en la base la clave de la verificación en dos pasos de cada administrador y firma sus códigos de recuperación | Sin ella la verificación en dos pasos queda **apagada** (los admins entran solo con contraseña). Si se cambia o se pierde, las claves guardadas ya no se pueden leer: **todos los administradores deben activarla de nuevo** (reiniciarla en /admin/usuarios) | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` → Vercel → Redeploy → reiniciar la 2FA de cada admin. Solo cambiarla si se filtró |
+| `DEPURAR_FOTOS` | `activo` **solo en Production** (no es secreta): habilita el borrado automático de fotos de pagos de más de 60 días. Sin ella, la tarea solo simula | Las fotos viejas no se depuran (se acumulan en Drive) | — |
+| `TRANSFERENCIAS_WEBHOOK_SECRET` | Ningún código la usa (resto de una función anterior) | Nada | Se puede borrar de Vercel y de `.env.local` |
 | `LOGIN_IPS_CONFIANZA` | Segmento de la empresa `190.242.100.248/29`, exento del límite de login por IP (no es secreto) | La oficina queda con el límite normal | Si cambia la IP pública de la empresa |
 
 Después de cambiar cualquier variable en Vercel: **Deployments → el último → Redeploy**. Las variables solo aplican a despliegues nuevos.
@@ -66,7 +68,7 @@ GitHub no deja volver a ver un secreto: lo marcado 🔑 tiene que estar en el ge
 | `neondb_owner` 🔑 | production | **Solo** migraciones desde el equipo de Sistemas. No va en Vercel ni en GitHub | Dueño de todo |
 | `app_operaciones` 🔑 | production | Vercel (`DATABASE_URL`) | Leer y escribir datos, sin crear ni borrar tablas; bitácora solo lectura e inserción |
 | `app_respaldo` 🔑 | production | GitHub (`RESPALDO_DATABASE_URL`) | Solo lectura |
-| `neondb_owner` 🔑 | desarrollo | `.env.local` del equipo de Sistemas y `PRUEBA_RESTAURACION_DATABASE_URL` | Dueño de la rama de pruebas |
+| `neondb_owner` 🔑 | desarrollo (rama **QA**, servidor `ep-green-boat-ani2f7vo`, creada el 30/10/2026 con **Auto-delete: Never**; la anterior se borró sola) | `.env.local` del equipo de Sistemas y `PRUEBA_RESTAURACION_DATABASE_URL` | Dueño de la rama de pruebas |
 
 **Cambiar la contraseña de un rol:**
 - `neondb_owner`: Neon → Roles → `neondb_owner` → Reset password.
