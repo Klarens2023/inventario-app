@@ -23,6 +23,10 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Depuración de fotos en producción (30/10/2026)
+
+Primera ejecución real con `DEPURAR_FOTOS=activo`: se cortó a los 60 s de Vercel (se autenticaba con Google en cada foto y las procesaba de a una); las ya procesadas quedaron marcadas. Corregido (un solo cliente de Drive, 6 en paralelo, freno a los 45 s). Siguiente ejecución: `{"simulacion":false,"candidatas":120,"enPapelera":120,"yaNoExistian":0,"errores":0,"quedanPendientes":true}`: 120 fotos a la papelera de Drive sin errores y dentro del tiempo.
+
 ## Depuración de fotos y suite completa (30/10/2026)
 
 Rama de desarrollo nueva (QA, `ep-green-boat-ani2f7vo`; la anterior se había borrado sola por "Auto-delete"). Con el entorno temporal de tareas programadas (`.env.production.local`, ver abajo): `npm run test:integracion` **34/34, ninguna omitida**; `npm test` 23/23. Las 3 nuevas de `depurar-fotos.test.ts`: 401 sin clave; sin `DEPURAR_FOTOS=activo` solo simula y cuenta el pago de 70 días sin marcarlo; un pago con la foto depurada sigue en el listado con `foto_url` nulo y el reciente conserva su foto. La copia de producción del 30/10 confirmó que allí están todas las migraciones (login por IP, sincronizaciones, 2FA), los roles `app_operaciones` y `app_respaldo`, y un admin con 2FA activa.
