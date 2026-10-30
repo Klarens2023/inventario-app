@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
 
   const simular = req.nextUrl.searchParams.get('simular') === '1'
   const resultado = await depurarFotosPagos(simular)
+  // Queda en los logs de Vercel (que no muestran el cuerpo de la respuesta): solo cantidades
+  console.log('[depurar-fotos]', JSON.stringify(resultado))
 
   // Queda en la bitácora solo si de verdad se depuró algo
   if (!simular && resultado.enPapelera + resultado.yaNoExistian > 0) {
