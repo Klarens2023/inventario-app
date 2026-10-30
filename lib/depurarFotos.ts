@@ -24,12 +24,14 @@ export const DIAS_CONSERVAR_FOTOS = 60
 export function depuracionActiva(): boolean {
   return process.env.DEPURAR_FOTOS === 'activo'
 }
-const TOPE_POR_EJECUCION = 120
+// Tope alto: lo que de verdad limita cada pasada es el tiempo (PRESUPUESTO_MS).
+// Cada día cumplen 60 días ~70 fotos; una pasada procesa cientos, así que se pone al día rápido.
+const TOPE_POR_EJECUCION = 1000
 // Vercel corta la función a los 60 s: se deja de tomar fotos nuevas a los 45 s
 // para alcanzar a escribir el log y la bitácora. Lo que falte sigue mañana.
 const PRESUPUESTO_MS = 45_000
 // Fotos que se procesan a la vez (Drive acepta varias peticiones en paralelo)
-const EN_PARALELO = 6
+const EN_PARALELO = 10
 
 export type ResultadoDepuracion = {
   simulacion: boolean
