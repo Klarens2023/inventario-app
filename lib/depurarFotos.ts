@@ -25,6 +25,11 @@ export function depuracionActiva(): boolean {
   return process.env.DEPURAR_FOTOS === 'activo'
 }
 const TOPE_POR_EJECUCION = 120
+// Vercel corta la función a los 60 s: se deja de tomar fotos nuevas a los 45 s
+// para alcanzar a escribir el log y la bitácora. Lo que falte sigue mañana.
+const PRESUPUESTO_MS = 45_000
+// Fotos que se procesan a la vez (Drive acepta varias peticiones en paralelo)
+const EN_PARALELO = 6
 
 export type ResultadoDepuracion = {
   simulacion: boolean
@@ -56,7 +61,8 @@ export async function depurarFotosPagos(simularPedido = false): Promise<Resultad
   }
   if (simular) return resultado
 
-  for (const pago of lote) {
+  /** Una foto: a la papelera y marcar el pago. Cada una queda guardada apenas termina. */
+  async function procesar(pago: Record<string, unknown>) {
     const fileId = idArchivoDrive(pago.foto_url as string)
     try {
       const estado = fileId ? await enviarAPapelera(fileId) : 'no-existe'
@@ -69,5 +75,17 @@ export async function depurarFotosPagos(simularPedido = false): Promise<Resultad
       console.error(`[depurar-fotos] Pago ${pago.id}:`, (e as Error).message)
     }
   }
+
+  // Varios "trabajadores" toman fotos de la cola hasta vaciarla o agotar el tiempo
+  const inicio = Date.now()
+  const cola = [...lote]
+  let sinTiempo = false
+  await Promise.all(Array.from({ length: EN_PARALELO }, async () => {
+    while (cola.length) {
+      if (Date.now() - inicio > PRESUPUESTO_MS) { sinTiempo = true; return }
+      await procesar(cola.shift()!)
+    }
+  }))
+  if (sinTiempo || cola.length) resultado.quedanPendientes = true
   return resultado
 }

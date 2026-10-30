@@ -64,6 +64,23 @@ export function idArchivoDrive(url: string | null | undefined): string | null {
   return url.match(/[?&]id=([A-Za-z0-9_-]+)/)?.[1] ?? url.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] ?? null
 }
 
+// Un solo cliente por instancia: autenticarse con Google tarda casi un segundo,
+// y la depuración de fotos llama a Drive decenas de veces seguidas.
+let drivePapelera: ReturnType<typeof google.drive> | null = null
+function clienteDrive() {
+  if (!drivePapelera) {
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    })
+    drivePapelera = google.drive({ version: 'v3', auth })
+  }
+  return drivePapelera
+}
+
 /**
  * Manda un archivo a la papelera de Drive (no lo borra definitivamente: en una
  * unidad compartida, Google lo elimina solo a los 30 días y mientras tanto se
@@ -71,14 +88,7 @@ export function idArchivoDrive(url: string | null | undefined): string | null {
  * @returns 'papelera', o 'no-existe' si ya no estaba (p. ej. se borró a mano)
  */
 export async function enviarAPapelera(fileId: string): Promise<'papelera' | 'no-existe'> {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
-  })
-  const drive = google.drive({ version: 'v3', auth })
+  const drive = clienteDrive()
   try {
     await drive.files.update({ fileId, supportsAllDrives: true, requestBody: { trashed: true } })
     return 'papelera'
