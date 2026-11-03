@@ -5,7 +5,9 @@ viven, qué se rompe si fallan y cómo se cambian. **Este archivo nunca lleva
 valores reales** (el repositorio es público). Los valores van solo en el
 gestor de contraseñas de Sistemas y en el servicio donde se usan.
 
-Revisado: 27/10/2026. Actualizar cada vez que se agregue o cambie un secreto.
+Revisado: 03/11/2026. Actualizar cada vez que se agregue o cambie un secreto.
+
+Cambiados el 03/11/2026 al pasarlos al gestor (antes no estaban guardados): `RESPALDO_CLAVE` (los respaldos anteriores a esa fecha quedaron sin clave), `GITHUB_DISPATCH_TOKEN` `NEON_API_KEY` (ahora limitada al proyecto `inventario`) `CRON_SECRET`, `TOTP_CLAVE`, `NEXTAUTH_SECRET` (todos volvieron a iniciar sesión) y las contraseñas de `app_respaldo` y `app_operaciones`. Con `TOTP_CLAVE` se borró por SQL (no queda en la bitácora de la app) la verificación en dos pasos de los administradores y se volvió a activar con códigos de recuperación nuevos. Ojo al cambiar `DATABASE_URL` en Vercel: editar la de **Production** (no la de Preview) y que el usuario de la cadena sea `app_operaciones`, no `neondb_owner` (Neon → Connect trae ese por defecto).
 
 ## Dónde se configuran
 
@@ -29,15 +31,15 @@ Revisado: 27/10/2026. Actualizar cada vez que se agregue o cambie un secreto.
 | `NEXTAUTH_URL` | Dirección pública de la app (no es secreta). En Vercel no está definida: NextAuth la deduce sola | Solo hace falta en local u otro hosting | — |
 | `CRON_SECRET` 🔑 ⚠️ | Clave de la sincronización EDI programada (Vercel Cron y GitHub) | Sincronización EDI responde 401 | Generar → Vercel **y** secreto de GitHub con el mismo valor → Redeploy |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` ⚠️ | Cuenta de servicio de Google (fotos y respaldos en Drive) | No se suben fotos de pagos, cierres ni formatos | Google Cloud → IAM → Service accounts |
-| `GOOGLE_PRIVATE_KEY` 🔑 ⚠️ | Llave privada de esa cuenta de servicio | Igual que arriba | Google Cloud → la cuenta → Keys → Add key (JSON) → copiar `private_key` → Vercel y GitHub → borrar la llave vieja |
+| `GOOGLE_PRIVATE_KEY` ⚠️ | Llave privada de esa cuenta de servicio. No está en el gestor (es demasiado larga): si se pierde se crea otra, no se pierde nada | Igual que arriba | Google Cloud → la cuenta → Keys → Add key (JSON) → copiar `private_key` → Vercel y GitHub → borrar la llave vieja |
 | `GOOGLE_DRIVE_FOLDER_ID` | Carpeta de fotos en la unidad compartida (no es secreto) | No se suben fotos | — |
 | `CARVAJAL_SFTP_HOST`, `_PORT`, `_USER`, `_DIR` | Servidor EDI de Carvajal | No llegan órdenes de Carvajal | Los da Carvajal |
 | `CARVAJAL_SFTP_PASSWORD` 🔑 | Contraseña SFTP de Carvajal | Igual | Pedir cambio a Carvajal → Vercel → Redeploy |
-| `SUBRIK_SFTP_HOST`, `_PORT`, `_USER`, `_DIR` | Servidor EDI de Subrik | No llegan órdenes de Subrik | Los da Subrik |
+| `SUBRIK_SFTP_HOST`, `_PORT`, `_USER`, `_DIR` | Servidor EDI de Subrik: **producción** en Vercel desde el 03/11/2026 (`.env.local` sigue con el de pruebas) | No llegan órdenes de Subrik | Los da Subrik |
 | `SUBRIK_SFTP_PASSWORD` 🔑 | Contraseña SFTP de Subrik | Igual | Pedir cambio a Subrik → Vercel → Redeploy |
 | `SIESA_CLIENT_ID`, `SIESA_CONNI_KEY` 🔑, `SIESA_CONNI_TOKEN` 🔑 | Credenciales de la API Connekta de Siesa | No se envían pedidos a Siesa | Las genera el administrador de Siesa/Connekta |
 | `SIESA_API_URL`, `SIESA_CIA`, `SIESA_ID_COMPANIA`, `SIESA_*_DOCTO*`, `SIESA_EXT1_DETALLE` | Configuración de Siesa (no son secretas) | Pedidos rechazados o a la compañía equivocada | — |
-| `GITHUB_DISPATCH_TOKEN` 🔑 | Token *fine-grained* de la cuenta Klarens2023, solo para el repositorio `inventario-app`, permiso **Actions: Read and write**. Vercel Cron lo usa para lanzar el respaldo (3 a. m.) y la alerta de consumo (7 a. m.) | No se lanzan el respaldo ni la alerta (la ruta responde 503 y queda en el log) | GitHub (Klarens2023) → Settings → Developer settings → Fine-grained tokens → Regenerate; **vence**: anotar la fecha y renovarlo antes |
+| `GITHUB_DISPATCH_TOKEN` 🔑 | Token *fine-grained* de la cuenta Klarens2023, solo para el repositorio `inventario-app`, permiso **Actions: Read and write**. Vercel Cron lo usa para lanzar el respaldo (3 a. m.) y la alerta de consumo (7 a. m.) | No se lanzan el respaldo ni la alerta (la ruta responde 503 y queda en el log) | GitHub (Klarens2023) → Settings → Developer settings → Fine-grained tokens → Regenerate. **Vence el 03/11/2027** (regenerado el 03/11/2026): renovarlo antes; GitHub avisa por correo a Klarens2023 unos días antes |
 | `TOTP_CLAVE` 🔑 | Clave maestra (32 bytes, base64) que cifra en la base la clave de la verificación en dos pasos de cada administrador y firma sus códigos de recuperación | Sin ella la verificación en dos pasos queda **apagada** (los admins entran solo con contraseña). Si se cambia o se pierde, las claves guardadas ya no se pueden leer: **todos los administradores deben activarla de nuevo** (reiniciarla en /admin/usuarios) | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` → Vercel → Redeploy → reiniciar la 2FA de cada admin. Solo cambiarla si se filtró |
 | `DEPURAR_FOTOS` | `activo` **solo en Production** (no es secreta): habilita el borrado automático de fotos de pagos de más de 60 días. Sin ella, la tarea solo simula | Las fotos viejas no se depuran (se acumulan en Drive) | — |
 | `TRANSFERENCIAS_WEBHOOK_SECRET` | Ningún código la usa (resto de una función anterior) | Nada | Se puede borrar de Vercel y de `.env.local` |
@@ -59,7 +61,7 @@ GitHub no deja volver a ver un secreto: lo marcado 🔑 tiene que estar en el ge
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` 🔑 ⚠️ | Respaldo | Los mismos de Vercel | No sube a Drive |
 | `RESPALDO_DRIVE_FOLDER_ID` | Respaldo | Carpeta "Respaldos BD" | No sube a Drive |
 | `PRUEBA_RESTAURACION_DATABASE_URL` 🔑 | Respaldo (prueba de los domingos) | Rama de **desarrollo**, rol `neondb_owner` | No se prueba la restauración |
-| `NEON_API_KEY` 🔑 | Alerta de consumo | Clave de API de Neon | No hay alerta de consumo |
+| `NEON_API_KEY` 🔑 | Alerta de consumo | Clave de API de Neon `alerta-consumo-github`, **Project-scoped** (solo el proyecto `inventario`) | No hay alerta de consumo |
 
 ## Base de datos (Neon)
 
