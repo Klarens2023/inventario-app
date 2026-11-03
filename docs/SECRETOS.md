@@ -26,7 +26,7 @@ Cambiados el 03/11/2026 al pasarlos al gestor (antes no estaban guardados): `RES
 
 | Variable | Qué es | Si falta o está mal | Cómo cambiarla |
 |---|---|---|---|
-| `DATABASE_URL` 🔑 | Conexión a Neon con el rol **`app_operaciones`** (solo datos, sin DDL) | La app no abre nada (500) | [Base de datos](#base-de-datos-neon): cambiar la contraseña del rol y pegar la nueva cadena |
+| `DATABASE_URL` 🔑 | Production: conexión a Neon con el rol **`app_operaciones`** (solo datos, sin DDL). Preview: rama **QA** con `neondb_owner` (nunca la base real) | La app no abre nada (500) | [Base de datos](#base-de-datos-neon): cambiar la contraseña del rol y pegar la nueva cadena |
 | `NEXTAUTH_SECRET` 🔑 | Firma las sesiones web y los tokens de la app móvil | Al cambiarla, **todos** cierran sesión (web y app) y deben volver a entrar | Generar 40+ caracteres aleatorios → Vercel → Redeploy |
 | `NEXTAUTH_URL` | Dirección pública de la app (no es secreta). En Vercel no está definida: NextAuth la deduce sola | Solo hace falta en local u otro hosting | — |
 | `CRON_SECRET` 🔑 ⚠️ | Clave de la sincronización EDI programada (Vercel Cron y GitHub) | Sincronización EDI responde 401 | Generar → Vercel **y** secreto de GitHub con el mismo valor → Redeploy |
