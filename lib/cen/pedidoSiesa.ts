@@ -22,15 +22,20 @@
 // Las líneas van por ítem de Siesa (f431_id_item = f120_id de cen_lineas_producto: el de la cadena o el del maestro, asignado desde
 // API_v2_Items o a mano en Productos), no por código de barras: sin ítem la orden no se envía.
 // Los ítems con extensión 1 (f120_id_extension1 = "FB") llevan f431_id_ext1_detalle = "FN".
+//
+// Este archivo consulta la base y Siesa; los cálculos (bodega, precios, fechas y el JSON) están en
+// ./documentoPedido, sin dependencias, para poder probarlos (tests/pedido-siesa.test.ts).
 import { sql } from '@/lib/db'
 import { hoyBogota } from '@/lib/fechas'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
 import { asignarItemsAutomaticamente } from './itemsSiesa'
+import {
+  armarDocumento, bloqueosDeLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios, type DatosDocumento, type LineaPedido,
+} from './documentoPedido'
 
 const ID_DOCUMENTO = () => process.env.SIESA_ID_DOCUMENTO_PEDIDO || '142900'
 const NOMBRE_DOCUMENTO = () => process.env.SIESA_NOMBRE_DOCUMENTO_PEDIDO || 'API_v1_Ventas_Comercial_PedidoVenta'
 const CIA = () => process.env.SIESA_CIA || '1'
-const PUNTO_ENVIO = '001'
 // Tipo de documento de los pedidos de órdenes EDI (solo se usa para estos pedidos).
 export const TIPO_DOCTO = () => process.env.SIESA_TIPO_DOCTO_PEDIDO || 'PVS'
 // Detalle de extensión con que se piden los ítems que manejan extensión 1 (todos los pedidos de Siesa usan FN).
@@ -46,10 +51,6 @@ export interface PreparacionPedido {
   resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; consecutivo: string; fechaEntrega: string; diasEntrega: number }
 }
 
-const aaaammdd = (iso: string) => iso.replace(/-/g, '')
-const diasEntre = (desde: string, hasta: string) => Math.round((Date.parse(hasta) - Date.parse(desde)) / 86400000)
-const txt = (v: number) => String(Math.round(v * 10000) / 10000)
-
 async function cargarOrden(ordenId: number) {
   const [orden] = await sql`
     SELECT id, numero_orden, fecha_orden::text, fecha_entrega::text, ean_entrega, nit, sucursal, razon_social, estado
@@ -62,7 +63,7 @@ async function cargarOrden(ordenId: number) {
     LEFT JOIN cen_items_siesa i ON i.f120_id = p.f120_id
     WHERE l.orden_id = ${ordenId} ORDER BY l.nro_linea
   `
-  return { orden, lineas }
+  return { orden, lineas: lineas as unknown as LineaPedido[] }
 }
 
 // Siguiente consecutivo del tipo de documento en el CO: el mayor entre lo que ya tiene Siesa y lo que la app
@@ -94,18 +95,15 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   if (orden.nit && !config) alerta(`El cliente ${orden.nit} no tiene configuración propia: se usan CO 001 y precio de la orden.`)
   const co = config?.id_co ?? '001', tipoDocto = TIPO_DOCTO(), indPrecio = config?.ind_precio ?? '2'
 
-  // La bodega se amarra a la sucursal. Prioridad: la que traiga Siesa en el maestro del
-  // cliente/sucursal > la asignada a la sucursal en la app > la del cliente > 00110.
+  // La bodega se amarra a la sucursal (prioridades en elegirBodega).
   // Una sucursal puede tener varios EAN (tienda y CEDI): manda la bodega del EAN por el que llegó la orden.
   const [punto] = orden.nit ? await sql`
     SELECT bodega FROM cen_puntos_ean WHERE nit = ${orden.nit} AND sucursal = ${orden.sucursal} AND bodega IS NOT NULL
     ORDER BY (ean = ${orden.ean_entrega}) DESC LIMIT 1` : []
-  let bodega = '00110', origenBodega = 'por defecto'
-  if (config?.bodega && config.bodega !== '00110') { bodega = config.bodega; origenBodega = 'configuración del cliente' }
-  if (punto?.bodega) { bodega = punto.bodega; origenBodega = 'sucursal (app)' }
 
   // ── Cliente en Siesa ──
   let listaPrecio = config?.lista_precio ?? '', condPago = config?.cond_pago ?? '', tipoCli = ''
+  let clienteSiesa: Record<string, unknown> | null = null
   if (orden.nit) {
     try {
       const [cli] = await consultar<Record<string, unknown>>('API_v2_Clientes', {
@@ -117,14 +115,13 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
         listaPrecio ||= String(cli.f201_id_lista_precio ?? '').trim()
         condPago ||= String(cli.f201_id_cond_pago ?? '').trim()
         tipoCli = String(cli.f201_id_tipo_cli ?? '').trim()
-        // Si el maestro de clientes de Siesa trae la bodega de la sucursal, esa manda.
-        const campoBodega = Object.keys(cli).find(k => /bodega/i.test(k) && String(cli[k] ?? '').trim())
-        if (campoBodega) { bodega = String(cli[campoBodega]).trim(); origenBodega = `Siesa (${campoBodega})` }
+        clienteSiesa = cli
       }
     } catch (e) {
       bloqueo(`No se pudo consultar el cliente en Siesa: ${e instanceof Error ? e.message : e}`)
     }
   }
+  const { bodega, origen: origenBodega } = elegirBodega(config?.bodega, punto?.bodega, clienteSiesa)
   if (orden.nit && origenBodega === 'por defecto') alerta(`La sucursal ${orden.nit}/${orden.sucursal} no tiene bodega asignada: se usa 00110. Asígnala en Sucursales si despacha desde otra bodega.`)
   if (!condPago) bloqueo('No hay condición de pago (ni en Siesa ni en la configuración del cliente).')
   if (indPrecio !== '0' && !listaPrecio) bloqueo('No hay lista de precios (obligatoria con indicador de precio 1 o 2).')
@@ -150,23 +147,9 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
     const sinVerificar: string[] = []
     try {
       const precios = await consultarTodo<Record<string, unknown>>('API_v2_ItemsPrecios', condicion('f126_id_lista_precio', listaPrecio))
-      // Precio vigente por ítem: el de activación más reciente ya activo y no inactivado
-      const vigente = new Map<string, { precio: number; activacion: string }>()
-      const hoy = hoyBogota()
-      for (const p of precios) {
-        if (p.f126_fecha_inactivacion && String(p.f126_fecha_inactivacion).slice(0, 10) <= hoy) continue
-        const activ = String(p.f126_fecha_activacion ?? '').slice(0, 10)
-        if (activ > hoy) continue
-        const id = String(p.f120_id)
-        if (!vigente.has(id) || activ > vigente.get(id)!.activacion) vigente.set(id, { precio: Number(p.f126_precio), activacion: activ })
-      }
-      for (const l of lineas) {
-        const v = l.f120_id ? vigente.get(String(l.f120_id)) : undefined
-        if (!v) sinVerificar.push(`línea ${l.nro_linea} (${l.ean_item}) $${l.precio}`)
-        else if (Math.abs(v.precio - l.precio) > 0.5) {
-          alerta(`Línea ${l.nro_linea} (${l.ean_item}): precio de la orden $${l.precio} ≠ lista ${listaPrecio} $${v.precio}. El pedido se crea con el precio de la orden.`)
-        }
-      }
+      const revision = revisarPrecios(lineas, preciosVigentes(precios, hoyBogota()), listaPrecio)
+      revision.diferencias.forEach(alerta)
+      sinVerificar.push(...revision.sinVerificar)
     } catch (e) {
       sinVerificar.push(...lineas.map(l => `línea ${l.nro_linea} (${l.ean_item}) $${l.precio}`))
       console.error('Precios Siesa:', e)
@@ -178,12 +161,8 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
 
   // ── Fechas ──
   const hoy = hoyBogota()
-  let fechaEntrega = orden.fecha_entrega ?? hoy
-  if (fechaEntrega < hoy) {
-    alerta(`La fecha de entrega de la orden (${fechaEntrega}) ya pasó: el pedido se crea con entrega hoy.`)
-    fechaEntrega = hoy
-  }
-  const dias = diasEntre(hoy, fechaEntrega)
+  const { fechaEntrega, dias, vencida } = fechaEntregaPedido(orden.fecha_entrega, hoy)
+  if (vencida) alerta(`La fecha de entrega de la orden (${orden.fecha_entrega}) ya pasó: el pedido se crea con entrega hoy.`)
 
   // ── Consecutivo manual ──
   let consecutivo = 0
@@ -195,39 +174,14 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
   const consec = String(consecutivo || 1)
 
   // ── Documento ──
-  const base = { F_CIA: CIA() }
-  const pedido: Record<string, string> = {
-    F_CIA: CIA(), F_LIQUIDA_IMPUESTO: '1', F_CONSEC_AUTO_REG: '0', F_IND_CONTACTO: '1',
-    f430_id_co: co, f430_id_tipo_docto: tipoDocto, f430_consec_docto: consec, f430_id_fecha: aaaammdd(hoy),
-    f430_id_clase_docto: '502', f430_ind_estado: '0', f430_ind_backorder: '0',
-    f430_id_tercero_fact: orden.nit ?? '', f430_id_sucursal_fact: orden.sucursal ?? '',
-    f430_id_tercero_rem: orden.nit ?? '', f430_id_sucursal_rem: orden.sucursal ?? '',
-    f430_id_tipo_cli_fact: tipoCli, f430_id_co_fact: co,
-    f430_fecha_entrega: aaaammdd(fechaEntrega), f430_num_dias_entrega: String(dias),
-    f430_num_docto_referencia: String(orden.numero_orden).slice(0, 15), f430_referencia: '', f430_id_cargue: '',
-    f430_id_moneda_docto: 'COP', f430_id_moneda_conv: 'COP', f430_tasa_conv: '1', f430_id_moneda_local: 'COP', f430_tasa_local: '1',
-    f430_id_cond_pago: condPago, f430_ind_impresion: '0',
-    f430_notas: `OC EDI ${orden.numero_orden}${orden.fecha_orden ? ` del ${aaaammdd(orden.fecha_orden)}` : ''}`,
-    f430_id_cli_contado: '', f430_id_punto_envio: PUNTO_ENVIO, f430_id_tercero_vendedor: '',
-    f419_contacto: '', f419_direccion1: '', f419_direccion2: '', f419_direccion3: '', f419_id_pais: '', f419_id_depto: '',
-    f419_id_ciudad: '', f419_id_barrio: '', f419_telefono: '', f419_fax: '', f419_cod_postal: '', f419_email: '', f419_ind_descuento: '0',
-  }
-  const movimientos = lineas.map((l, i) => ({
-    F_CIA: CIA(), f431_id_co: co, f431_id_tipo_docto: tipoDocto, f431_consec_docto: consec, f431_nro_registro: String(i + 1),
-    f431_id_item: l.f120_id ? String(l.f120_id) : '', f431_referencia_item: '', f431_codigo_barras: '', f431_id_ext1_detalle: l.extension1 ? EXT1_DETALLE() : '', f431_id_ext2_detalle: '',
-    f431_id_bodega: bodega, f431_id_concepto: '501', f431_id_motivo: '01', f431_ind_obsequio: '0', f431_id_co_movto: co,
-    f431_id_un_movto: '', f431_id_ccosto_movto: '', f431_id_proyecto: '',
-    f431_fecha_entrega: aaaammdd(fechaEntrega), f431_num_dias_entrega: String(dias), f431_id_lista_precio: listaPrecio,
-    f431_id_unidad_medida: 'UND', f431_cant_pedida_base: txt(l.cantidad), f431_cant2_pedida: '0', f431_precio_unitario: txt(l.precio),
-    f431_ind_impto_asumido: '0', f431_notas: l.cod_comprador ? `Cod. comprador ${l.cod_comprador}` : '', f431_detalle: '',
-    f431_ind_backorder: '5', f431_ind_precio: indPrecio, f431_id_punto_envio: PUNTO_ENVIO,
-  }))
-  const sinItem = lineas.filter(l => !l.f120_id)
-  if (sinItem.length) bloqueo(`Sin ítem de Siesa asignado: ${sinItem.map(l => `línea ${l.nro_linea} (${l.ean_item})`).join(' · ')}. Asígnalo en Productos: el pedido se ingresa por ítem.`)
-  if (indPrecio === '2' && lineas.some(l => !(l.precio > 0))) bloqueo('Con indicador de precio 2 todas las líneas deben traer precio mayor que 0.')
+  const documento = armarDocumento({
+    orden: orden as DatosDocumento['orden'], lineas, cia: CIA(), co, tipoDocto, consecutivo: consec, hoy, fechaEntrega, dias,
+    bodega, listaPrecio, condPago, tipoCli, indPrecio, ext1Detalle: EXT1_DETALLE(),
+  })
+  bloqueosDeLineas(lineas, indPrecio).forEach(bloqueo)
 
   return {
-    documento: { Inicial: [base], Pedidos: [pedido], MovtoPedidoscomercial: movimientos, Final: [base] },
+    documento,
     avisos,
     puedeEnviar: !avisos.some(a => a.nivel === 'bloqueo'),
     resumen: {

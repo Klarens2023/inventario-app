@@ -1,51 +1,10 @@
-// Sugerencia de ruta de despacho para las órdenes EDI, según las reglas de
-// cen_reglas_ruta (editables desde la app). Gana la primera regla, por
-// prioridad, que cumpla cadena + ciudad/departamento + rango de peso.
-// Una ruta asignada a mano (ruta_manual) nunca se recalcula.
+// Rutas de despacho de las órdenes EDI guardadas en la base. La regla para
+// elegir la ruta (sin base) está en ./reglasRuta. Una ruta asignada a mano
+// (ruta_manual) nunca se recalcula.
 import { sql } from '@/lib/db'
+import { sugerirRuta, type ReglaRuta } from './reglasRuta'
 
-export interface ReglaRuta {
-  id: number
-  prioridad: number
-  ruta: string
-  ean_comprador: string | null
-  ciudades: string[]
-  departamentos: string[]
-  peso_min: number | null
-  peso_max: number | null
-  descripcion: string | null
-  activo: boolean
-}
-
-// "Bogotá, D.C." → "BOGOTA" · "Cartagena De Indias" → "CARTAGENA DE INDIAS"
-export function normalizarLugar(s: string | null | undefined): string {
-  return String(s ?? '').split(',')[0].normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim()
-}
-
-// La ciudad de la regla coincide si es igual o es el inicio del nombre ("CARTAGENA" ↔ "CARTAGENA DE INDIAS").
-const coincide = (lugar: string, lista: string[]) => lista.some(c => lugar === c || lugar.startsWith(c + ' '))
-
-export function sugerirRuta(
-  reglas: ReglaRuta[],
-  o: { ean_comprador: string; ciudad: string | null; departamento: string | null; peso_kg: number | null },
-): ReglaRuta | null {
-  const ciudad = normalizarLugar(o.ciudad)
-  const depto = normalizarLugar(o.departamento)
-  // Sin punto homologado no se conoce la ciudad: solo aplican las reglas de una cadena sin lugar (ej. ARA, D1).
-  const sinLugar = !ciudad && !depto
-  for (const r of reglas) {
-    if (!r.activo) continue
-    if (r.ean_comprador && r.ean_comprador !== o.ean_comprador) continue
-    const tieneLugar = r.ciudades.length > 0 || r.departamentos.length > 0
-    if (sinLugar && (tieneLugar || !r.ean_comprador)) continue
-    if (tieneLugar && !(coincide(ciudad, r.ciudades) || coincide(depto, r.departamentos))) continue
-    if (r.peso_min !== null && (o.peso_kg === null || o.peso_kg < r.peso_min)) continue
-    if (r.peso_max !== null && (o.peso_kg === null || o.peso_kg > r.peso_max)) continue
-    return r
-  }
-  return null
-}
-
+export { normalizarLugar, sugerirRuta, type ReglaRuta } from './reglasRuta'
 export { codigoRelacion } from './relacion'
 
 export async function cargarReglas(): Promise<ReglaRuta[]> {

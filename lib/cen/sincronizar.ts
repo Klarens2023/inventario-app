@@ -6,6 +6,7 @@ import { sql } from '@/lib/db'
 import { parsearOrden, type FuenteEdi, type OrdenEdi } from './parser'
 import { conSftp, fuenteConfigurada, FUENTES } from './sftp'
 import { recalcularRutas } from './rutas'
+import { totalesOrden } from './totales'
 import { actualizarItemsSiNecesario } from './itemsSiesa'
 import { siesaConfigurado } from '@/lib/siesa/connekta'
 
@@ -43,12 +44,7 @@ async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): 
     WHERE p.ean IS NOT NULL OR c.ean IS NOT NULL
   `
   const pesoPorEan = new Map(productos.map(p => [p.ean as string, Number(p.peso_kg)]))
-  const todosConPeso = eans.every(e => pesoPorEan.has(e))
-
-  const unidades = o.lineas.reduce((s, l) => s + l.cantidad, 0)
-  const valor = o.lineas.reduce((s, l) => s + l.cantidad * l.precio, 0)
-  // Si algún producto no está en el maestro, el peso queda vacío (no se muestra un peso incompleto).
-  const peso = todosConPeso ? o.lineas.reduce((s, l) => s + l.cantidad * (pesoPorEan.get(l.eanItem) ?? 0), 0) : null
+  const { unidades, valor, peso } = totalesOrden(o.lineas, pesoPorEan)
   const estado = punto ? 'pendiente' : 'sin_punto'
 
   // Líneas y reparto por tienda en una sola sentencia; la orden se ubica por su

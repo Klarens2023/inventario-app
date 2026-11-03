@@ -23,6 +23,15 @@ Las pruebas viven en `tests/` y usan el runner nativo de Node con eliminación d
 tipos de TypeScript (sin dependencias nuevas). Solo cubren módulos sin acceso a
 la BD (importan con extensión `.ts`; por eso `tests/` está excluido de `tsconfig`).
 
+## Cálculos de órdenes EDI → pedidos de Siesa (03/11/2026)
+
+`npm test` **47/47** (24 nuevas en `tests/edi-calculos.test.ts` y `tests/parser-edi.test.ts`); `tsc`, ESLint y `next build` sin errores. Además, contra la rama QA (copia de producción del 30/10, solo lectura salvo la asignación automática de ítems que ya hace la app):
+- **Lector:** los 388 archivos EDI guardados (360 de Carvajal, 28 de Subrik) se leen sin errores, 1.002 líneas con EAN, cantidad y precio, el reparto por tienda suma la cantidad de cada línea, y cada orden coincide con las líneas guardadas en la base.
+- **Totales y rutas:** recalculados con `totalesOrden` y `sugerirRuta`, dan lo mismo que la base en las 388 órdenes y en las 387 con ruta automática (17 rutas).
+- **Pedido de Siesa:** `prepararPedido` (consulta Siesa QA) devuelve exactamente el mismo resultado (JSON, avisos, bodega y consecutivo) antes y después de separar los cálculos, en 38 órdenes: 30 con sucursal, 8 sin punto (bloqueos), con alertas de precio y de fecha vencida.
+
+Lo que siguen sin cubrir las pruebas automáticas: las consultas a Siesa (cliente, pedido existente, consecutivo) y el envío real; se prueban en Siesa QA desde la pantalla.
+
 ## Depuración de fotos en producción (30/10/2026)
 
 Primera ejecución real con `DEPURAR_FOTOS=activo`: se cortó a los 60 s de Vercel (se autenticaba con Google en cada foto y las procesaba de a una); las ya procesadas quedaron marcadas. Corregido (un solo cliente de Drive, 6 en paralelo, freno a los 45 s). Siguiente ejecución: `{"simulacion":false,"candidatas":120,"enPapelera":120,"yaNoExistian":0,"errores":0,"quedanPendientes":true}`: 120 fotos a la papelera de Drive sin errores y dentro del tiempo.

@@ -27,7 +27,7 @@
 | Prioridad | ID | Riesgo | Siguiente paso |
 |---|---|---|---|
 | 1 | AUD-17 | Bloqueo de cuentas ajenas: quien conozca un usuario puede bloquearlo 15 min con 5 fallos (el límite por IP del 23/10 lo frena desde una sola conexión, no desde muchas) | Vercel WAF / Attack Challenge si se observa abuso. Desde el 29/10 los administradores tienen verificación en dos pasos (una contraseña de admin filtrada ya no basta) |
-| 4 | AUD-25 | Las pruebas de integración cubren autorización, no la lógica de negocio de cada ruta (cálculos, Excel, EDI) | Agregar casos por módulo a `tests/integracion/` |
+| 4 | AUD-25 | Las pruebas cubren autorización, no la lógica de negocio de cada módulo (cálculos, Excel). **EDI → Siesa ya cubierto** el 03/11/2026 (lector, totales, rutas y pedido; ver CHANGES fila 51) | Seguir módulo por módulo: cierres de datáfono, pagos QR, inventario TIC, exportaciones a Excel |
 | — | — | ~~App móvil en Expo SDK 54~~ | Resuelto: SDK 58 en `main` del repo móvil (APK 1.3.0, con verificación en dos pasos). Falta instalarlo en los teléfonos de los administradores |
 | — | AUD-26 | ~~Higiene: `tsconfig.tsbuildinfo` en Git~~ | Resuelto: ya no está en Git y está en `.gitignore` |
 
