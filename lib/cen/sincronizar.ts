@@ -26,6 +26,29 @@ export interface ResultadoFuente {
   error?: string
 }
 
+// La columna cen_orden_lineas.unidad la crea scripts/migrate-add-cen-unidad-lineas.js; mientras no
+// exista, la sincronización sigue igual y todas las líneas cuentan como unidades. Se consulta una vez.
+let columnaUnidad: Promise<boolean> | null = null
+function hayColumnaUnidad(): Promise<boolean> {
+  columnaUnidad ??= sql`SELECT 1 FROM information_schema.columns WHERE table_name = 'cen_orden_lineas' AND column_name = 'unidad'`
+    .then(r => r.length > 0).catch(() => { columnaUnidad = null; return false })
+  return columnaUnidad
+}
+
+/** Marca en KG las líneas que la orden pide en kilos (las demás quedan en 'UND', el valor por defecto). */
+async function guardarUnidadesKg(o: OrdenEdi) {
+  const enKg = o.lineas.filter(l => l.unidad === 'KG').map(l => l.nroLinea)
+  if (!enKg.length) return
+  if (!(await hayColumnaUnidad())) {
+    console.error(`[edi] La orden ${o.numeroOrden} trae líneas en kilos y falta correr scripts/migrate-add-cen-unidad-lineas.js: quedan como unidades`)
+    return
+  }
+  await sql`
+    UPDATE cen_orden_lineas SET unidad = 'KG'
+    WHERE orden_id = (SELECT id FROM cen_ordenes WHERE ean_comprador = ${o.eanComprador} AND numero_orden = ${o.numeroOrden})
+      AND nro_linea = ANY(${enKg}::int[])`
+}
+
 async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): Promise<{ resultado: 'nueva' | 'actualizada' | 'omitida'; porRevisar: boolean }> {
   const [existente] = await sql`
     SELECT id, estado FROM cen_ordenes WHERE ean_comprador = ${o.eanComprador} AND numero_orden = ${o.numeroOrden}
@@ -98,6 +121,7 @@ async function guardarOrden(fuente: FuenteEdi, archivoId: number, o: OrdenEdi): 
       qLineas,
     ])
   }
+  await guardarUnidadesKg(o)
   return { resultado: existente ? 'actualizada' : 'nueva', porRevisar: !punto }
 }
 

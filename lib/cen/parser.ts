@@ -7,6 +7,12 @@
 // Ambos se convierten a la misma estructura OrdenEdi.
 
 export type FuenteEdi = 'carvajal' | 'subrik'
+export type UnidadEdi = 'UND' | 'KG'
+
+// Código de unidad del QTY (UN/ECE Rec. 20): KGM (o KG, KGS) = kilos; NAR, EA, PCE, UN o vacío = unidades.
+export function unidadEdi(codigo: string | undefined): UnidadEdi {
+  return /^(KGM|KGS?|KLO)$/i.test(String(codigo ?? '').trim()) ? 'KG' : 'UND'
+}
 
 export interface LineaEdi {
   nroLinea: number
@@ -14,6 +20,7 @@ export interface LineaEdi {
   codComprador: string // PIA (código del ítem en el comprador)
   descripcion: string // IMD (solo lo trae Carvajal)
   cantidad: number // QTY 21
+  unidad: UnidadEdi // unidad de la cantidad (QTY 21): NAR = unidades, KGM = kilos
   precio: number // PRI AAA (precio neto unitario)
   iva: number | null // TAX VAT (porcentaje)
   // Reparto por tienda cuando la orden se entrega en un CEDI (Éxito): cada
@@ -107,14 +114,14 @@ export function parsearEdifact(contenido: string): OrdenEdi {
         break
       }
       case 'LIN':
-        linea = { nroLinea: numero(el[1]), eanItem: comp(3)[0]?.trim() ?? '', codComprador: '', descripcion: '', cantidad: 0, precio: 0, iva: null, distribucion: [] }
+        linea = { nroLinea: numero(el[1]), eanItem: comp(3)[0]?.trim() ?? '', codComprador: '', descripcion: '', cantidad: 0, unidad: 'UND', precio: 0, iva: null, distribucion: [] }
         orden.lineas.push(linea)
         break
       case 'PIA': if (linea && !linea.codComprador) linea.codComprador = sinCeros(comp(2)[0]); break
       case 'IMD': if (linea) linea.descripcion = (comp(3)[3] ?? '').trim(); break
       case 'QTY': {
-        const [calif, valor] = comp(1)
-        if (linea && calif === '21') linea.cantidad = numero(valor)
+        const [calif, valor, unidad] = comp(1)
+        if (linea && calif === '21') { linea.cantidad = numero(valor); linea.unidad = unidadEdi(unidad) }
         if (linea && calif === '11' && locPendiente) { linea.distribucion.push({ eanLocal: locPendiente, cantidad: numero(valor) }); locPendiente = '' }
         break
       }
@@ -152,12 +159,12 @@ export function parsearHse(contenido: string): OrdenEdi {
         break
       }
       case 'LIN':
-        linea = { nroLinea: numero(t[1]), eanItem: t[2] ?? '', codComprador: '', descripcion: '', cantidad: 0, precio: 0, iva: null, distribucion: [] }
+        linea = { nroLinea: numero(t[1]), eanItem: t[2] ?? '', codComprador: '', descripcion: '', cantidad: 0, unidad: 'UND', precio: 0, iva: null, distribucion: [] }
         orden.lineas.push(linea)
         break
       case 'PIA': if (linea && !linea.codComprador) linea.codComprador = sinCeros(t[2]); break
       case 'QTY':
-        if (linea && tag.endsWith('21')) linea.cantidad = numero(t[1])
+        if (linea && tag.endsWith('21')) { linea.cantidad = numero(t[1]); linea.unidad = unidadEdi(t[2]) }
         if (linea && tag.endsWith('11') && locPendiente) { linea.distribucion.push({ eanLocal: locPendiente, cantidad: numero(t[1]) }); locPendiente = '' }
         break
       case 'LOC': if (linea && t[1] === '7') locPendiente = t[2] ?? ''; break

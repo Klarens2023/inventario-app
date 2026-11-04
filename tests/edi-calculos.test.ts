@@ -8,7 +8,7 @@ import { totalesOrden } from '../lib/cen/totales.ts'
 import { normalizarLugar, sugerirRuta, type ReglaRuta } from '../lib/cen/reglasRuta.ts'
 import { validarRegla } from '../lib/cen/reglasRuta.ts'
 import {
-  armarDocumento, bloqueosDeLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios,
+  armarDocumento, bloqueosDeLineas, convertirLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios,
   type DatosDocumento, type LineaPedido,
 } from '../lib/cen/documentoPedido.ts'
 
@@ -33,6 +33,14 @@ test('totales: si un producto no tiene peso, el peso queda vacío (no uno incomp
   const t = totalesOrden([{ eanItem: 'A', cantidad: 5, precio: 100 }, { eanItem: 'X', cantidad: 1, precio: 1 }], new Map([['A', 2]]))
   assert.equal(t.peso, null)
   assert.equal(t.unidades, 6)
+})
+
+test('totales: una línea pedida en kilos ya trae su peso (no se multiplica por el maestro)', () => {
+  const t = totalesOrden([
+    { eanItem: 'BARRA', cantidad: 25, precio: 42178, unidad: 'KG' },   // sin peso en el maestro: no importa
+    { eanItem: 'A', cantidad: 10, precio: 100, unidad: 'UND' },
+  ], new Map([['A', 0.2]]))
+  assert.equal(t.peso, 27)
 })
 
 test('totales: un producto con peso 0 cuenta como conocido', () => {
@@ -140,31 +148,131 @@ test('bodega: Siesa > sucursal en la app > configuración del cliente > 00110', 
   assert.equal(elegirBodega(null, '00310', { f201_id_bodega: '  ' }).bodega, '00310')
 })
 
+// Filas con la forma que devuelve hoy API_v2_ItemsPrecios en Siesa QA
+const filaPrecio = (f120_id: number, f126_precio: number, activacion: string, extra: Record<string, unknown> = {}) => ({
+  f120_id, f126_precio, f126_ind_tipo_precio: 'Item_Ext', f126_id_lista_precio: 'STO', f126_id_unidad_medida: 'UND ',
+  f126_fecha_activacion: activacion + 'T00:00:00', f126_fecha_inactivacion: null, f126_fecha_ts_actualizacion: activacion + 'T08:00:00', ...extra,
+})
+const precioEn = (v: ReturnType<typeof preciosVigentes>, id: string, unidad = 'UND') => v.get(id)?.find(p => p.unidad === unidad)?.precio
+
 test('precios vigentes: ignora inactivados y futuros, y toma la activación más reciente', () => {
   const v = preciosVigentes([
-    { f120_id: 9, f126_precio: 4000, f126_fecha_activacion: '2026-01-01T00:00:00' },
-    { f120_id: 9, f126_precio: 4390, f126_fecha_activacion: '2026-06-01T00:00:00' },
-    { f120_id: 9, f126_precio: 9999, f126_fecha_activacion: '2026-12-01T00:00:00' },            // futuro
-    { f120_id: 16, f126_precio: 7000, f126_fecha_activacion: '2026-01-01', f126_fecha_inactivacion: '2026-10-01' }, // inactivado
-    { f120_id: 10, f126_precio: 9558, f126_fecha_activacion: '2026-03-01', f126_fecha_inactivacion: '2027-01-01' },
+    filaPrecio(9, 4000, '2026-01-01'),
+    filaPrecio(9, 4390, '2026-06-01'),
+    filaPrecio(9, 9999, '2026-12-01'),                                                  // futuro
+    filaPrecio(16, 7000, '2026-01-01', { f126_fecha_inactivacion: '2026-10-01T00:00:00' }), // inactivado
+    filaPrecio(10, 9558, '2026-03-01', { f126_fecha_inactivacion: '2027-01-01T00:00:00' }),
   ], '2026-11-03')
-  assert.equal(v.get('9')?.precio, 4390)
+  assert.equal(precioEn(v, '9'), 4390)
   assert.equal(v.has('16'), false)
-  assert.equal(v.get('10')?.precio, 9558)
+  assert.equal(precioEn(v, '10'), 9558)
+})
+
+test('precios vigentes: con la misma fecha de activación gana la actualizada más tarde', () => {
+  const v = preciosVigentes([
+    filaPrecio(9, 4500, '2026-02-01', { f126_fecha_ts_actualizacion: '2026-04-13T13:13:43.037' }),
+    filaPrecio(9, 4390, '2026-02-01', { f126_fecha_ts_actualizacion: '2026-02-03T21:06:05.937' }),
+  ], '2026-11-03')
+  assert.deepEqual(v.get('9')?.map(p => [p.unidad, p.precio]), [['UND', 4500]])   // "UND " llega con espacio
+})
+
+test('precios vigentes: un precio por unidad (el quesillo en barra está por KG)', () => {
+  const v = preciosVigentes([
+    filaPrecio(3, 42178, '2026-02-01', { f126_id_unidad_medida: 'KG  ' }),
+    filaPrecio(4, 21839, '2026-02-01', { f126_id_unidad_medida: 'KG' }),
+    filaPrecio(4, 54600, '2026-01-01'),
+  ], '2026-11-03')
+  assert.equal(precioEn(v, '3', 'KG'), 42178)
+  assert.equal(precioEn(v, '3'), undefined)
+  assert.equal(precioEn(v, '4', 'KG'), 21839)
+  assert.equal(precioEn(v, '4'), 54600)
 })
 
 test('revisión de precios: alerta si difiere más de 50 centavos; sin precio en la lista queda sin verificar', () => {
-  const vigente = new Map([['9', { precio: 4390 }], ['10', { precio: 9558 }]])
+  const v = preciosVigentes([filaPrecio(9, 4390, '2026-02-01'), filaPrecio(10, 9558, '2026-02-01')], '2026-11-03')
   const r = revisarPrecios([
     linea({ nro_linea: 1, f120_id: '9', precio: 4171 }),     // difiere
     linea({ nro_linea: 2, f120_id: '10', precio: 9557.6 }),  // dentro de la tolerancia
     linea({ nro_linea: 3, f120_id: '77', precio: 100 }),     // no está en la lista
     linea({ nro_linea: 4, f120_id: null, precio: 100 }),     // sin ítem de Siesa
-  ], vigente, 'SJM')
+  ], v, 'SJM')
   assert.equal(r.diferencias.length, 1)
-  assert.match(r.diferencias[0], /^Línea 1 .*\$4171 ≠ lista SJM \$4390/)
+  assert.match(r.diferencias[0], /^Línea 1 .*\$4171 ≠ lista SJM \$4390\./)
   assert.equal(r.sinVerificar.length, 2)
   assert.match(r.sinVerificar[0], /^línea 3 /)
+})
+
+test('revisión de precios: se compara en la unidad del pedido (KG con KG, UND con UND)', () => {
+  const v = preciosVigentes([filaPrecio(3, 42178, '2026-02-01', { f126_id_unidad_medida: 'KG' })], '2026-11-03')
+  // Línea ya convertida a kilos: precio por KG igual a la lista → sin alerta
+  assert.deepEqual(revisarPrecios([linea({ nro_linea: 1, f120_id: 3, unidad: 'KG', precio: 42178 })], v, 'STO'), { diferencias: [], sinVerificar: [] })
+  // Precio por KG distinto → alerta con la unidad
+  const r = revisarPrecios([linea({ nro_linea: 1, f120_id: 3, unidad: 'KG', precio: 40000 })], v, 'STO')
+  assert.match(r.diferencias[0], /\$40000\/KG ≠ lista STO \$42178\/KG/)
+  // Pedida por unidad y la lista solo tiene KG → no se compara (sería una alerta falsa)
+  const s = revisarPrecios([linea({ nro_linea: 1, f120_id: 3, precio: 105445 })], v, 'STO')
+  assert.deepEqual(s.diferencias, [])
+  assert.match(s.sinVerificar[0], /la lista la tiene en KG a \$42178/)
+})
+
+// ── Ítems que Siesa maneja por kilo ─────────────────────────────────────────
+
+const barra = (cambios: Partial<LineaPedido> = {}) =>
+  linea({ nro_linea: 1, f120_id: 3, unidad_item: 'KG', peso_kg: 2.5, unidad_orden: 'UND', cantidad: 10, precio: 105445, ...cambios })
+
+test('orden en unidades de un ítem por kilo: se convierte con el peso de la barra (2.5 kg)', () => {
+  const { lineas, avisos } = convertirLineas([barra()])
+  assert.equal(lineas[0].unidad, 'KG')
+  assert.equal(lineas[0].cantidad, 25)                        // 10 barras × 2.5 kg
+  assert.equal(lineas[0].precio, 42178)                       // $105.445 la barra / 2.5
+  assert.equal(lineas[0].cantidad_orden, 10)
+  assert.equal(lineas[0].precio_orden, 105445)
+  assert.equal(avisos.length, 1)
+  assert.equal(avisos[0].nivel, 'info')
+  assert.match(avisos[0].mensaje, /10 UND × 2,5 kg = 25 KG a \$42\.178 el KG/)
+})
+
+test('orden en kilos de un ítem por kilo: se pide tal como viene', () => {
+  const { lineas, avisos } = convertirLineas([barra({ unidad_orden: 'KG', cantidad: 25, precio: 42178 })])
+  assert.deepEqual([lineas[0].unidad, lineas[0].cantidad, lineas[0].precio], ['KG', 25, 42178])
+  assert.deepEqual(avisos, [])
+})
+
+test('ítems por unidad no cambian', () => {
+  const { lineas, avisos } = convertirLineas([linea({ nro_linea: 1, unidad_item: 'UND', peso_kg: 0.2, cantidad: 24, precio: 4403 })])
+  assert.deepEqual([lineas[0].unidad, lineas[0].cantidad, lineas[0].precio], ['UND', 24, 4403])
+  assert.deepEqual(avisos, [])
+})
+
+test('sin peso por unidad no se puede convertir: bloquea', () => {
+  const { avisos } = convertirLineas([barra({ peso_kg: null })])
+  assert.equal(avisos[0].nivel, 'bloqueo')
+  assert.match(avisos[0].mensaje, /no tiene peso por unidad/)
+})
+
+test('orden en kilos de un ítem que Siesa maneja por unidad: bloquea', () => {
+  const { avisos } = convertirLineas([linea({ nro_linea: 2, unidad_item: 'UND', unidad_orden: 'KG', cantidad: 3.2 })])
+  assert.equal(avisos[0].nivel, 'bloqueo')
+  assert.match(avisos[0].mensaje, /viene en kilos y Siesa maneja el ítem 9 por unidad/)
+})
+
+test('el valor de la línea no cambia con la conversión; si cambia por redondeo, es alerta', () => {
+  // 7 barras de $105.445: 17.5 KG a $42.178 → mismo valor ($738.115)
+  const ok = convertirLineas([barra({ cantidad: 7 })])
+  assert.ok(ok.avisos.every(a => a.nivel === 'info'))
+  // Un precio por kilo con decimales infinitos ($100.000 / 3 kg = 33.333,3333…): con los 4 decimales
+  // que se envían, en una línea muy grande el valor se mueve más de $1 → alerta para revisar
+  const raro = convertirLineas([barra({ peso_kg: 3, cantidad: 30000, precio: 100000 })])
+  assert.ok(raro.avisos.some(a => a.nivel === 'alerta' && /el valor cambia al convertir/.test(a.mensaje)))
+})
+
+test('documento: la línea por kilo va en KG con cantidad y precio convertidos', () => {
+  const { lineas } = convertirLineas([barra(), linea({ nro_linea: 2, f120_id: 9, cantidad: 24, precio: 4403 })])
+  const m = armarDocumento(datos({ lineas })).MovtoPedidoscomercial
+  assert.deepEqual(m.map(x => [x.f431_id_unidad_medida, x.f431_cant_pedida_base, x.f431_precio_unitario]), [
+    ['KG', '25', '42178'],
+    ['UND', '24', '4403'],
+  ])
 })
 
 test('fecha de entrega: la de la orden; si ya pasó o no trae, hoy', () => {

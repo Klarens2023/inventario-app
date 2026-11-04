@@ -141,6 +141,14 @@ test('EDIFACT con varias líneas: cada QTY/PRI va a su línea y el reparto suma 
   assert.equal(o.lineas[1].distribucion.reduce((s, d) => s + d.cantidad, 0), 30)
 })
 
+test('unidad de la cantidad: NAR = unidades, KGM = kilos (EDIFACT y Subrik)', () => {
+  const edi = parsearOrden("UNB+UNOA:3'BGM+220+77+9'NAD+BY+1::9'NAD+DP+2::9'LIN+1++3:EN'QTY+21:12.5:KGM'LIN+2++4:EN'QTY+21:6:NAR'LIN+3++5:EN'QTY+21:2'")
+  assert.deepEqual(edi.lineas.map(l => [l.cantidad, l.unidad]), [[12.5, 'KG'], [6, 'UND'], [2, 'UND']])
+  const hse = parsearOrden('BGMA77\nNAD BY  7701008009080   9\nNAD DP  7701008001234   9\nLIN 000001     7700000000017   EN\nQTYA21  000000000012.500 KGM')
+  assert.deepEqual(hse.lineas.map(l => [l.cantidad, l.unidad]), [[12.5, 'KG']])
+  assert.equal(parsearOrden(HSE_SUBRIK).lineas[0].unidad, 'UND')
+})
+
 test('se rechaza una orden sin número, comprador o punto de entrega', () => {
   assert.throws(() => parsearOrden("UNB+UNOA:3'NAD+BY+1::9'NAD+DP+2::9'LIN+1++3:EN'QTY+21:1'"), /número/)
   assert.throws(() => parsearOrden("UNB+UNOA:3'BGM+220+9+9'NAD+DP+2::9'LIN+1++3:EN'QTY+21:1'"), /comprador/)

@@ -16,8 +16,9 @@
 //     crear el pedido y se informa con los indicadores f430_ind_retenido_* del pedido creado.
 //   - que la orden no tenga ya un pedido (API_v2_Ventas_Pedidos por documento de referencia)
 //   - que el precio de la orden coincida con la lista del cliente (API_v2_ItemsPrecios): si no, es ALERTA
-//     para revisar antes de montar, no bloquea. Esa consulta no trae los precios de los productos
-//     terminados (están por extensión FN): si no encuentra el precio, también queda como alerta.
+//     para revisar antes de montar, no bloquea. Desde 11/2026 la consulta trae también los productos
+//     terminados (precio por extensión, "Item_Ext"). Si no encuentra el precio en UND (falta en la
+//     lista, el producto no tiene ítem de Siesa o la lista lo tiene por KG), también queda como alerta.
 //
 // Las líneas van por ítem de Siesa (f431_id_item = f120_id de cen_lineas_producto: el de la cadena o el del maestro, asignado desde
 // API_v2_Items o a mano en Productos), no por código de barras: sin ítem la orden no se envía.
@@ -30,7 +31,7 @@ import { hoyBogota } from '@/lib/fechas'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
 import { asignarItemsAutomaticamente } from './itemsSiesa'
 import {
-  armarDocumento, bloqueosDeLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios, type DatosDocumento, type LineaPedido,
+  armarDocumento, bloqueosDeLineas, convertirLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios, type DatosDocumento, type LineaPedido,
 } from './documentoPedido'
 
 const ID_DOCUMENTO = () => process.env.SIESA_ID_DOCUMENTO_PEDIDO || '142900'
@@ -58,7 +59,9 @@ async function cargarOrden(ordenId: number) {
   `
   if (!orden) throw new Error('Orden no encontrada')
   const lineas = await sql`
-    SELECT l.nro_linea, l.ean_item, l.cod_comprador, l.cantidad::float AS cantidad, l.precio::float AS precio, p.f120_id, i.extension1
+    SELECT l.nro_linea, l.ean_item, l.cod_comprador, l.cantidad::float AS cantidad, l.precio::float AS precio, p.f120_id, i.extension1,
+           -- to_jsonb: sin la migración de la unidad (migrate-add-cen-unidad-lineas.js) todas cuentan como unidades
+           COALESCE(to_jsonb(l) ->> 'unidad', 'UND') AS unidad_orden, i.unidad AS unidad_item, p.peso_kg::float AS peso_kg
     FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id -- producto de la cadena o del maestro
     LEFT JOIN cen_items_siesa i ON i.f120_id = p.f120_id
     WHERE l.orden_id = ${ordenId} ORDER BY l.nro_linea
@@ -82,7 +85,9 @@ export async function siguienteConsecutivo(co: string, tipo: string): Promise<nu
 
 export async function prepararPedido(ordenId: number): Promise<PreparacionPedido> {
   await asignarItemsAutomaticamente()
-  const { orden, lineas } = await cargarOrden(ordenId)
+  const { orden, lineas: lineasOrden } = await cargarOrden(ordenId)
+  // Ítems que Siesa maneja por kilo: la línea pasa a KG (cantidad y precio por kilo) antes de comparar precios
+  const { lineas, avisos: avisosUnidad } = convertirLineas(lineasOrden)
   const avisos: Aviso[] = []
   const bloqueo = (m: string) => avisos.push({ nivel: 'bloqueo', mensaje: m })
   const alerta = (m: string) => avisos.push({ nivel: 'alerta', mensaje: m })
@@ -155,7 +160,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
       console.error('Precios Siesa:', e)
     }
     if (sinVerificar.length) {
-      alerta(`Siesa no tiene precio consultable en la lista ${listaPrecio} para: ${sinVerificar.join(' · ')}. La consulta de precios de Siesa no trae los productos terminados (o el producto no tiene ítem de Siesa asignado en Productos). Revisa que el precio de la orden sea el pactado antes de enviar.`)
+      alerta(`No se pudo comparar con la lista ${listaPrecio} de Siesa: ${sinVerificar.join(' · ')}. El producto no está en la lista, no tiene ítem de Siesa asignado en Productos o la lista lo tiene en otra unidad (ej. KG). Revisa que el precio de la orden sea el pactado antes de enviar.`)
     }
   }
 
@@ -179,6 +184,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
     bodega, listaPrecio, condPago, tipoCli, indPrecio, ext1Detalle: EXT1_DETALLE(),
   })
   bloqueosDeLineas(lineas, indPrecio).forEach(bloqueo)
+  avisos.push(...avisosUnidad)
 
   return {
     documento,
