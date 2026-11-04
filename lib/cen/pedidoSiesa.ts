@@ -31,7 +31,7 @@ import { hoyBogota } from '@/lib/fechas'
 import { consultar, consultarTodo, condicion, enviarConector } from '@/lib/siesa/connekta'
 import { asignarItemsAutomaticamente } from './itemsSiesa'
 import {
-  armarDocumento, bloqueosDeLineas, convertirLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios, type DatosDocumento, type LineaPedido,
+  armarDocumento, bloqueosDeLineas, convertirLineas, elegirBodega, productosSinItem, fechaEntregaPedido, preciosVigentes, revisarPrecios, type DatosDocumento, type LineaPedido,
 } from './documentoPedido'
 
 const ID_DOCUMENTO = () => process.env.SIESA_ID_DOCUMENTO_PEDIDO || '142900'
@@ -50,6 +50,9 @@ export interface PreparacionPedido {
   avisos: Aviso[]
   puedeEnviar: boolean
   resumen: { cliente: string; listaPrecio: string; condPago: string; bodega: string; origenBodega: string; tipoDocto: string; consecutivo: string; fechaEntrega: string; diasEntrega: number }
+  // Códigos de barras de la orden sin ítem de Siesa: la vista previa permite asignarlo ahí mismo
+  // (queda guardado en Productos para las siguientes órdenes).
+  sinItem: { ean: string; descripcion: string | null; peso_kg: number | null; lineas: number[] }[]
 }
 
 async function cargarOrden(ordenId: number) {
@@ -61,7 +64,8 @@ async function cargarOrden(ordenId: number) {
   const lineas = await sql`
     SELECT l.nro_linea, l.ean_item, l.cod_comprador, l.cantidad::float AS cantidad, l.precio::float AS precio, p.f120_id, i.extension1,
            -- to_jsonb: sin la migración de la unidad (migrate-add-cen-unidad-lineas.js) todas cuentan como unidades
-           COALESCE(to_jsonb(l) ->> 'unidad', 'UND') AS unidad_orden, i.unidad AS unidad_item, p.peso_kg::float AS peso_kg
+           COALESCE(to_jsonb(l) ->> 'unidad', 'UND') AS unidad_orden, i.unidad AS unidad_item, p.peso_kg::float AS peso_kg,
+           COALESCE(NULLIF(l.descripcion, ''), p.descripcion) AS descripcion
     FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id -- producto de la cadena o del maestro
     LEFT JOIN cen_items_siesa i ON i.f120_id = p.f120_id
     WHERE l.orden_id = ${ordenId} ORDER BY l.nro_linea
@@ -194,6 +198,7 @@ export async function prepararPedido(ordenId: number): Promise<PreparacionPedido
       cliente: orden.razon_social ? `${orden.razon_social} (${orden.nit}/${orden.sucursal})` : 'Sin asociar',
       listaPrecio, condPago, bodega, origenBodega, tipoDocto, consecutivo: `${tipoDocto}-${consec}`, fechaEntrega, diasEntrega: dias,
     },
+    sinItem: productosSinItem(lineasOrden),
   }
 }
 

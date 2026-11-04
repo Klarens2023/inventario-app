@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DetalleOrdenCen } from '@/types/ordenes-cen'
 import { nombreComprador } from '@/lib/cen/compradores'
 import { fmtFecha, fmtMoneda, fmtNumero, ESTADOS, relacion } from './utils'
@@ -15,13 +15,18 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
   const [asignando, setAsignando] = useState(false)
   const [rutas, setRutas] = useState<string[]>([])
 
-  useEffect(() => {
+  // También se llama después de asignar un ítem desde el pedido (líneas, ítem y peso cambian)
+  const cargar = useCallback(() => {
     fetch(`/api/logistica/ordenes-cen/${id}`)
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); setDetalle(d) })
       .catch(e => setError(e.message ?? 'No se pudo cargar la orden'))
+  }, [id])
+
+  useEffect(() => {
+    cargar()
     fetch('/api/logistica/ordenes-cen/reglas').then(r => r.ok ? r.json() : []).then((rs: { ruta: string }[]) =>
       setRutas(Array.from(new Set(rs.map(r => r.ruta))).sort()))
-  }, [id])
+  }, [id, cargar])
 
   // Reparto agrupado por tienda: total de unidades por local.
   const repartoPorLocal = useMemo(() => {
@@ -167,7 +172,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
             )}
 
             <div style={{ marginTop: 16 }}>
-              <PedidoSiesa orden={o} onEnviado={onCambio} onAsignarPunto={() => setAsignando(true)} />
+              <PedidoSiesa orden={o} onEnviado={onCambio} onAsignarPunto={() => setAsignando(true)} onProductoAsignado={() => { cargar(); onCambio() }} />
             </div>
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 20 }}>

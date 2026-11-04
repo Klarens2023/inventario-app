@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sql } from '@/lib/db'
 import { verificarAcceso } from '@/lib/cen/acceso'
+import { asignarItemProducto, recalcularPesoOrdenes } from '@/lib/cen/productos'
 
 // GET /api/logistica/ordenes-cen/productos — maestro de productos de las órdenes EDI.
 // Incluye los EAN que llegaron en órdenes y aún no están en el maestro.
@@ -43,15 +44,34 @@ export async function PUT(req: NextRequest) {
       peso_kg = EXCLUDED.peso_kg, und_caja = EXCLUDED.und_caja, updated_at = NOW()
   `
   // El peso de las órdenes abiertas con ese producto se recalcula (queda vacío si algún producto no tiene peso).
-  await sql`
-    UPDATE cen_ordenes o SET peso_kg = x.peso, updated_at = NOW()
-    FROM (
-      SELECT l.orden_id, CASE WHEN BOOL_AND(p.ean IS NOT NULL) THEN SUM(l.cantidad * p.peso_kg) END AS peso
-      FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id
-      WHERE l.orden_id IN (SELECT orden_id FROM cen_orden_lineas WHERE ean_item = ${ean})
-      GROUP BY l.orden_id
-    ) x
-    WHERE o.id = x.orden_id AND o.estado <> 'enviado'
-  `
+  await recalcularPesoOrdenes(ean)
+  return NextResponse.json({ ok: true })
+}
+
+// POST /api/logistica/ordenes-cen/productos — asigna solo el ítem de Siesa (y el peso, si se envía) a un
+// código de barras, desde la vista previa del pedido de una orden. Body: { ean, f120_id, peso_kg? }.
+// Queda en el maestro: las siguientes órdenes con ese código ya traen el ítem.
+export async function POST(req: NextRequest) {
+  const acceso = await verificarAcceso(req)
+  if ('respuesta' in acceso) return acceso.respuesta
+  const b = await req.json().catch(() => ({})) as { ean?: string; f120_id?: string | number; peso_kg?: string | number | null }
+  const ean = String(b.ean ?? '').trim()
+  if (!/^\d{8,14}$/.test(ean)) return NextResponse.json({ error: 'EAN inválido' }, { status: 400 })
+  const f120 = Number(b.f120_id)
+  if (!Number.isInteger(f120) || f120 <= 0) return NextResponse.json({ error: 'Elige el ítem de Siesa' }, { status: 400 })
+  const textoPeso = b.peso_kg === null || b.peso_kg === undefined ? '' : String(b.peso_kg).trim().replace(',', '.')
+  const peso = textoPeso === '' ? null : Number(textoPeso)
+  if (peso !== null && (!Number.isFinite(peso) || peso < 0)) return NextResponse.json({ error: 'Peso inválido' }, { status: 400 })
+
+  const [item] = await sql`SELECT unidad, descripcion FROM cen_items_siesa WHERE f120_id = ${f120}`
+  if (!item) return NextResponse.json({ error: `El ítem ${f120} no está en la lista de ítems de Siesa` }, { status: 400 })
+  // Un ítem que Siesa maneja por kilo necesita el peso por unidad para convertir las órdenes en unidades
+  if (String(item.unidad).trim().toUpperCase() === 'KG' && !(peso && peso > 0)) {
+    const [actual] = await sql`SELECT peso_kg::float AS peso FROM cen_productos WHERE ean = ${ean}`
+    if (!(Number(actual?.peso) > 0)) {
+      return NextResponse.json({ error: `Siesa maneja el ítem ${f120} (${item.descripcion}) por kilo: escribe el peso por unidad en kg (ej. 2.5 para una barra de 2,5 kg).` }, { status: 400 })
+    }
+  }
+  await asignarItemProducto(ean, f120, peso)
   return NextResponse.json({ ok: true })
 }

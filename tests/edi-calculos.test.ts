@@ -8,7 +8,7 @@ import { totalesOrden } from '../lib/cen/totales.ts'
 import { normalizarLugar, sugerirRuta, type ReglaRuta } from '../lib/cen/reglasRuta.ts'
 import { validarRegla } from '../lib/cen/reglasRuta.ts'
 import {
-  armarDocumento, bloqueosDeLineas, convertirLineas, elegirBodega, fechaEntregaPedido, preciosVigentes, revisarPrecios,
+  armarDocumento, bloqueosDeLineas, convertirLineas, elegirBodega, productosSinItem, fechaEntregaPedido, preciosVigentes, revisarPrecios,
   type DatosDocumento, type LineaPedido,
 } from '../lib/cen/documentoPedido.ts'
 
@@ -357,4 +357,18 @@ test('documento: líneas por ítem de Siesa, numeradas, con bodega, extensión F
     assert.equal(x.f431_ind_precio, '2')
     assert.equal(x.f431_fecha_entrega, '20261105')
   }
+})
+
+test('productos sin ítem: uno por código de barras, con las líneas donde aparece', () => {
+  const r = productosSinItem([
+    linea({ nro_linea: 1, f120_id: 9 }),
+    linea({ nro_linea: 2, f120_id: null, ean_item: '7709000000001', descripcion: 'QUESILLO BARRA 2.5 KG', peso_kg: null }),
+    linea({ nro_linea: 3, f120_id: null, ean_item: '7709000000001', descripcion: 'QUESILLO BARRA 2.5 KG', peso_kg: null }),
+    linea({ nro_linea: 4, f120_id: null, ean_item: '7709000000002', descripcion: null, peso_kg: 0.4 }),
+  ])
+  assert.deepEqual(r, [
+    { ean: '7709000000001', descripcion: 'QUESILLO BARRA 2.5 KG', peso_kg: null, lineas: [2, 3] },
+    { ean: '7709000000002', descripcion: null, peso_kg: 0.4, lineas: [4] },
+  ])
+  assert.deepEqual(productosSinItem([linea({ nro_linea: 1 })]), [])
 })

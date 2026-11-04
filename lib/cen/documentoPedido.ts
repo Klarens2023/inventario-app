@@ -24,10 +24,23 @@ export interface LineaPedido {
   unidad_orden?: string | null // unidad en que viene la orden: 'UND' o 'KG'
   unidad_item?: string | null  // unidad de inventario del ítem en Siesa (ej. 'UND', 'KG')
   peso_kg?: number | null      // peso de una unidad (Productos): factor para pasar unidades a kilos
+  descripcion?: string | null  // como llegó en la orden (o la de Productos)
   // Después de convertirLineas: unidad del pedido y lo que traía la orden
   unidad?: 'UND' | 'KG'
   cantidad_orden?: number
   precio_orden?: number
+}
+
+/** Códigos de barras de la orden sin ítem de Siesa, uno por código, con las líneas en que aparecen. */
+export function productosSinItem(lineas: LineaPedido[]): { ean: string; descripcion: string | null; peso_kg: number | null; lineas: number[] }[] {
+  const porEan = new Map<string, { ean: string; descripcion: string | null; peso_kg: number | null; lineas: number[] }>()
+  for (const l of lineas) {
+    if (l.f120_id) continue
+    const actual = porEan.get(l.ean_item) ?? { ean: l.ean_item, descripcion: l.descripcion ?? null, peso_kg: l.peso_kg ?? null, lineas: [] }
+    actual.lineas.push(l.nro_linea)
+    porEan.set(l.ean_item, actual)
+  }
+  return Array.from(porEan.values())
 }
 
 type AvisoLinea = { nivel: 'bloqueo' | 'alerta' | 'info'; mensaje: string }
@@ -155,7 +168,7 @@ export function fechaEntregaPedido(fechaOrden: string | null, hoy: string): { fe
 export function bloqueosDeLineas(lineas: LineaPedido[], indPrecio: string): string[] {
   const bloqueos: string[] = []
   const sinItem = lineas.filter(l => !l.f120_id)
-  if (sinItem.length) bloqueos.push(`Sin ítem de Siesa asignado: ${sinItem.map(l => `línea ${l.nro_linea} (${l.ean_item})`).join(' · ')}. Asígnalo en Productos: el pedido se ingresa por ítem.`)
+  if (sinItem.length) bloqueos.push(`Sin ítem de Siesa asignado: ${sinItem.map(l => `línea ${l.nro_linea} (${l.ean_item})`).join(' · ')}. Asígnalo abajo, en "Productos nuevos sin ítem de Siesa" (o en Productos): el pedido se ingresa por ítem.`)
   if (indPrecio === '2' && lineas.some(l => !(l.precio > 0))) bloqueos.push('Con indicador de precio 2 todas las líneas deben traer precio mayor que 0.')
   return bloqueos
 }
