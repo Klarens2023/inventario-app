@@ -20,6 +20,7 @@ export const ACCIONES: Record<string, { label: string; color: string; bg: string
   DOS_PASOS_REINICIADO:       { label: '2 pasos reiniciada',        ...AMBAR },
   DOS_PASOS_CODIGOS_REGENERADOS: { label: 'Códigos de recuperación', ...GRIS },
   FOTOS_DEPURADAS:            { label: 'Fotos depuradas',           ...GRIS },
+  SUCURSAL_SOLICITADA:        { label: 'Sucursal solicitada',       ...GRIS },
   // Inventario
   CARGA_INVENTARIO:           { label: 'Carga Inventario',          ...AZUL },
   CONTEO_ACTUALIZADO:         { label: 'Conteo Actualizado',        ...VERDE },
