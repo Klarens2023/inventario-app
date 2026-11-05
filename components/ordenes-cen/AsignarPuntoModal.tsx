@@ -6,6 +6,15 @@ import { enlaceGmail, type SucursalListado } from '@/lib/cen/sucursalesPunto'
 const inp: React.CSSProperties = { padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, width: '100%' }
 const etiqueta: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: 'var(--text2)' }
 
+type ColumnaOrden = 'sucursal' | 'razon_social' | 'ciudad' | 'direccion' | 'estado'
+const COLUMNAS: { col: ColumnaOrden; titulo: string; ancho?: number }[] = [
+  { col: 'sucursal', titulo: 'Suc.', ancho: 64 },
+  { col: 'razon_social', titulo: 'Razón social' },
+  { col: 'ciudad', titulo: 'Ciudad' },
+  { col: 'direccion', titulo: 'Dirección' },
+  { col: 'estado', titulo: 'Estado', ancho: 170 },
+]
+
 type Datos = {
   nit: string; cadena: string; numeroOrden: string | null
   sucursales: SucursalListado[]; errorSiesa: string | null
@@ -50,11 +59,31 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
 
   useEffect(() => { cargar() }, [cargar])
 
+  // Orden de la tabla: clic en un encabezado ordena por esa columna; otro clic invierte el orden.
+  // Sin columna elegida queda el orden de Siesa (activas primero, por código).
+  const [orden, setOrden] = useState<{ col: ColumnaOrden; asc: boolean } | null>(null)
+  function ordenarPor(col: ColumnaOrden) {
+    setOrden(o => (o?.col === col ? { col, asc: !o.asc } : { col, asc: true }))
+  }
+
   const visibles = useMemo(() => {
     const t = buscar.trim().toUpperCase()
     const lista = datos?.sucursales ?? []
-    return t ? lista.filter(s => [s.sucursal, s.razon_social, s.ciudad, s.direccion].some(v => (v ?? '').toUpperCase().includes(t))) : lista
-  }, [datos, buscar])
+    const filtradas = t ? lista.filter(s => [s.sucursal, s.razon_social, s.ciudad, s.departamento, s.direccion].some(v => (v ?? '').toUpperCase().includes(t))) : lista
+    if (!orden) return filtradas
+    const valor = (s: SucursalListado) => {
+      if (orden.col === 'ciudad') return [s.ciudad, s.departamento].filter(Boolean).join(', ')
+      if (orden.col === 'estado') return `${s.activa ? 1 : 0}${s.sinDireccion ? 0 : 1}${String(s.eans.length).padStart(3, '0')}`
+      return s[orden.col] ?? ''
+    }
+    // Las vacías ("—") siempre al final, en cualquier sentido
+    return [...filtradas].sort((a, b) => {
+      const va = valor(a), vb = valor(b)
+      if (!va !== !vb) return va ? -1 : 1
+      const r = va.localeCompare(vb, 'es', { numeric: true, sensitivity: 'base' })
+      return orden.asc ? r : -r
+    })
+  }, [datos, buscar, orden])
 
   async function guardar() {
     setError(''); setGuardando(true)
@@ -84,8 +113,9 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
   const puedeGuardar = nit && (manual ? sucManual && razonManual : elegida)
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 860, maxHeight: '92vh', overflowY: 'auto' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(4px, 2vw, 16px)' }}>
+      {/* Ancho: casi toda la pantalla hasta 1280 px; en celular ocupa todo y la tabla se desplaza de lado */}
+      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 1280, maxHeight: '94vh', overflowY: 'auto', padding: 'clamp(12px, 2.5vw, 24px)' }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Asignar sucursal de Siesa</h2>
         <p style={{ color: 'var(--text2)', fontSize: 13, marginBottom: 12 }}>
           {datos?.cadena ? <>{datos.cadena} · </> : null}EAN del punto de entrega <strong>{ean}</strong>. Al guardarlo, todas sus órdenes quedan asociadas y las próximas entran solas.
@@ -117,10 +147,24 @@ export function AsignarPuntoModal({ ean, onClose, onGuardado }: { ean: string; o
           datos.sucursales.length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--text2)', padding: 8 }}>{nit ? `Siesa no tiene sucursales para el NIT ${nit}.` : 'Escribe el NIT del cliente.'}</div>
           ) : (
-            <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 320, overflowY: 'auto' }}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg)' }}>
-                  <tr>{['', 'Suc.', 'Razón social', 'Ciudad', 'Dirección', ''].map((h, i) => <th key={i} style={{ textAlign: 'left', padding: '6px 8px' }}>{h}</th>)}</tr>
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, maxHeight: 'min(52vh, 460px)', overflow: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 720, fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg)', zIndex: 1 }}>
+                  <tr>
+                    <th style={{ width: 32 }} />
+                    {COLUMNAS.map(c => (
+                      <th key={c.col} style={{ textAlign: 'left', padding: 0, width: c.ancho }}
+                        aria-sort={orden?.col === c.col ? (orden.asc ? 'ascending' : 'descending') : 'none'}>
+                        <button type="button" onClick={() => ordenarPor(c.col)} title={`Ordenar por ${c.titulo.toLowerCase()}`}
+                          style={{ all: 'unset', cursor: 'pointer', display: 'flex', gap: 4, alignItems: 'center', width: '100%', padding: '8px', fontWeight: 700, boxSizing: 'border-box' }}>
+                          {c.titulo}
+                          <span style={{ color: orden?.col === c.col ? 'var(--primary, #1E40AF)' : 'var(--text2)', opacity: orden?.col === c.col ? 1 : 0.45, fontSize: 11 }}>
+                            {orden?.col === c.col ? (orden.asc ? '▲' : '▼') : '↕'}
+                          </span>
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
                 </thead>
                 <tbody>
                   {visibles.map(s => (
