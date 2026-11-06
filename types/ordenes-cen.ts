@@ -44,7 +44,8 @@ export type LineaOrdenCen = {
 export type DistribucionCen = { ean_local: string; cantidad: number; ean_item: string; nit: string | null; sucursal: string | null; razon_social: string | null }
 
 export type DetalleOrdenCen = {
-  orden: OrdenCen & { siesa_respuesta: unknown; enviado_at: string | null }
+  orden: OrdenCen & { siesa_respuesta: unknown; enviado_at: string | null; enviado_por: string | null
+    descartada_at: string | null; descartada_por: string | null; motivo_descarte: string | null }
   lineas: LineaOrdenCen[]
   distribucion: DistribucionCen[]
 }

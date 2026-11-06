@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sql } from '@/lib/db'
 import { verificarAcceso } from '@/lib/cen/acceso'
 import { prepararPedido, enviarPedido } from '@/lib/cen/pedidoSiesa'
 import { siesaConfigurado } from '@/lib/siesa/connekta'
@@ -36,6 +37,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const { confirmaAlertas } = await req.json().catch(() => ({})) as { confirmaAlertas?: boolean }
   try {
     const r = await enviarPedido(id, Boolean(confirmaAlertas))
+    // Quién creó el pedido, para el reporte de control
+    if (r.ok) await sql`UPDATE cen_ordenes SET enviado_por = ${acceso.user.name.slice(0, 120)} WHERE id = ${id}`
     return NextResponse.json(r, { status: r.ok ? 200 : 422 })
   } catch (e) {
     return NextResponse.json({ ok: false, mensaje: e instanceof Error ? e.message : 'No se pudo enviar el pedido' }, { status: 500 })

@@ -41,7 +41,15 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
 
   async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar', ruta?: string) {
     if (accion === 'reversar' && !window.confirm('Reversar el pedido de esta orden?\n\nPrimero debe estar ANULADO en Siesa. La orden vuelve a Pendiente para crear el pedido de nuevo (PVS).')) return
-    const res = await fetch(`/api/logistica/ordenes-cen/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, ruta }) })
+    // El motivo del descarte queda en el reporte de órdenes descartadas
+    let motivo: string | undefined
+    if (accion === 'descartar') {
+      const m = window.prompt('¿Por qué se descarta esta orden? (queda en el reporte de descartadas)\n\nEj.: duplicada, anulada por el cliente, sin inventario, punto cerrado…')
+      if (m === null) return
+      motivo = m.trim()
+      if (!motivo) { setError('Indica el motivo del descarte'); return }
+    }
+    const res = await fetch(`/api/logistica/ordenes-cen/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, ruta, motivo }) })
     if (res.ok) { onCambio(); onClose() } else setError((await res.json()).error ?? 'No se pudo actualizar')
   }
 
@@ -63,6 +71,14 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                   {o.razon_social ? `${o.razon_social} · ${o.nit}/${o.sucursal}` : 'Punto sin sucursal asociada'}
                   {' · '}<span style={{ fontFamily: 'monospace' }}>EAN punto {o.ean_entrega}</span>
                 </div>
+                {o.estado === 'descartada' && o.descartada_at && (
+                  <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
+                    Descartada el {new Date(o.descartada_at).toLocaleString('es-CO')}{o.descartada_por ? ` por ${o.descartada_por}` : ''}{o.motivo_descarte ? ` · Motivo: ${o.motivo_descarte}` : ''}
+                  </div>
+                )}
+                {o.estado === 'enviado' && o.enviado_por && (
+                  <div style={{ fontSize: 12, color: '#047857', marginTop: 4 }}>Pedido creado por {o.enviado_por}</div>
+                )}
               </div>
               <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700 }}>
                 {ESTADOS[o.estado].label}

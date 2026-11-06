@@ -16,7 +16,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     SELECT id, fuente, numero_orden, fecha_orden::text, fecha_entrega::text, fecha_entrega_max::text,
            ean_comprador, ean_entrega, nit, sucursal, razon_social,
            total_unidades::float AS total_unidades, valor_total::float AS valor_total, peso_kg::float AS peso_kg,
-           ruta, ruta_manual, estado, created_at, siesa_consecutivo, siesa_respuesta, enviado_at
+           ruta, ruta_manual, estado, created_at, siesa_consecutivo, siesa_respuesta, enviado_at, enviado_por,
+           descartada_at, descartada_por, motivo_descarte
     FROM cen_ordenes WHERE id = ${id}
   `
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   return NextResponse.json({ orden, lineas, distribucion })
 }
 
-// PATCH /api/logistica/ordenes-cen/[id] — descartar / reactivar una orden, o cambiar su ruta
+// PATCH /api/logistica/ordenes-cen/[id] — descartar (con motivo) / reactivar una orden, o cambiar su ruta
 // (ruta vacía = volver a la ruta sugerida por las reglas)
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  const { accion, ruta } = await req.json() as { accion?: string; ruta?: string }
+  const { accion, ruta, motivo } = await req.json() as { accion?: string; ruta?: string; motivo?: string }
   const [orden] = await sql`SELECT estado, nit FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
   // Reversar: la orden ya enviada vuelve a pendiente si su pedido está anulado en Siesa
@@ -68,9 +69,14 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   if (orden.estado === 'enviado') return NextResponse.json({ error: 'La orden ya se envió a Siesa' }, { status: 409 })
 
   if (accion === 'descartar') {
-    await sql`UPDATE cen_ordenes SET estado = 'descartada', updated_at = NOW() WHERE id = ${id}`
+    // El motivo queda para el reporte de descartadas (quién, cuándo y por qué)
+    const m = String(motivo ?? '').trim().slice(0, 300)
+    if (!m) return NextResponse.json({ error: 'Indica el motivo del descarte' }, { status: 400 })
+    await sql`UPDATE cen_ordenes SET estado = 'descartada', descartada_at = NOW(), descartada_por = ${acceso.user.name.slice(0, 120)},
+                     motivo_descarte = ${m}, updated_at = NOW() WHERE id = ${id}`
   } else if (accion === 'reactivar') {
-    await sql`UPDATE cen_ordenes SET estado = ${orden.nit ? 'pendiente' : 'sin_punto'}, updated_at = NOW() WHERE id = ${id}`
+    await sql`UPDATE cen_ordenes SET estado = ${orden.nit ? 'pendiente' : 'sin_punto'}, descartada_at = NULL, descartada_por = NULL,
+                     motivo_descarte = NULL, updated_at = NOW() WHERE id = ${id}`
   } else if (accion === 'ruta') {
     const nueva = (ruta ?? '').trim().toUpperCase().slice(0, 40)
     if (nueva) {
