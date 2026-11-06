@@ -42,19 +42,19 @@ export async function excelRelacion(relaciones: string[], filas: FilaRelacion[],
   // 1. Líneas (como las hojas de relación del libro)
   const w1 = wb.addWorksheet('Relación')
   encabezado(w1, titulo, sub, [
-    { h: 'Relación', w: 15 }, { h: 'OC', w: 16 }, { h: 'Cliente', w: 12 }, { h: 'F. mín. entrega', w: 12 }, { h: 'F. máx. entrega', w: 12 }, { h: 'Ciudad', w: 15 },
+    { h: 'Relación', w: 15 }, { h: 'OC', w: 16 }, { h: 'Cliente', w: 12 }, { h: 'F. despacho', w: 12 }, { h: 'F. mín. entrega', w: 12 }, { h: 'F. máx. entrega', w: 12 }, { h: 'Ciudad', w: 15 },
     { h: 'Punto de venta', w: 32 }, { h: 'Ítem Siesa', w: 9 }, { h: 'Descripción', w: 34 }, { h: 'Cant. despacho', w: 11 }, { h: 'Valor', w: 14 },
     { h: 'Peso', w: 11 }, { h: 'Cajas', w: 8 }, { h: 'Pedido Siesa', w: 13 },
   ])
-  const fmt1 = [undefined, TEXTO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ENTERO, MONEDA, KG, DEC, undefined]
+  const fmt1 = [undefined, TEXTO, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, ENTERO, MONEDA, KG, DEC, undefined]
   let ocAnterior = ''
   for (const f of filas) {
     if (ocAnterior && f.numero_orden !== ocAnterior) w1.addRow([]) // una fila en blanco entre órdenes, como en el libro
-    fila(w1, [f.relacion, f.numero_orden, f.cadena, f.fecha_entrega, f.fecha_entrega_max ?? f.fecha_entrega, f.ciudad, f.razon_social, f.f120_id, f.descripcion,
+    fila(w1, [f.relacion, f.numero_orden, f.cadena, f.fecha_despacho, f.fecha_entrega, f.fecha_entrega_max ?? f.fecha_entrega, f.ciudad, f.razon_social, f.f120_id, f.descripcion,
       f.cantidad, f.valor, f.peso, f.cajas, f.pedido || null], fmt1)
     ocAnterior = f.numero_orden
   }
-  fila(w1, ['Total general', null, null, null, null, null, null, null, null, sum(filas, 'cantidad'), sum(filas, 'valor'), peso(filas), cajas(filas), null], fmt1, true)
+  fila(w1, ['Total general', null, null, null, null, null, null, null, null, null, sum(filas, 'cantidad'), sum(filas, 'valor'), peso(filas), cajas(filas), null], fmt1, true)
 
   // 2. Totales por ítem
   const w2 = wb.addWorksheet('Totales por ítem')
@@ -79,10 +79,10 @@ export async function excelRelacion(relaciones: string[], filas: FilaRelacion[],
 
   // 4. Control de entrega (planilla para firmar al entregar la relación al transportador)
   const w4 = wb.addWorksheet('Control de entrega')
-  encabezado(w4, 'CONTROL DE ENTREGA', sub, [{ h: 'Fecha', w: 12 }, { h: 'Relación', w: 18 }, { h: 'OC', w: 16 }, { h: 'Punto de venta', w: 34 }, { h: 'Cajas', w: 8 }, { h: 'Peso', w: 11 }, { h: 'Entrega', w: 18 }, { h: 'Recibe', w: 18 }, { h: 'Observaciones', w: 28 }])
+  encabezado(w4, 'CONTROL DE ENTREGA', sub, [{ h: 'Fecha despacho', w: 12 }, { h: 'Relación', w: 18 }, { h: 'OC', w: 16 }, { h: 'Punto de venta', w: 34 }, { h: 'Cajas', w: 8 }, { h: 'Peso', w: 11 }, { h: 'Entrega', w: 18 }, { h: 'Recibe', w: 18 }, { h: 'Observaciones', w: 28 }])
   const porOc = new Map<string, FilaRelacion[]>(); for (const f of filas) porOc.set(`${f.relacion}|${f.numero_orden}`, [...(porOc.get(`${f.relacion}|${f.numero_orden}`) ?? []), f])
   for (const xs of Array.from(porOc.values())) {
-    const r = fila(w4, [xs[0].fecha_entrega, xs[0].relacion, xs[0].numero_orden, xs[0].razon_social, cajas(xs), peso(xs), null, null, null], [undefined, undefined, TEXTO, undefined, DEC, KG])
+    const r = fila(w4, [xs[0].fecha_despacho, xs[0].relacion, xs[0].numero_orden, xs[0].razon_social, cajas(xs), peso(xs), null, null, null], [undefined, undefined, TEXTO, undefined, DEC, KG])
     r.height = 24
   }
   w4.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 }

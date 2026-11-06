@@ -14,7 +14,7 @@ const HOY = '2026-11-06'
 function orden(p: Partial<OrdenReporte> & { id: number }): OrdenReporte {
   return {
     numero_orden: `OC${p.id}`, fuente: 'carvajal', ean_comprador: '7700000000001', cadena: 'Cadena A', fecha_orden: '2026-11-01',
-    fecha_entrega: '2026-11-10', fecha_entrega_max: null, ean_entrega: `77000000001${p.id}`, nit: '900000001', sucursal: '001',
+    fecha_entrega: '2026-11-10', fecha_entrega_max: null, fecha_despacho: '2026-11-10', ean_entrega: `77000000001${p.id}`, nit: '900000001', sucursal: '001',
     razon_social: 'PUNTO A', ciudad: 'Barranquilla', ruta: 'COSTA', estado: 'pendiente', total_unidades: 10, valor_total: 1000, peso_kg: 5,
     locales: 0, siesa_consecutivo: null, enviado_at: null, enviado_por: null, descartada_at: null, descartada_por: null, motivo_descarte: null,
     recibida_at: null, leida_at: null, ...p,
@@ -81,12 +81,13 @@ test('necesidad por producto: suma por día de entrega y deja fuera las descarta
   assert.equal(n.filas[0].ean, 'P1') // más kilos primero
 })
 
-test('relación de despacho: código RUTA-MMSS, peso, cajas y sin descartadas', () => {
-  const ordenes = [orden({ id: 1, ruta: 'COSTA', fecha_entrega: '2026-11-10', siesa_consecutivo: 'PVS-7' }), orden({ id: 2, estado: 'descartada' }), orden({ id: 3, ruta: null })]
+test('relación de despacho: código RUTA-MMSS por semana de despacho, peso, cajas y sin descartadas', () => {
+  // Se entrega el lunes 9 (semana 46) pero sale el viernes 6 (semana 45): la relación es la del despacho
+  const ordenes = [orden({ id: 1, ruta: 'COSTA', fecha_entrega: '2026-11-09', fecha_despacho: '2026-11-06', siesa_consecutivo: 'PVS-7' }), orden({ id: 2, estado: 'descartada' }), orden({ id: 3, ruta: null })]
   const filas = lineasRelacion(ordenes, [linea({ orden_id: 1 }), linea({ orden_id: 2 }), linea({ orden_id: 3 })], codigoRelacion)
   assert.equal(filas.length, 2)
   const f = filas.find(x => x.numero_orden === 'OC1')!
-  assert.equal(f.relacion, 'COSTA-1146')
+  assert.equal(f.relacion, 'COSTA-1145')
   assert.equal(f.peso, 5)
   assert.equal(f.cajas, 2.5)
   assert.equal(f.valor, 1000)

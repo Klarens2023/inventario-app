@@ -12,6 +12,7 @@ export type OrdenReporte = {
   fecha_orden: string | null
   fecha_entrega: string | null
   fecha_entrega_max: string | null
+  fecha_despacho: string | null // da la semana de la relación (entrega − tránsito de la ruta o fijada a mano)
   ean_entrega: string
   nit: string | null
   sucursal: string | null
@@ -173,24 +174,25 @@ export function necesidadPorProducto(ordenes: OrdenReporte[], lineas: LineaRepor
 
 export type FilaRelacion = {
   relacion: string; ruta: string; numero_orden: string; cadena: string; razon_social: string; nit: string; sucursal: string
-  fecha_entrega: string | null; fecha_entrega_max: string | null; ciudad: string; ean_entrega: string
+  fecha_entrega: string | null; fecha_entrega_max: string | null; fecha_despacho: string | null; ciudad: string; ean_entrega: string
   f120_id: number | null; ean_item: string; descripcion: string; cantidad: number; valor: number; peso: number | null; cajas: number | null
   pedido: string; estado: string
 }
 
-/** Líneas de la relación de despacho (como las hojas por ruta del libro de logística). */
+/** Líneas de la relación de despacho (como las hojas por ruta del libro de logística). La relación sale
+ *  de la ruta y la semana de despacho (RUTA-MMSS). */
 export function lineasRelacion(
   ordenes: OrdenReporte[], lineas: LineaReporte[],
-  codigoRelacion: (ruta: string | null, fechaEntrega: string | null) => string | null,
+  codigoRelacion: (ruta: string | null, fechaDespacho: string | null) => string | null,
 ): FilaRelacion[] {
   const ordenPorId = new Map(ordenes.map(o => [o.id, o]))
   const filas: FilaRelacion[] = []
   for (const l of lineas) {
     const o = ordenPorId.get(l.orden_id); if (!o || o.estado === 'descartada') continue
     filas.push({
-      relacion: codigoRelacion(o.ruta, o.fecha_entrega) ?? 'Sin ruta', ruta: o.ruta ?? 'Sin ruta', numero_orden: o.numero_orden, cadena: o.cadena,
+      relacion: codigoRelacion(o.ruta, o.fecha_despacho) ?? 'Sin ruta', ruta: o.ruta ?? 'Sin ruta', numero_orden: o.numero_orden, cadena: o.cadena,
       razon_social: o.razon_social ?? `Punto sin sucursal (EAN ${o.ean_entrega})`, nit: o.nit ?? '', sucursal: o.sucursal ?? '',
-      fecha_entrega: o.fecha_entrega, fecha_entrega_max: o.fecha_entrega_max, ciudad: o.ciudad ?? '', ean_entrega: o.ean_entrega,
+      fecha_entrega: o.fecha_entrega, fecha_entrega_max: o.fecha_entrega_max, fecha_despacho: o.fecha_despacho, ciudad: o.ciudad ?? '', ean_entrega: o.ean_entrega,
       f120_id: l.f120_id, ean_item: l.ean_item, descripcion: l.descripcion, cantidad: l.cantidad, valor: l.cantidad * l.precio,
       peso: pesoLinea(l), cajas: cajasLinea(l), pedido: o.siesa_consecutivo ?? '', estado: o.estado,
     })

@@ -17,6 +17,9 @@ export type OrdenCen = {
   peso_kg: number | null
   ruta: string | null
   ruta_manual: boolean
+  fecha_despacho: string | null // da la semana de la relación (RUTA-MMSS)
+  despacho_manual: boolean // true = fijada a mano en la orden
+  dias_transito: number // de la ruta (cen_rutas)
   ciudad?: string | null
   estado: EstadoOrdenCen
   lineas: number

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { ReglaRuta } from '@/lib/cen/rutas'
 import { COMPRADORES, nombreComprador } from '@/lib/cen/compradores'
+import { TransitoRutas } from '@/components/ordenes-cen/TransitoRutas'
 
 type Form = { id?: number; prioridad: string; ruta: string; ean_comprador: string; ciudades: string; departamentos: string; peso_min: string; peso_max: string; descripcion: string; activo: boolean }
 
@@ -66,6 +67,8 @@ export default function ReglasRutaPage() {
         </div>
         <button className="btn btn-primary" onClick={() => { setError(''); setForm({ ...vacio }) }}>+ Nueva regla</button>
       </div>
+
+      <TransitoRutas />
       {aviso && <div className="card" style={{ marginBottom: 12, color: 'var(--accent2)', fontSize: 13 }}>{aviso}</div>}
 
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>

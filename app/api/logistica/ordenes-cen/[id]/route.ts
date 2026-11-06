@@ -13,12 +13,16 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const [orden] = await sql`
-    SELECT id, fuente, numero_orden, fecha_orden::text, fecha_entrega::text, fecha_entrega_max::text,
-           ean_comprador, ean_entrega, nit, sucursal, razon_social,
-           total_unidades::float AS total_unidades, valor_total::float AS valor_total, peso_kg::float AS peso_kg,
-           ruta, ruta_manual, estado, created_at, siesa_consecutivo, siesa_respuesta, enviado_at, enviado_por,
-           descartada_at, descartada_por, motivo_descarte
-    FROM cen_ordenes WHERE id = ${id}
+    SELECT o.id, o.fuente, o.numero_orden, o.fecha_orden::text, o.fecha_entrega::text, o.fecha_entrega_max::text,
+           o.ean_comprador, o.ean_entrega, o.nit, o.sucursal, o.razon_social,
+           o.total_unidades::float AS total_unidades, o.valor_total::float AS valor_total, o.peso_kg::float AS peso_kg,
+           -- Despacho: fijado a mano o entrega − días de tránsito de la ruta (da la semana de la relación)
+           COALESCE(o.fecha_despacho, COALESCE(o.fecha_entrega, o.fecha_entrega_max) - COALESCE(rt.dias_transito, 0))::text AS fecha_despacho,
+           (o.fecha_despacho IS NOT NULL) AS despacho_manual, COALESCE(rt.dias_transito, 0) AS dias_transito,
+           o.ruta, o.ruta_manual, o.estado, o.created_at, o.siesa_consecutivo, o.siesa_respuesta, o.enviado_at, o.enviado_por,
+           o.descartada_at, o.descartada_por, o.motivo_descarte
+    FROM cen_ordenes o LEFT JOIN cen_rutas rt ON rt.ruta = o.ruta
+    WHERE o.id = ${id}
   `
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
 
@@ -54,7 +58,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  const { accion, ruta, motivo } = await req.json() as { accion?: string; ruta?: string; motivo?: string }
+  const { accion, ruta, motivo, fecha } = await req.json() as { accion?: string; ruta?: string; motivo?: string; fecha?: string }
   const [orden] = await sql`SELECT estado, nit FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
   // Reversar: la orden ya enviada vuelve a pendiente si su pedido está anulado en Siesa
@@ -77,6 +81,11 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   } else if (accion === 'reactivar') {
     await sql`UPDATE cen_ordenes SET estado = ${orden.nit ? 'pendiente' : 'sin_punto'}, descartada_at = NULL, descartada_por = NULL,
                      motivo_descarte = NULL, updated_at = NOW() WHERE id = ${id}`
+  } else if (accion === 'despacho') {
+    // Fecha de despacho a mano (cambia la semana de la relación); vacía = volver a la calculada por la ruta
+    const f = String(fecha ?? '').trim()
+    if (f && !/^\d{4}-\d{2}-\d{2}$/.test(f)) return NextResponse.json({ error: 'Fecha de despacho inválida' }, { status: 400 })
+    await sql`UPDATE cen_ordenes SET fecha_despacho = ${f || null}, updated_at = NOW() WHERE id = ${id}`
   } else if (accion === 'ruta') {
     const nueva = (ruta ?? '').trim().toUpperCase().slice(0, 40)
     if (nueva) {

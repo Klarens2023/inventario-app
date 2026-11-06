@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
     SELECT o.id, o.fuente, o.numero_orden, o.fecha_orden::text, o.fecha_entrega::text, o.fecha_entrega_max::text,
            o.ean_comprador, o.ean_entrega, o.nit, o.sucursal, o.razon_social,
            o.total_unidades::float AS total_unidades, o.valor_total::float AS valor_total, o.peso_kg::float AS peso_kg,
+           -- Despacho: fijado a mano o entrega − días de tránsito de la ruta (da la semana de la relación)
+           COALESCE(o.fecha_despacho, COALESCE(o.fecha_entrega, o.fecha_entrega_max) - COALESCE(rt.dias_transito, 0))::text AS fecha_despacho,
+           (o.fecha_despacho IS NOT NULL) AS despacho_manual, COALESCE(rt.dias_transito, 0) AS dias_transito,
            o.ruta, o.ruta_manual, o.estado, o.created_at, o.siesa_consecutivo, pe.ciudad,
            (SELECT COUNT(*)::int FROM cen_orden_lineas l WHERE l.orden_id = o.id) AS lineas,
            (SELECT COUNT(DISTINCT d.ean_local)::int FROM cen_orden_distribucion d
@@ -34,6 +37,7 @@ export async function GET(req: NextRequest) {
            ], NULL) ELSE '{}' END AS motivos
     FROM cen_ordenes o
     LEFT JOIN cen_puntos_ean pe ON pe.ean = o.ean_entrega
+    LEFT JOIN cen_rutas rt ON rt.ruta = o.ruta
     WHERE (${estado} = '' OR o.estado = ${estado})
       AND (${fuente} = '' OR o.fuente = ${fuente})
       AND (${comprador} = '' OR o.ean_comprador = ${comprador})

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DetalleOrdenCen } from '@/types/ordenes-cen'
 import { nombreComprador } from '@/lib/cen/compradores'
 import { fmtFecha, fmtMoneda, fmtNumero, ESTADOS, relacion } from './utils'
+import { fechaDespacho } from '@/lib/cen/relacion'
 import { PedidoSiesa } from './PedidoSiesa'
 import { AsignarPuntoModal } from './AsignarPuntoModal'
 import { ClienteSiesa } from './ClienteSiesa'
@@ -12,6 +13,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
   const [error, setError] = useState('')
   const [verReparto, setVerReparto] = useState(false)
   const [rutaNueva, setRutaNueva] = useState('')
+  const [despachoNuevo, setDespachoNuevo] = useState('')
   const [asignando, setAsignando] = useState(false)
   const [rutas, setRutas] = useState<string[]>([])
 
@@ -39,7 +41,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
     return Array.from(m.entries())
   }, [detalle])
 
-  async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar', ruta?: string) {
+  async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar' | 'despacho', ruta?: string, fecha?: string) {
     if (accion === 'reversar' && !window.confirm('Reversar el pedido de esta orden?\n\nPrimero debe estar ANULADO en Siesa. La orden vuelve a Pendiente para crear el pedido de nuevo (PVS).')) return
     // El motivo del descarte queda en el reporte de órdenes descartadas
     let motivo: string | undefined
@@ -49,7 +51,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
       motivo = m.trim()
       if (!motivo) { setError('Indica el motivo del descarte'); return }
     }
-    const res = await fetch(`/api/logistica/ordenes-cen/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, ruta, motivo }) })
+    const res = await fetch(`/api/logistica/ordenes-cen/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accion, ruta, motivo, fecha }) })
     if (res.ok) { onCambio(); onClose() } else setError((await res.json()).error ?? 'No se pudo actualizar')
   }
 
@@ -103,7 +105,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
               <span style={{ fontSize: 13 }}>
                 Ruta: <strong>{o.ruta ?? 'sin ruta'}</strong>
-                {o.ruta && <span style={{ color: 'var(--text2)' }}> · relación {relacion(o.ruta, o.fecha_entrega)}{o.ruta_manual ? ' · asignada a mano' : ' · sugerida por regla'}</span>}
+                {o.ruta && <span style={{ color: 'var(--text2)' }}> · relación <strong>{relacion(o.ruta, o.fecha_despacho)}</strong>{o.ruta_manual ? ' · asignada a mano' : ' · sugerida por regla'}</span>}
               </span>
               {o.estado !== 'enviado' && (
                 <>
@@ -114,6 +116,23 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                   {o.ruta_manual && <button className="btn" onClick={() => cambiarEstado('ruta', '')}>Volver a la sugerida</button>}
                 </>
               )}
+              {/* La fecha de despacho da la semana del consecutivo de la relación (RUTA-MMSS) */}
+              <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+                <span>
+                  Despacho: <strong>{fmtFecha(o.fecha_despacho)}</strong>
+                  <span style={{ color: 'var(--text2)' }}>
+                    {o.despacho_manual ? ` · fijado a mano (calculado: ${fmtFecha(fechaDespacho(o.fecha_entrega ?? o.fecha_entrega_max, o.dias_transito))})` : o.dias_transito ? ` · entrega − ${o.dias_transito} día(s) de tránsito de la ruta` : ' · mismo día de la entrega'}
+                  </span>
+                </span>
+                {o.estado !== 'enviado' && (
+                  <>
+                    <input type="date" value={despachoNuevo} onChange={e => setDespachoNuevo(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, marginLeft: 'auto' }} />
+                    <button className="btn" disabled={!despachoNuevo} onClick={() => cambiarEstado('despacho', undefined, despachoNuevo)}>Cambiar despacho</button>
+                    {o.despacho_manual && <button className="btn" onClick={() => cambiarEstado('despacho', undefined, '')}>Volver al calculado</button>}
+                  </>
+                )}
+              </div>
             </div>
 
             <ClienteSiesa ordenId={o.id} nit={o.nit} sucursal={o.sucursal} />

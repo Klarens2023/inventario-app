@@ -12,6 +12,7 @@ export async function datosReportes({ desde, hasta, campo, cadena, ruta }: Filtr
   const ordenes = await sql`
     SELECT o.id, o.numero_orden, o.fuente, o.ean_comprador, o.fecha_orden::text, o.fecha_entrega::text, o.fecha_entrega_max::text,
            o.ean_entrega, o.nit, o.sucursal, o.razon_social, pe.ciudad, o.ruta, o.estado,
+           COALESCE(o.fecha_despacho, COALESCE(o.fecha_entrega, o.fecha_entrega_max) - COALESCE(rt.dias_transito, 0))::text AS fecha_despacho,
            o.total_unidades::float AS total_unidades, o.valor_total::float AS valor_total, o.peso_kg::float AS peso_kg,
            (SELECT COUNT(DISTINCT d.ean_local)::int FROM cen_orden_distribucion d JOIN cen_orden_lineas l ON l.id = d.linea_id WHERE l.orden_id = o.id) AS locales,
            o.siesa_consecutivo, o.enviado_por, o.descartada_por, o.motivo_descarte,
@@ -22,6 +23,7 @@ export async function datosReportes({ desde, hasta, campo, cadena, ruta }: Filtr
     FROM cen_ordenes o
     LEFT JOIN cen_puntos_ean pe ON pe.ean = o.ean_entrega
     LEFT JOIN cen_archivos a ON a.id = o.archivo_id
+    LEFT JOIN cen_rutas rt ON rt.ruta = o.ruta
     WHERE (CASE WHEN ${campo} = 'orden' THEN o.fecha_orden ELSE COALESCE(o.fecha_entrega, o.fecha_entrega_max) END) BETWEEN ${desde}::date AND ${hasta}::date
       AND (${cadena} = '' OR o.ean_comprador = ${cadena})
       AND (${ruta} = '' OR (${ruta} = '-' AND o.ruta IS NULL) OR o.ruta = ${ruta})

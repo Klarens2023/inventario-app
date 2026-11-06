@@ -159,10 +159,10 @@ export default function ReportesCenPage() {
       const o = porId.get(l.orden_id)!
       return [o.fecha_orden, o.cadena, o.ean_comprador, o.numero_orden, o.fecha_entrega, o.fecha_entrega_max, l.ean_item, l.f120_id, l.descripcion, l.cod_comprador,
         l.cantidad, l.unidad, l.precio, l.cantidad * l.precio, pesoLinea(l), cajasLinea(l), o.ean_entrega, o.razon_social, o.nit, o.sucursal, o.ciudad, o.ruta,
-        codigoRelacion(o.ruta, o.fecha_entrega), o.fuente, ESTADOS[o.estado as EstadoOrdenCen]?.label ?? o.estado, CUMPLIMIENTO[o.cumple].label, o.siesa_consecutivo, semanaIso(o.fecha_entrega ?? o.fecha_orden ?? hoy)]
+        codigoRelacion(o.ruta, o.fecha_despacho), o.fecha_despacho, o.fuente, ESTADOS[o.estado as EstadoOrdenCen]?.label ?? o.estado, CUMPLIMIENTO[o.cumple].label, o.siesa_consecutivo, semanaIso(o.fecha_entrega ?? o.fecha_orden ?? hoy)]
     })
     exportarExcel(`Base_ordenes_EDI_${desde}_a_${hasta}`, ['F. OC', 'Cliente', 'EAN cliente', 'OC', 'F. mín. entrega', 'F. máx. entrega', 'EAN ítem', 'Ítem Siesa', 'Descripción', 'Cód. comprador',
-      'Cantidad', 'Unidad', 'Precio', 'Valor total', 'Peso kg', 'Cajas', 'EAN punto', 'Punto de venta', 'NIT', 'Sucursal', 'Ciudad', 'Ruta', 'Relación', 'Fuente', 'Estado', 'Cumplimiento',
+      'Cantidad', 'Unidad', 'Precio', 'Valor total', 'Peso kg', 'Cajas', 'EAN punto', 'Punto de venta', 'NIT', 'Sucursal', 'Ciudad', 'Ruta', 'Relación', 'F. despacho', 'Fuente', 'Estado', 'Cumplimiento',
       'Pedido Siesa', 'Semana'], filas, usuario, 'KLARENS  —  Base de órdenes EDI')
   }
 
@@ -250,7 +250,7 @@ export default function ReportesCenPage() {
       )}
 
       {datos && pestana === 'relacion' && (
-        <Seccion titulo="Relación de despacho" nota="Como las hojas por ruta del libro de logística (RUTA-MMSS = ruta + mes + semana de entrega). Marca una o varias relaciones para ver el detalle y descargar el Excel con totales por ítem, por cliente y la planilla de control de entrega."
+        <Seccion titulo="Relación de despacho" nota="Como las hojas por ruta del libro de logística (RUTA-MMSS = ruta + mes + semana de DESPACHO; despacho = entrega − días de tránsito de la ruta). Marca una o varias relaciones para ver el detalle y descargar el Excel con totales por ítem, por cliente y la planilla de control de entrega."
           accion={<button className="btn btn-primary" disabled={!relacionSel.length} onClick={() => excelRelacion(Array.from(relaciones).sort(), relacionSel, periodo, usuario)}>Descargar Excel ({relaciones.size})</button>}>
           <div className="cen-scroll" style={{ marginBottom: 12 }}><table className="inv-table cen-tabla cen-tarjetas">
             <thead><tr><th style={{ width: 32 }}><input type="checkbox" checked={listaRelaciones.length > 0 && relaciones.size === listaRelaciones.length} onChange={e => setRelaciones(e.target.checked ? new Set(listaRelaciones.map(r => r.rel)) : new Set())} /></th>
@@ -264,10 +264,10 @@ export default function ReportesCenPage() {
           </table></div>
           {relacionSel.length > 0 && (
             <div className="cen-scroll"><table className="inv-table cen-tabla cen-tarjetas">
-              <thead><tr><th>Relación</th><th>OC</th><th>Cliente</th><th>Entrega</th><th>Ciudad</th><th>Punto de venta</th><th>Ítem</th><th>Descripción</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Valor</th><th style={{ textAlign: 'right' }}>Peso</th><th style={{ textAlign: 'right' }}>Cajas</th><th>Pedido</th></tr></thead>
+              <thead><tr><th>Relación</th><th>OC</th><th>Cliente</th><th>Despacho</th><th>Entrega</th><th>Ciudad</th><th>Punto de venta</th><th>Ítem</th><th>Descripción</th><th style={{ textAlign: 'right' }}>Cant.</th><th style={{ textAlign: 'right' }}>Valor</th><th style={{ textAlign: 'right' }}>Peso</th><th style={{ textAlign: 'right' }}>Cajas</th><th>Pedido</th></tr></thead>
               <tbody>{relacionSel.map((f, i) => (
                 <tr key={i}><td data-label="Relación" className="nw">{f.relacion}</td><td data-label="OC" className="nw"><strong>{f.numero_orden}</strong></td><td data-label="Cliente">{f.cadena}</td>
-                  <td data-label="Entrega" className="nw">{fmtFecha(f.fecha_entrega)}</td><td data-label="Ciudad">{f.ciudad}</td><td data-label="Punto" className="ancho">{f.razon_social}</td>
+                  <td data-label="Despacho" className="nw">{fmtFecha(f.fecha_despacho)}</td><td data-label="Entrega" className="nw">{fmtFecha(f.fecha_entrega)}</td><td data-label="Ciudad">{f.ciudad}</td><td data-label="Punto" className="ancho">{f.razon_social}</td>
                   <td data-label="Ítem">{f.f120_id ?? '—'}</td><td data-label="Descripción" className="ancho">{f.descripcion}</td><td data-label="Cant." className="num">{fmtNumero(f.cantidad)}</td>
                   <td data-label="Valor" className="num">{fmtMoneda(f.valor)}</td><td data-label="Peso" className="num">{kg(f.peso)}</td><td data-label="Cajas" className="num">{f.cajas ?? '—'}</td><td data-label="Pedido">{f.pedido || '—'}</td></tr>
               ))}</tbody>

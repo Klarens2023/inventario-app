@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parsearOrden } from '../lib/cen/parser.ts'
-import { codigoRelacion } from '../lib/cen/relacion.ts'
+import { codigoRelacion, fechaDespacho } from '../lib/cen/relacion.ts'
 
 const EDIFACT = [
   "UNB+UNOA:3+7701001000008:14+7709999999999:14+261022:0800+1'",
@@ -158,4 +158,13 @@ test('se rechaza una orden sin número, comprador o punto de entrega', () => {
 test('codigoRelacion RUTA-MMSS', () => {
   assert.equal(codigoRelacion(null, '2026-10-22'), null)
   assert.equal(codigoRelacion('EXVAL', '2026-10-22'), 'EXVAL-1043')
+  assert.equal(codigoRelacion('DISTRYCAR', '2026-11-06'), 'DISTRYCAR-1145')
+})
+
+test('fechaDespacho: entrega menos los días de tránsito de la ruta', () => {
+  assert.equal(fechaDespacho('2026-11-09', 0), '2026-11-09')
+  assert.equal(fechaDespacho('2026-11-09', 3), '2026-11-06') // cambia de semana: 1146 → 1145
+  assert.equal(fechaDespacho('2026-12-01', 2), '2026-11-29') // y de mes
+  assert.equal(fechaDespacho(null, 2), null)
+  assert.equal(fechaDespacho('2026-11-09', -4), '2026-11-09') // sin tránsitos negativos
 })

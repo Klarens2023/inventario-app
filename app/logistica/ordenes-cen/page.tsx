@@ -129,7 +129,7 @@ export default function OrdenesCenPage() {
     if (vista === 'ruta') {
       for (const g of Array.from(m.values())) {
         if (!g.ruta) continue
-        const rels = Array.from(new Set(g.ordenes.map(o => relacion(o.ruta, o.fecha_entrega)).filter(Boolean))).sort()
+        const rels = Array.from(new Set(g.ordenes.map(o => relacion(o.ruta, o.fecha_despacho)).filter(Boolean))).sort()
         g.subtitulo = `${rels.length === 1 ? 'Relación' : 'Relaciones'} ${rels.join(', ')}`
       }
     }
@@ -389,7 +389,7 @@ export default function OrdenesCenPage() {
                           <span className="sub mono">EAN {o.ean_entrega}</span>
                         </div>
                       </td>
-                      <td data-label={vista === 'ruta' ? 'Relación' : 'Ruta'} className="nw">{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_entrega) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
+                      <td data-label={vista === 'ruta' ? 'Relación' : 'Ruta'} className="nw">{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_despacho) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
                       <td data-label="Entrega" className="nw">
                         <div>{fmtFecha(o.fecha_entrega)}<span className="sub">OC {fmtFecha(o.fecha_orden)}</span></div>
                       </td>
