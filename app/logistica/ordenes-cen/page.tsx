@@ -6,6 +6,7 @@ import { COMPRADORES, nombreComprador } from '@/lib/cen/compradores'
 import { DetalleOrdenModal } from '@/components/ordenes-cen/DetalleOrdenModal'
 import { AsignarPuntoModal } from '@/components/ordenes-cen/AsignarPuntoModal'
 import { TotalesRutaModal } from '@/components/ordenes-cen/TotalesRutaModal'
+import { PedidosInstitucionalesModal } from '@/components/ordenes-cen/PedidosInstitucionalesModal'
 import { ESTADOS, fmtFecha, fmtMoneda, fmtNumero, relacion } from '@/components/ordenes-cen/utils'
 
 type Resumen = { pendientes: number; sin_punto: number; enviadas: number; con_error: number; archivos_error: number }
@@ -60,6 +61,7 @@ export default function OrdenesCenPage() {
   const [envio, setEnvio] = useState<{ total: number; resultados: ResultadoEnvio[]; enCurso: boolean } | null>(null)
   const [totales, setTotales] = useState<{ titulo: string; ruta: string | null; ids: number[] } | null>(null)
   const [sincronizaciones, setSincronizaciones] = useState<Sincronizacion[]>([])
+  const [institucional, setInstitucional] = useState(false)
 
   // Últimas sincronizaciones (programadas y manuales); si la API falla, simplemente no se muestran
   const cargarSincronizaciones = useCallback(() => {
@@ -121,7 +123,7 @@ export default function OrdenesCenPage() {
       } else {
         clave = o.nit ? `${o.nit}/${o.sucursal}` : `ean:${o.ean_entrega}`
         titulo = o.razon_social ?? `Punto sin homologar · ${nombreComprador(o.ean_comprador)}`
-        subtitulo = o.nit ? `NIT ${o.nit} · Sucursal ${o.sucursal} · ${o.ciudad ?? ''} · EAN ${o.ean_entrega}` : `EAN de entrega ${o.ean_entrega}`
+        subtitulo = o.nit ? `NIT ${o.nit} · Sucursal ${o.sucursal}${o.ciudad ? ` · ${o.ciudad}` : ''}${o.ean_entrega ? ` · EAN ${o.ean_entrega}` : ''}` : `EAN de entrega ${o.ean_entrega}`
       }
       if (!m.has(clave)) m.set(clave, { clave, titulo, subtitulo, sinPunto: vista === 'punto' ? !o.nit : !o.ruta, ean: o.ean_entrega, ruta: vista === 'ruta' ? o.ruta : null, ordenes: [] })
       m.get(clave)!.ordenes.push(o)
@@ -183,6 +185,7 @@ export default function OrdenesCenPage() {
           <Link href="/logistica/ordenes-cen/productos" className="btn">Productos</Link>
           <Link href="/logistica/ordenes-cen/clientes" className="btn">Configuración de clientes</Link>
           <Link href="/logistica/ordenes-cen/reglas" className="btn">Reglas de ruta</Link>
+          <button className="btn" onClick={() => setInstitucional(true)} title="Agregar a una ruta pedidos ya creados en Siesa">+ Pedido institucional</button>
           <button className="btn btn-primary" onClick={sincronizar} disabled={sincronizando}>
             {sincronizando ? 'Trayendo órdenes...' : '⟳ Traer órdenes'}
           </button>
@@ -263,9 +266,10 @@ export default function OrdenesCenPage() {
           {Object.entries(COMPRADORES).map(([ean, n]) => <option key={ean} value={ean}>{n}</option>)}
         </select>
         <select value={fuente} onChange={e => setFuente(e.target.value)} style={sel}>
-          <option value="">Carvajal y Subrik</option>
+          <option value="">Todas las fuentes</option>
           <option value="carvajal">Carvajal (CEN)</option>
           <option value="subrik">Subrik</option>
+          <option value="institucional">Institucional (Siesa)</option>
         </select>
         <label style={{ fontSize: 12, color: 'var(--text2)' }}>Entrega desde <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={sel} /></label>
         <label style={{ fontSize: 12, color: 'var(--text2)' }}>hasta <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={sel} /></label>
@@ -386,7 +390,7 @@ export default function OrdenesCenPage() {
                           <span className="sub">
                             {o.nit && `${o.nit}/${o.sucursal}`}{o.ciudad && ` · ${o.ciudad}`}
                           </span>
-                          <span className="sub mono">EAN {o.ean_entrega}</span>
+                          {o.ean_entrega && <span className="sub mono">EAN {o.ean_entrega}</span>}
                         </div>
                       </td>
                       <td data-label={vista === 'ruta' ? 'Relación' : 'Ruta'} className="nw">{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_despacho) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
@@ -418,6 +422,10 @@ export default function OrdenesCenPage() {
         )
       })}
 
+      {institucional && (
+        <PedidosInstitucionalesModal onClose={() => setInstitucional(false)}
+          onAgregados={n => { setAviso(`${n} pedido(s) institucional(es) agregado(s) a la ruta.`); cargar() }} />
+      )}
       {totales && <TotalesRutaModal titulo={totales.titulo} ruta={totales.ruta} ids={totales.ids} onClose={() => setTotales(null)} />}
       {detalleId !== null && <DetalleOrdenModal id={detalleId} onClose={() => setDetalleId(null)} onCambio={cargar} />}
       {asignarEan && (

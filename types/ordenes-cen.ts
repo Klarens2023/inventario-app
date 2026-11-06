@@ -2,7 +2,7 @@ export type EstadoOrdenCen = 'pendiente' | 'sin_punto' | 'enviado' | 'error' | '
 
 export type OrdenCen = {
   id: number
-  fuente: 'carvajal' | 'subrik'
+  fuente: 'carvajal' | 'subrik' | 'institucional' // institucional = pedido creado directo en Siesa y agregado a una ruta
   numero_orden: string
   fecha_orden: string | null
   fecha_entrega: string | null

@@ -7,6 +7,8 @@ export const COMPRADORES: Record<string, string> = {
   '7700304892105': 'D1',
   '7704269000018': 'Ara',
   '7709990310344': 'Megatiendas',
+  // Pedidos creados directamente en Siesa y agregados a una ruta (lib/cen/institucional.ts)
+  INSTITUCIONAL: 'Institucional',
 }
 
 export function nombreComprador(ean: string): string {

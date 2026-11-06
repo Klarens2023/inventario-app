@@ -41,7 +41,8 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
     return Array.from(m.entries())
   }, [detalle])
 
-  async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar' | 'despacho', ruta?: string, fecha?: string) {
+  async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar' | 'despacho' | 'quitar', ruta?: string, fecha?: string) {
+    if (accion === 'quitar' && !window.confirm('¿Quitar este pedido institucional de la ruta?\n\nSolo se borra de este sistema; el pedido sigue igual en Siesa y se puede volver a agregar.')) return
     if (accion === 'reversar' && !window.confirm('Reversar el pedido de esta orden?\n\nPrimero debe estar ANULADO en Siesa. La orden vuelve a Pendiente para crear el pedido de nuevo (PVS).')) return
     // El motivo del descarte queda en el reporte de órdenes descartadas
     let motivo: string | undefined
@@ -56,6 +57,10 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
   }
 
   const o = detalle?.orden
+  const institucional = o?.fuente === 'institucional'
+  // Las órdenes con pedido no se cambian, salvo las institucionales (solo se llevan a otra ruta o despacho)
+  const editable = o ? o.estado !== 'enviado' || institucional : false
+  const datosInst = (institucional ? o?.siesa_respuesta : null) as { referencia?: string; notas?: string; agregado_por?: string; agregado_at?: string } | null
   const sinMaestro = detalle?.lineas.filter(l => l.peso_kg === null).length ?? 0
 
   return (
@@ -67,12 +72,18 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>{nombreComprador(o.ean_comprador).toUpperCase()} · {o.fuente === 'carvajal' ? 'Carvajal (CEN)' : 'Subrik'}</div>
-                <h2 style={{ fontSize: 20, fontWeight: 800 }}>OC {o.numero_orden}</h2>
+                <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>{institucional ? 'INSTITUCIONAL · pedido creado en Siesa' : `${nombreComprador(o.ean_comprador).toUpperCase()} · ${o.fuente === 'carvajal' ? 'Carvajal (CEN)' : 'Subrik'}`}</div>
+                <h2 style={{ fontSize: 20, fontWeight: 800 }}>{institucional ? 'Pedido' : 'OC'} {o.numero_orden}</h2>
                 <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 2 }}>
                   {o.razon_social ? `${o.razon_social} · ${o.nit}/${o.sucursal}` : 'Punto sin sucursal asociada'}
-                  {' · '}<span style={{ fontFamily: 'monospace' }}>EAN punto {o.ean_entrega}</span>
+                  {o.ean_entrega && <>{' · '}<span style={{ fontFamily: 'monospace' }}>EAN punto {o.ean_entrega}</span></>}
                 </div>
+                {datosInst && (
+                  <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>
+                    {datosInst.referencia && `Ref. ${datosInst.referencia} · `}{datosInst.notas && `${datosInst.notas} · `}
+                    Agregado{datosInst.agregado_por ? ` por ${datosInst.agregado_por}` : ''}{datosInst.agregado_at ? ` el ${new Date(datosInst.agregado_at).toLocaleString('es-CO')}` : ''}
+                  </div>
+                )}
                 {o.estado === 'descartada' && o.descartada_at && (
                   <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
                     Descartada el {new Date(o.descartada_at).toLocaleString('es-CO')}{o.descartada_por ? ` por ${o.descartada_por}` : ''}{o.motivo_descarte ? ` · Motivo: ${o.motivo_descarte}` : ''}
@@ -89,7 +100,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 }}>
               {[
-                ['Fecha OC', fmtFecha(o.fecha_orden)],
+                [institucional ? 'Fecha pedido' : 'Fecha OC', fmtFecha(o.fecha_orden)],
                 ['Entrega', o.fecha_entrega_max && o.fecha_entrega_max !== o.fecha_entrega ? `${fmtFecha(o.fecha_entrega)} a ${fmtFecha(o.fecha_entrega_max)}` : fmtFecha(o.fecha_entrega)],
                 ['Unidades', fmtNumero(o.total_unidades)],
                 ['Valor', fmtMoneda(o.valor_total)],
@@ -105,15 +116,15 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: 'var(--bg)', borderRadius: 8, padding: '10px 12px', marginBottom: 12 }}>
               <span style={{ fontSize: 13 }}>
                 Ruta: <strong>{o.ruta ?? 'sin ruta'}</strong>
-                {o.ruta && <span style={{ color: 'var(--text2)' }}> · relación <strong>{relacion(o.ruta, o.fecha_despacho)}</strong>{o.ruta_manual ? ' · asignada a mano' : ' · sugerida por regla'}</span>}
+                {o.ruta && <span style={{ color: 'var(--text2)' }}> · relación <strong>{relacion(o.ruta, o.fecha_despacho)}</strong>{institucional ? '' : o.ruta_manual ? ' · asignada a mano' : ' · sugerida por regla'}</span>}
               </span>
-              {o.estado !== 'enviado' && (
+              {editable && (
                 <>
                   <input list="rutas-cen" value={rutaNueva} onChange={e => setRutaNueva(e.target.value.toUpperCase())} placeholder="Cambiar ruta..."
                     style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, marginLeft: 'auto' }} />
                   <datalist id="rutas-cen">{rutas.map(r => <option key={r} value={r} />)}</datalist>
                   <button className="btn" disabled={!rutaNueva} onClick={() => cambiarEstado('ruta', rutaNueva)}>Asignar</button>
-                  {o.ruta_manual && <button className="btn" onClick={() => cambiarEstado('ruta', '')}>Volver a la sugerida</button>}
+                  {o.ruta_manual && !institucional && <button className="btn" onClick={() => cambiarEstado('ruta', '')}>Volver a la sugerida</button>}
                 </>
               )}
               {/* La fecha de despacho da la semana del consecutivo de la relación (RUTA-MMSS) */}
@@ -124,7 +135,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                     {o.despacho_manual ? ` · fijado a mano (calculado: ${fmtFecha(fechaDespacho(o.fecha_entrega ?? o.fecha_entrega_max, o.dias_transito))})` : o.dias_transito ? ` · entrega − ${o.dias_transito} día(s) de tránsito de la ruta` : ' · mismo día de la entrega'}
                   </span>
                 </span>
-                {o.estado !== 'enviado' && (
+                {editable && (
                   <>
                     <input type="date" value={despachoNuevo} onChange={e => setDespachoNuevo(e.target.value)}
                       style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, marginLeft: 'auto' }} />
@@ -135,7 +146,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
               </div>
             </div>
 
-            <ClienteSiesa ordenId={o.id} nit={o.nit} sucursal={o.sucursal} />
+            {!institucional && <ClienteSiesa ordenId={o.id} nit={o.nit} sucursal={o.sucursal} />}
 
             {!o.nit && (
               <div style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
@@ -143,7 +154,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                 {detalle.distribucion.length > 0 && ' Es un CEDI o plataforma: revisa abajo el reparto por tienda para decidir a qué sucursal se factura.'}
               </div>
             )}
-            {detalle.lineas.some(l => l.peso_kg !== null && l.item_siesa === null) && (
+            {!institucional && detalle.lineas.some(l => l.peso_kg !== null && l.item_siesa === null) && (
               <div style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>
                 ⚠ Hay productos sin ítem de Siesa asignado: asígnalo en <a href="/logistica/ordenes-cen/productos">Productos</a> para poder verificar su precio.
               </div>
@@ -166,7 +177,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                       <td data-label="Producto" className="ancho">
                         <div>
                           {l.descripcion_maestro || l.descripcion || '—'}
-                          <span className="sub mono">EAN {l.ean_item}{l.cod_comprador && ` · cód. comprador ${l.cod_comprador}`}</span>
+                          <span className="sub mono">{institucional ? (l.ean_item.startsWith('SIESA-') ? 'No está en el maestro' : `EAN ${l.ean_item}`) + (l.cod_comprador ? ` · ref. ${l.cod_comprador}` : '') : <>EAN {l.ean_item}{l.cod_comprador && ` · cód. comprador ${l.cod_comprador}`}</>}</span>
                         </div>
                       </td>
                       <td data-label="Ítem Siesa" className="nw">{l.item_siesa ?? <a href="/logistica/ordenes-cen/productos" style={{ color: '#B45309' }}>Sin asignar</a>}</td>
@@ -215,7 +226,8 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                 <button className="btn btn-danger" onClick={() => cambiarEstado('descartar')}>Descartar orden</button>
               )}
               {o.estado === 'descartada' && <button className="btn" onClick={() => cambiarEstado('reactivar')}>Reactivar</button>}
-              {o.estado === 'enviado' && (
+              {institucional && <button className="btn btn-danger" onClick={() => cambiarEstado('quitar')}>Quitar de la ruta</button>}
+              {o.estado === 'enviado' && !institucional && (
                 <button className="btn" title="Cuando el pedido ya está anulado en Siesa, devuelve la orden a Pendiente para volver a crearlo"
                   onClick={() => cambiarEstado('reversar')}>Reversar pedido</button>
               )}

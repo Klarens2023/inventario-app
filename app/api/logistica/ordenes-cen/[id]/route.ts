@@ -3,6 +3,8 @@ import { sql } from '@/lib/db'
 import { verificarAcceso } from '@/lib/cen/acceso'
 import { recalcularRutas } from '@/lib/cen/rutas'
 import { reversarPedido } from '@/lib/cen/pedidoSiesa'
+import { FUENTE_INSTITUCIONAL, PREFIJO_ITEM } from '@/lib/cen/institucional'
+import { logAudit } from '@/lib/audit'
 
 // GET /api/logistica/ordenes-cen/[id] — detalle: líneas (con peso del maestro) y reparto por tienda
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -29,7 +31,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const lineas = await sql`
     SELECT l.id, l.nro_linea, l.ean_item, l.cod_comprador, l.descripcion,
            l.cantidad::float AS cantidad, l.precio::float AS precio, l.iva::float AS iva,
-           p.f120_id AS item_siesa, p.descripcion AS descripcion_maestro, p.peso_kg::float AS peso_kg, p.und_caja
+           -- Pedidos institucionales: el ítem de Siesa va en el código si el producto no está en el maestro
+           COALESCE(p.f120_id, CASE WHEN l.ean_item LIKE ${PREFIJO_ITEM + '%'} THEN substring(l.ean_item from ${PREFIJO_ITEM.length + 1}::int)::int END) AS item_siesa, p.descripcion AS descripcion_maestro, p.peso_kg::float AS peso_kg, p.und_caja
     FROM cen_orden_lineas l
     LEFT JOIN cen_lineas_producto p ON p.linea_id = l.id -- producto de la cadena o del maestro
     WHERE l.orden_id = ${id}
@@ -59,8 +62,31 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const { accion, ruta, motivo, fecha } = await req.json() as { accion?: string; ruta?: string; motivo?: string; fecha?: string }
-  const [orden] = await sql`SELECT estado, nit FROM cen_ordenes WHERE id = ${id}`
+  const [orden] = await sql`SELECT estado, nit, fuente, numero_orden, ruta FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
+  const institucional = orden.fuente === FUENTE_INSTITUCIONAL
+
+  // Pedidos institucionales (creados directo en Siesa): se pueden quitar del sistema y cambiar de ruta o de
+  // despacho, pero no reversar ni descartar (el pedido es de Siesa, la app no lo creó).
+  if (accion === 'quitar') {
+    if (!institucional) return NextResponse.json({ error: 'Solo se quitan los pedidos institucionales' }, { status: 409 })
+    await sql`DELETE FROM cen_ordenes WHERE id = ${id} AND fuente = ${FUENTE_INSTITUCIONAL}`
+    await logAudit({
+      usuarioId: acceso.user.id, usuarioNombre: acceso.user.name, accion: 'CEN_INSTITUCIONAL_QUITADO',
+      descripcion: `Quitó el pedido institucional ${orden.numero_orden} de la ruta ${orden.ruta ?? '(sin ruta)'}`,
+      datos: { pedido: orden.numero_orden, ruta: orden.ruta },
+    })
+    return NextResponse.json({ ok: true })
+  }
+  if (institucional && accion === 'ruta') {
+    const nueva = (ruta ?? '').trim().toUpperCase()
+    const [existe] = nueva ? await sql`SELECT ruta FROM cen_rutas WHERE ruta = ${nueva}` : []
+    if (!existe) return NextResponse.json({ error: 'Elige una ruta existente (los pedidos institucionales no tienen ruta sugerida)' }, { status: 400 })
+    await sql`UPDATE cen_ordenes SET ruta = ${nueva}, ruta_manual = TRUE, updated_at = NOW() WHERE id = ${id}`
+    return NextResponse.json({ ok: true })
+  }
+  if (institucional && accion !== 'despacho') return NextResponse.json({ error: 'Los pedidos institucionales solo se cambian de ruta o de despacho, o se quitan' }, { status: 409 })
+
   // Reversar: la orden ya enviada vuelve a pendiente si su pedido está anulado en Siesa
   if (accion === 'reversar') {
     try {
@@ -70,7 +96,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       return NextResponse.json({ error: `No se pudo consultar Siesa: ${e instanceof Error ? e.message : e}` }, { status: 502 })
     }
   }
-  if (orden.estado === 'enviado') return NextResponse.json({ error: 'La orden ya se envió a Siesa' }, { status: 409 })
+  if (orden.estado === 'enviado' && !institucional) return NextResponse.json({ error: 'La orden ya se envió a Siesa' }, { status: 409 })
 
   if (accion === 'descartar') {
     // El motivo queda para el reporte de descartadas (quién, cuándo y por qué)

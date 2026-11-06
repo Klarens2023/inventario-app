@@ -19,6 +19,8 @@ en el repositorio, en issues ni en capturas.
 | `SIESA_CLIENT_ID`, `SIESA_CONNI_KEY`, `SIESA_CONNI_TOKEN` | Para Siesa | Credenciales de Connekta | `lib/siesa/connekta.ts` |
 | `SIESA_API_URL` | No | Base de la API; **por defecto el ambiente QA** | `lib/siesa/connekta.ts` |
 | `SIESA_ID_COMPANIA` | No | Id de compañía (defecto 9116) | ídem |
+| `SIESA_REAL_CLIENT_ID`, `SIESA_REAL_CONNI_KEY`, `SIESA_REAL_CONNI_TOKEN` | Para pedidos institucionales | Credenciales de la API **real** de Siesa; por ahora solo se usan para buscar pedidos institucionales | `lib/siesa/connekta.ts`, `lib/cen/pedidosInstitucionales.ts` |
+| `SIESA_REAL_API_URL`, `SIESA_REAL_ID_COMPANIA` | No | Base (defecto `https://api.siesacloud.com/connekta/siesa/estandar`) y compañía (defecto la de `SIESA_ID_COMPANIA`) de la API real | ídem |
 | `SIESA_CIA`, `SIESA_ID_DOCUMENTO_PEDIDO`, `SIESA_NOMBRE_DOCUMENTO_PEDIDO`, `SIESA_TIPO_DOCTO_PEDIDO`, `SIESA_EXT1_DETALLE` | No | Parámetros del conector de pedidos (defectos `1`, `142900`, `API_v1_Ventas_Comercial_PedidoVenta`, `PVS`, `FN`) | `lib/cen/pedidoSiesa.ts` |
 | `SETUP_PASSWORD_<USUARIO>` | No | Solo para `scripts/setup-db.js`: contraseña inicial de ese usuario (si no, se genera una aleatoria) | `scripts/setup-db.js` |
 

@@ -54,7 +54,7 @@ export function PedidoSiesa({ orden, onEnviado, onAsignarPunto, onProductoAsigna
   if (orden.estado === 'enviado') {
     return (
       <div style={{ background: '#D1FAE5', color: '#065F46', borderRadius: 8, padding: '10px 12px', fontSize: 13 }}>
-        ✓ Pedido creado en Siesa{orden.siesa_consecutivo ? <>: <strong>{orden.siesa_consecutivo}</strong></> : ''}
+        ✓ {orden.fuente === 'institucional' ? 'Pedido institucional (creado directamente en Siesa)' : 'Pedido creado en Siesa'}{orden.siesa_consecutivo ? <>: <strong>{orden.siesa_consecutivo}</strong></> : ''}
         {orden.enviado_at && <> · {new Date(orden.enviado_at).toLocaleString('es-CO')}</>}
       </div>
     )
