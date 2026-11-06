@@ -65,7 +65,7 @@ export function PedidosInstitucionalesModal({ onClose, onAgregados }: { onClose:
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}>
-      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 1000, maxHeight: '94vh', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 1000, maxHeight: '94vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 800 }}>Agregar pedido institucional</h2>
@@ -83,6 +83,8 @@ export function PedidosInstitucionalesModal({ onClose, onAgregados }: { onClose:
           <button className="btn btn-primary" disabled={buscando || !q.trim()}>{buscando ? 'Buscando en Siesa...' : 'Buscar'}</button>
         </form>
 
+        {/* Solo esta parte se desplaza: el encabezado, el buscador y la barra de agregar quedan fijos */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 10 }}>{error}</div>}
 
         {resultados && (
@@ -172,9 +174,10 @@ export function PedidosInstitucionalesModal({ onClose, onAgregados }: { onClose:
             )}
           </>
         )}
+        </div>
 
         {seleccion.size > 0 && (
-          <div style={{ position: 'sticky', bottom: -1, background: '#fff', borderTop: '1px solid var(--border)', marginTop: 12, paddingTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ flexShrink: 0, background: '#fff', borderTop: '2px solid var(--accent)', boxShadow: '0 -6px 12px -8px rgba(0,0,0,.25)', marginTop: 12, paddingTop: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <strong style={{ fontSize: 14 }}>{seleccion.size} pedido(s)</strong>
             <span style={{ fontSize: 13, color: 'var(--text2)' }}>{fmtMoneda(elegidos.reduce((s, p) => s + p.valor, 0))}</span>
             <select value={ruta} onChange={e => setRuta(e.target.value)} style={{ ...campo, marginLeft: 'auto' }}>
