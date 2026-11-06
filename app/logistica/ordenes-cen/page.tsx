@@ -7,6 +7,7 @@ import { DetalleOrdenModal } from '@/components/ordenes-cen/DetalleOrdenModal'
 import { AsignarPuntoModal } from '@/components/ordenes-cen/AsignarPuntoModal'
 import { TotalesRutaModal } from '@/components/ordenes-cen/TotalesRutaModal'
 import { PedidosInstitucionalesModal } from '@/components/ordenes-cen/PedidosInstitucionalesModal'
+import { MenuConfiguracion } from '@/components/ordenes-cen/MenuConfiguracion'
 import { ESTADOS, fmtFecha, fmtMoneda, fmtNumero, relacion } from '@/components/ordenes-cen/utils'
 
 type Resumen = { pendientes: number; sin_punto: number; enviadas: number; con_error: number; archivos_error: number }
@@ -179,16 +180,14 @@ export default function OrdenesCenPage() {
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>Órdenes EDI (CEN)</h1>
           <p style={{ color: 'var(--text2)', fontSize: 14 }}>Órdenes de compra de las cadenas que llegan por Carvajal y Subrik, organizadas por ruta y punto de venta.</p>
         </div>
-        <div className="cen-acciones" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link href="/logistica/ordenes-cen/reportes" className="btn">Reportes</Link>
-          <Link href="/logistica/ordenes-cen/sucursales" className="btn">Sucursales</Link>
-          <Link href="/logistica/ordenes-cen/productos" className="btn">Productos</Link>
-          <Link href="/logistica/ordenes-cen/clientes" className="btn">Configuración de clientes</Link>
-          <Link href="/logistica/ordenes-cen/reglas" className="btn">Reglas de ruta</Link>
+        <div className="cen-acciones" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Uso diario a la vista; reglas y configuración agrupadas en un menú */}
+          <Link href="/logistica/ordenes-cen/reportes" className="btn">📊 Reportes</Link>
           <button className="btn" onClick={() => setInstitucional(true)} title="Agregar a una ruta pedidos ya creados en Siesa">+ Pedido institucional</button>
           <button className="btn btn-primary" onClick={sincronizar} disabled={sincronizando}>
             {sincronizando ? 'Trayendo órdenes...' : '⟳ Traer órdenes'}
           </button>
+          <MenuConfiguracion />
         </div>
       </div>
 
