@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
   const hasta = p.get('hasta') || null
   const buscar = (p.get('buscar') ?? '').trim()
   const ruta = p.get('ruta') ?? ''
+  // Fecha de la OC (la "Fecha del documento" del portal CEN), para cuadrar contra el portal
+  const ocDesde = p.get('oc_desde') || null
+  const ocHasta = p.get('oc_hasta') || null
+  // 'oc': las OC más recientes primero; si no, por fecha de entrega
+  const porOc = p.get('orden') === 'oc'
 
   const rows = await sql`
     SELECT o.id, o.fuente, o.numero_orden, o.fecha_orden::text, o.fecha_entrega::text, o.fecha_entrega_max::text,
@@ -44,9 +49,14 @@ export async function GET(req: NextRequest) {
       AND (${ruta} = '' OR (${ruta} = '-' AND o.ruta IS NULL) OR o.ruta = ${ruta})
       AND (${desde}::date IS NULL OR o.fecha_entrega >= ${desde}::date)
       AND (${hasta}::date IS NULL OR o.fecha_entrega <= ${hasta}::date)
+      AND (${ocDesde}::date IS NULL OR o.fecha_orden >= ${ocDesde}::date)
+      AND (${ocHasta}::date IS NULL OR o.fecha_orden <= ${ocHasta}::date)
       AND (${buscar} = '' OR o.numero_orden ILIKE ${'%' + buscar + '%'} OR o.razon_social ILIKE ${'%' + buscar + '%'}
            OR o.ean_entrega = ${buscar} OR o.nit = ${buscar})
-    ORDER BY o.fecha_entrega NULLS LAST, o.razon_social NULLS FIRST, o.numero_orden
+    ORDER BY
+      CASE WHEN ${porOc} THEN o.fecha_orden END DESC NULLS LAST,
+      CASE WHEN ${porOc} THEN o.created_at END DESC,
+      o.fecha_entrega NULLS LAST, o.razon_social NULLS FIRST, o.numero_orden
     LIMIT 2000
   `
 

@@ -28,11 +28,26 @@ function haceCuanto(fecha: string): string {
   return h < 48 ? `hace ${h} h` : `hace ${Math.round(h / 24)} días`
 }
 
-/** Más de 6 h sin sincronizar ya es raro: hay programadas cada ~4 h (Vercel Cron). */
+/** Más de 6 h sin sincronizar ya es raro: hay programadas cada ~4 h (Vercel Cron) y cada 30 min (GitHub). */
 const HORAS_ALERTA = 6
 
 // Solo se pueden enviar en lote las órdenes con sucursal asociada que aún no tienen pedido.
 const enviable = (o: OrdenCen) => (o.estado === 'pendiente' || o.estado === 'error') && Boolean(o.nit)
+
+/** Fecha de hoy en Colombia (AAAA-MM-DD) menos `dias`, para el filtro por fecha de la OC. */
+function fechaBogota(dias = 0): string {
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+  const d = new Date(`${hoy}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - dias)
+  return d.toISOString().slice(0, 10)
+}
+
+// Filtro por fecha de la OC ("Fecha del documento" en el portal CEN): [desde, hasta] en días atrás desde hoy
+const FECHAS_OC: Record<string, { label: string; rango: [number, number] }> = {
+  hoy: { label: 'OC de hoy', rango: [0, 0] },
+  ayer: { label: 'OC de ayer', rango: [1, 1] },
+  semana: { label: 'OC últimos 7 días', rango: [6, 0] },
+}
 
 const sel: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }
 
@@ -51,6 +66,8 @@ export default function OrdenesCenPage() {
   const [hasta, setHasta] = useState('')
   const [buscar, setBuscar] = useState('')
   const [ruta, setRuta] = useState('')
+  const [fechaOc, setFechaOc] = useState('') // '' | hoy | ayer | semana
+  const [orden, setOrden] = useState<'entrega' | 'oc'>('entrega')
   const [vista, setVista] = useState<'punto' | 'ruta'>('ruta')
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set()) // las secciones arrancan recogidas
   const [rutas, setRutas] = useState<string[]>([])
@@ -72,7 +89,11 @@ export default function OrdenesCenPage() {
 
   const cargar = useCallback(async () => {
     setCargando(true); setError('')
-    const qs = new URLSearchParams({ estado, comprador, fuente, desde, hasta, buscar, ruta })
+    const rango = FECHAS_OC[fechaOc]?.rango
+    const qs = new URLSearchParams({
+      estado, comprador, fuente, desde, hasta, buscar, ruta, orden,
+      oc_desde: rango ? fechaBogota(rango[0]) : '', oc_hasta: rango ? fechaBogota(rango[1]) : '',
+    })
     try {
       const res = await fetch(`/api/logistica/ordenes-cen?${qs}`)
       const data = await res.json()
@@ -86,7 +107,7 @@ export default function OrdenesCenPage() {
     } finally {
       setCargando(false)
     }
-  }, [estado, comprador, fuente, desde, hasta, buscar, ruta])
+  }, [estado, comprador, fuente, desde, hasta, buscar, ruta, fechaOc, orden])
 
   useEffect(() => { cargar() }, [cargar])
   useEffect(() => {
@@ -98,7 +119,9 @@ export default function OrdenesCenPage() {
     setSincronizando(true); setResultadoSync(null); setError('')
     try {
       const res = await fetch('/api/logistica/ordenes-cen/sincronizar', { method: 'POST' })
-      const data = await res.json()
+      // Si Vercel corta la función (tiempo máximo) responde HTML, no JSON: se avisa en vez de quedar en silencio
+      const data = await res.json().catch(() => null)
+      if (!data) throw new Error(`No se pudieron traer las órdenes (respuesta ${res.status}${res.status === 504 ? ': el SFTP tardó demasiado' : ''}). Vuelve a intentar en un momento.`)
       if (!res.ok) throw new Error(data.error ?? 'No se pudo sincronizar')
       setResultadoSync(data)
       await cargar()
@@ -272,6 +295,14 @@ export default function OrdenesCenPage() {
         </select>
         <label style={{ fontSize: 12, color: 'var(--text2)' }}>Entrega desde <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={sel} /></label>
         <label style={{ fontSize: 12, color: 'var(--text2)' }}>hasta <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={sel} /></label>
+        <select value={fechaOc} onChange={e => setFechaOc(e.target.value)} style={sel} title="Fecha de la OC (la fecha del documento en el portal CEN)">
+          <option value="">OC de cualquier fecha</option>
+          {Object.entries(FECHAS_OC).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+        </select>
+        <select value={orden} onChange={e => setOrden(e.target.value as 'entrega' | 'oc')} style={sel}>
+          <option value="entrega">Ordenar por entrega</option>
+          <option value="oc">OC más recientes primero</option>
+        </select>
         <select value={ruta} onChange={e => setRuta(e.target.value)} style={sel}>
           <option value="">Todas las rutas</option>
           <option value="-">Sin ruta</option>
