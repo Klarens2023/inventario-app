@@ -142,3 +142,8 @@ body {
 
 .stat-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; font-weight: 700;}
 .stat-value { font-size: 28px; font-weight: 800; color: var(--accent); }
+/* ----- ORDEN POR COLUMNAS (components/OrdenTablas.tsx): clic en el encabezado ----- */
+table:not([data-sin-orden]) thead tr:last-child th:not([data-sin-orden]):not(:empty) { cursor: pointer; user-select: none; }
+table:not([data-sin-orden]) thead tr:last-child th:not([data-sin-orden]):not(:empty):hover { text-decoration: underline; }
+thead th[aria-sort="ascending"]::after { content: ' ▲'; font-size: 0.85em; }
+thead th[aria-sort="descending"]::after { content: ' ▼'; font-size: 0.85em; }

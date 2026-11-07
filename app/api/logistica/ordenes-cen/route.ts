@@ -69,5 +69,10 @@ export async function GET(req: NextRequest) {
     FROM cen_ordenes
   `
 
-  return NextResponse.json({ ordenes: rows, resumen })
+  // Pedidos en Siesa que aún no se han avisado a facturación (botón "Avisar a facturación" de cada ruta).
+  // Sin la migración del aviso (scripts/migrate-add-cen-aviso-facturacion.js) simplemente no hay ninguno.
+  const sinAviso = await sql`SELECT id FROM cen_ordenes WHERE estado = 'enviado' AND aviso_facturacion_at IS NULL`
+    .then(r => r.map(x => x.id as number)).catch(() => [] as number[])
+
+  return NextResponse.json({ ordenes: rows, resumen, sin_aviso: sinAviso })
 }

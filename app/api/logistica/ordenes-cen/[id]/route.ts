@@ -5,6 +5,7 @@ import { recalcularRutas } from '@/lib/cen/rutas'
 import { reversarPedido } from '@/lib/cen/pedidoSiesa'
 import { FUENTE_INSTITUCIONAL, PREFIJO_ITEM } from '@/lib/cen/institucional'
 import { logAudit } from '@/lib/audit'
+import { hoyBogota } from '@/lib/fechas'
 
 // GET /api/logistica/ordenes-cen/[id] — detalle: líneas (con peso del maestro) y reparto por tienda
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -62,7 +63,10 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const id = parseInt(params.id)
   if (!Number.isInteger(id)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const { accion, ruta, motivo, fecha } = await req.json() as { accion?: string; ruta?: string; motivo?: string; fecha?: string }
-  const [orden] = await sql`SELECT estado, nit, fuente, numero_orden, ruta FROM cen_ordenes WHERE id = ${id}`
+  const [orden] = await sql`
+    SELECT estado, nit, fuente, numero_orden, ruta,
+           COALESCE(fecha_entrega_max, fecha_entrega) < ${hoyBogota()}::date AS vencida
+    FROM cen_ordenes WHERE id = ${id}`
   if (!orden) return NextResponse.json({ error: 'Orden no encontrada' }, { status: 404 })
   const institucional = orden.fuente === FUENTE_INSTITUCIONAL
 
@@ -105,6 +109,8 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
     await sql`UPDATE cen_ordenes SET estado = 'descartada', descartada_at = NOW(), descartada_por = ${acceso.user.name.slice(0, 120)},
                      motivo_descarte = ${m}, updated_at = NOW() WHERE id = ${id}`
   } else if (accion === 'reactivar') {
+    // Una orden vencida se volvería a descartar sola en la siguiente sincronización (lib/cen/sincronizar.ts)
+    if (orden.vencida) return NextResponse.json({ error: 'No se puede reactivar: la fecha máxima de entrega de la OC ya pasó y la cadena ya no la recibe.' }, { status: 409 })
     await sql`UPDATE cen_ordenes SET estado = ${orden.nit ? 'pendiente' : 'sin_punto'}, descartada_at = NULL, descartada_por = NULL,
                      motivo_descarte = NULL, updated_at = NOW() WHERE id = ${id}`
   } else if (accion === 'despacho') {

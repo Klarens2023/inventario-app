@@ -8,11 +8,11 @@ import { AsignarPuntoModal } from '@/components/ordenes-cen/AsignarPuntoModal'
 import { TotalesRutaModal } from '@/components/ordenes-cen/TotalesRutaModal'
 import { PedidosInstitucionalesModal } from '@/components/ordenes-cen/PedidosInstitucionalesModal'
 import { MenuConfiguracion } from '@/components/ordenes-cen/MenuConfiguracion'
+import { ResultadoEnvioModal, type AvisoCorreo, type FilaResultado } from '@/components/ordenes-cen/ResultadoEnvioModal'
 import { ESTADOS, fmtFecha, fmtMoneda, fmtNumero, relacion } from '@/components/ordenes-cen/utils'
 
 type Resumen = { pendientes: number; sin_punto: number; enviadas: number; con_error: number; archivos_error: number }
 
-type ResultadoEnvio = { id: number; oc: string; ok: boolean; mensaje: string }
 
 /** Una sincronización registrada (tabla cen_sincronizaciones, ver lib/cen/registroSincronizacion.ts). */
 type Sincronizacion = { id: number; inicio: string; origen: 'vercel-cron' | 'github' | 'manual'; ok: boolean; error: string | null; usuario: string | null }
@@ -76,7 +76,10 @@ export default function OrdenesCenPage() {
   const [asignarEan, setAsignarEan] = useState<string | null>(null)
   const [aviso, setAviso] = useState('')
   const [seleccion, setSeleccion] = useState<Set<number>>(new Set())
-  const [envio, setEnvio] = useState<{ total: number; resultados: ResultadoEnvio[]; enCurso: boolean } | null>(null)
+  const [envio, setEnvio] = useState<{ total: number; resultados: FilaResultado[]; enCurso: boolean; aviso?: AvisoCorreo | null } | null>(null)
+  const [avisoRuta, setAvisoRuta] = useState<{ ruta: string; aviso: AvisoCorreo } | null>(null) // resultado del aviso manual de una ruta
+  const [sinAviso, setSinAviso] = useState<Set<number>>(new Set()) // pedidos en Siesa sin avisar a facturación
+  const [avisando, setAvisando] = useState('')
   const [totales, setTotales] = useState<{ titulo: string; ruta: string | null; ids: number[] } | null>(null)
   const [sincronizaciones, setSincronizaciones] = useState<Sincronizacion[]>([])
   const [institucional, setInstitucional] = useState(false)
@@ -98,7 +101,7 @@ export default function OrdenesCenPage() {
       const res = await fetch(`/api/logistica/ordenes-cen?${qs}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'No se pudieron cargar las órdenes')
-      setOrdenes(data.ordenes); setResumen(data.resumen)
+      setOrdenes(data.ordenes); setResumen(data.resumen); setSinAviso(new Set(data.sin_aviso ?? []))
       // Quita de la selección lo que ya no está visible o ya no se puede enviar
       const visibles = new Set((data.ordenes as OrdenCen[]).filter(enviable).map(o => o.id))
       setSeleccion(prev => new Set(Array.from(prev).filter(id => visibles.has(id))))
@@ -173,23 +176,53 @@ export default function OrdenesCenPage() {
     if (!lista.length) return
     if (!window.confirm(`Se crearán ${lista.length} pedido(s) en Siesa.\n\nLas alertas (precio, bodega por defecto, fecha vencida...) se darán por revisadas; las órdenes con bloqueos no se envían.\n\n¿Continuar?`)) return
     setEnvio({ total: lista.length, resultados: [], enCurso: true })
+    const resultados: FilaResultado[] = []
     for (const o of lista) {
-      let r: ResultadoEnvio
+      const base = { id: o.id, oc: o.numero_orden, cliente: o.razon_social, valor: o.valor_total }
+      let r: FilaResultado
       try {
         const res = await fetch(`/api/logistica/ordenes-cen/${o.id}/pedido`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmaAlertas: true }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmaAlertas: true, aviso: false }),
         })
         const data = await res.json()
         const bloqueos: string[] = (data.prep?.avisos ?? []).filter((a: { nivel: string }) => a.nivel === 'bloqueo').map((a: { mensaje: string }) => a.mensaje)
-        r = { id: o.id, oc: o.numero_orden, ok: Boolean(data.ok), mensaje: [data.mensaje ?? data.error ?? 'Respuesta desconocida', ...(data.ok ? [] : bloqueos)].join(' · ') }
+        r = { ...base, ok: Boolean(data.ok), pedido: data.consecutivo ?? null, retenido: data.retenido || null,
+          mensaje: [data.mensaje ?? data.error ?? 'Respuesta desconocida', ...(data.ok ? [] : bloqueos)].join(' · ') }
       } catch (e) {
-        r = { id: o.id, oc: o.numero_orden, ok: false, mensaje: e instanceof Error ? e.message : 'Error de conexión' }
+        r = { ...base, ok: false, mensaje: e instanceof Error ? e.message : 'Error de conexión' }
       }
+      resultados.push(r)
       setEnvio(prev => prev && { ...prev, resultados: [...prev.resultados, r] })
     }
-    setEnvio(prev => prev && { ...prev, enCurso: false })
+    // Un solo correo a facturación con todos los pedidos creados (y los institucionales de esas relaciones)
+    const creados = resultados.filter(r => r.ok).map(r => r.id)
+    let aviso: AvisoCorreo | null = null
+    if (creados.length) {
+      aviso = await fetch('/api/logistica/ordenes-cen/aviso-facturacion', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: creados }),
+      }).then(r => r.json()).then(d => ({ ...d, ok: Boolean(d.ok), mensaje: d.mensaje ?? d.error ?? 'Respuesta desconocida' }))
+        .catch(() => ({ ok: false, mensaje: 'No se pudo enviar el aviso a facturación: usa "Avisar a facturación" en la ruta para reintentar.' }))
+    }
+    setEnvio(prev => prev && { ...prev, enCurso: false, aviso })
     setSeleccion(new Set())
     await cargar()
+  }
+
+  // Aviso manual a facturación de todo lo pendiente de una ruta (reintento o institucionales agregados después)
+  async function avisarRuta(ruta: string, n: number) {
+    if (!window.confirm(`Se enviará a facturación el correo con ${n} pedido(s) de la ruta ${ruta} que aún no se han avisado (más los institucionales de esas relaciones).
+
+¿Continuar?`)) return
+    setAvisando(ruta); setAviso('')
+    try {
+      const d = await fetch('/api/logistica/ordenes-cen/aviso-facturacion', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ruta }),
+      }).then(r => r.json())
+      setAvisoRuta({ ruta, aviso: { ...d, ok: Boolean(d.ok), mensaje: d.mensaje ?? d.error ?? 'Respuesta desconocida' } })
+      await cargar()
+    } catch {
+      setAvisoRuta({ ruta, aviso: { ok: false, mensaje: 'No se pudo enviar el aviso a facturación. Intenta de nuevo.' } })
+    } finally { setAvisando('') }
   }
 
   const alternar = (clave: string) => setAbiertos(prev => {
@@ -337,20 +370,26 @@ export default function OrdenesCenPage() {
           </button>
         </div>
       )}
-      {envio && (
+      {envio?.enCurso && (
         <div className="card" style={{ marginBottom: 12, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <strong>
-              {envio.enCurso ? `Enviando a Siesa: ${envio.resultados.length} de ${envio.total}` : `Envío terminado: ${envio.resultados.filter(r => r.ok).length} creado(s), ${envio.resultados.filter(r => !r.ok).length} con problema(s)`}
-            </strong>
-            {!envio.enCurso && <button className="btn" onClick={() => setEnvio(null)}>Cerrar</button>}
+            <strong>Enviando a Siesa: {envio.resultados.length} de {envio.total}</strong>
           </div>
           {envio.resultados.map(r => (
             <div key={r.id} style={{ color: r.ok ? '#047857' : 'var(--danger)', marginBottom: 2 }}>
               {r.ok ? '✓' : '✗'} OC {r.oc}: {r.mensaje}
             </div>
           ))}
+          {envio.resultados.length === envio.total && <div style={{ marginTop: 8, color: 'var(--text2)' }}>📧 Enviando el correo a facturación...</div>}
         </div>
+      )}
+      {envio && !envio.enCurso && (
+        <ResultadoEnvioModal
+          titulo={`Envío a Siesa terminado: ${envio.resultados.filter(r => r.ok).length} de ${envio.total} pedido(s) creado(s)`}
+          filas={envio.resultados} aviso={envio.aviso} onClose={() => setEnvio(null)} />
+      )}
+      {avisoRuta && (
+        <ResultadoEnvioModal titulo={`Aviso a facturación · Ruta ${avisoRuta.ruta}`} filas={[]} aviso={avisoRuta.aviso} onClose={() => setAvisoRuta(null)} />
       )}
 
       {cargando && <div style={{ textAlign: 'center', padding: 30, color: 'var(--text2)' }}>Cargando órdenes...</div>}
@@ -392,6 +431,16 @@ export default function OrdenesCenPage() {
                 <span><strong>{pesoCompleto ? `${fmtNumero(peso, 1)} kg` : 'peso incompleto'}</strong></span>
                 <span><strong>{fmtMoneda(valor)}</strong></span>
                 <button className="btn" onClick={e => { e.stopPropagation(); setTotales({ titulo: vista === 'ruta' && g.ruta ? `${g.titulo} · ${g.subtitulo}` : g.titulo, ruta: g.ruta, ids: g.ordenes.map(o => o.id) }) }}>Totales</button>
+                {(() => {
+                  // Pedidos de la ruta sin avisar a facturación (si el aviso falló o se agregaron institucionales)
+                  const n = vista === 'ruta' && g.ruta ? g.ordenes.filter(o => sinAviso.has(o.id)).length : 0
+                  return n > 0 && (
+                    <button className="btn" disabled={avisando === g.ruta} title="Enviar el correo a facturación con los pedidos de esta ruta que aún no se han avisado"
+                      onClick={e => { e.stopPropagation(); avisarRuta(g.ruta!, n) }}>
+                      {avisando === g.ruta ? 'Avisando...' : `📧 Avisar a facturación (${n})`}
+                    </button>
+                  )
+                })()}
                 {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={e => { e.stopPropagation(); setAsignarEan(g.ean) }}>Asignar sucursal</button>}
               </div>
             </div>

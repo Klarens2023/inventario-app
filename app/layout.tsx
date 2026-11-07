@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css' // Esto es vital para que no se vea feo
 import { Providers } from './providers'
+import { OrdenTablas } from '@/components/OrdenTablas'
 
 // La CSP con nonce (middleware.ts) obliga a generar cada página en cada
 // petición: una página pre-generada en el build tendría scripts sin el nonce
@@ -17,6 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es">
       <body className="antialiased">
         <Providers>{children}</Providers>
+        {/* Orden por columnas en todas las tablas (clic en el encabezado) */}
+        <OrdenTablas />
       </body>
     </html>
   )

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { OrdenCen } from '@/types/ordenes-cen'
 import { ItemSiesaPicker, type ItemSiesa } from './ItemSiesaPicker'
+import { ResultadoEnvioModal, type AvisoCorreo, type FilaResultado } from './ResultadoEnvioModal'
 
 type Aviso = { nivel: 'bloqueo' | 'alerta' | 'info'; mensaje: string }
 type SinItem = { ean: string; descripcion: string | null; peso_kg: number | null; lineas: number[] }
@@ -20,7 +21,24 @@ const COLOR: Record<Aviso['nivel'], { bg: string; fg: string; icono: string }> =
 }
 
 // Sección del detalle de la orden: valida y crea el pedido de venta en Siesa.
-export function PedidoSiesa({ orden, onEnviado, onAsignarPunto, onProductoAsignado }: { orden: OrdenCen & { siesa_consecutivo?: string | null; siesa_respuesta?: unknown; enviado_at?: string | null }; onEnviado: () => void; onAsignarPunto: () => void; onProductoAsignado?: () => void }) {
+type Props = { orden: OrdenCen & { siesa_consecutivo?: string | null; siesa_respuesta?: unknown; enviado_at?: string | null }; onEnviado: () => void; onAsignarPunto: () => void; onProductoAsignado?: () => void }
+
+// Al crear el pedido se muestra un modal con cómo quedó y si salió el correo a facturación.
+// Va fuera de la sección porque, al recargar la orden ya enviada, la sección cambia a "Pedido creado".
+export function PedidoSiesa(props: Props) {
+  const [resultado, setResultado] = useState<{ fila: FilaResultado; aviso: AvisoCorreo | null } | null>(null)
+  return (
+    <>
+      <SeccionPedido {...props} onResultado={setResultado} />
+      {resultado && (
+        <ResultadoEnvioModal titulo={resultado.fila.retenido ? 'Pedido creado en Siesa (retenido)' : 'Pedido creado en Siesa'}
+          filas={[resultado.fila]} aviso={resultado.aviso} onClose={() => setResultado(null)} />
+      )}
+    </>
+  )
+}
+
+function SeccionPedido({ orden, onEnviado, onAsignarPunto, onProductoAsignado, onResultado }: Props & { onResultado: (r: { fila: FilaResultado; aviso: AvisoCorreo | null }) => void }) {
   const [prep, setPrep] = useState<Prep | null>(null)
   const [cargando, setCargando] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -45,9 +63,18 @@ export function PedidoSiesa({ orden, onEnviado, onAsignarPunto, onProductoAsigna
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmaAlertas: confirma }),
       })
       const data = await res.json()
-      setMensaje({ ok: Boolean(data.ok), texto: data.mensaje ?? data.error ?? 'Respuesta desconocida', detalle: data.ok ? undefined : data.respuesta })
+      // Al crear el pedido se avisa a facturación por correo: se muestra si salió o por qué no
+      const aviso = data.avisoFacturacion as AvisoCorreo | null | undefined
+      const texto = [data.mensaje ?? data.error ?? 'Respuesta desconocida', aviso ? `${aviso.ok ? '📧' : '⚠'} ${aviso.mensaje}` : ''].filter(Boolean).join(' ')
+      setMensaje({ ok: Boolean(data.ok), texto, detalle: data.ok ? undefined : data.respuesta })
       if (data.prep) setPrep(data.prep)
-      if (data.ok) onEnviado()
+      if (data.ok) {
+        onResultado({
+          fila: { id: orden.id, ok: true, pedido: data.consecutivo ?? null, oc: orden.numero_orden, cliente: orden.razon_social, valor: orden.valor_total, retenido: data.retenido || null },
+          aviso: aviso ?? null,
+        })
+        onEnviado()
+      }
     } finally { setEnviando(false) }
   }
 

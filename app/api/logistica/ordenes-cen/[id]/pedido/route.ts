@@ -3,6 +3,7 @@ import { sql } from '@/lib/db'
 import { verificarAcceso } from '@/lib/cen/acceso'
 import { prepararPedido, enviarPedido } from '@/lib/cen/pedidoSiesa'
 import { siesaConfigurado } from '@/lib/siesa/connekta'
+import { avisarFacturacion } from '@/lib/cen/avisoFacturacion'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -24,7 +25,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   }
 }
 
-// POST /api/logistica/ordenes-cen/[id]/pedido — crea el pedido en Siesa. Body: { confirmaAlertas: boolean }
+// POST /api/logistica/ordenes-cen/[id]/pedido — crea el pedido en Siesa y avisa a facturación por correo.
+// Body: { confirmaAlertas: boolean, aviso?: boolean }. En el envío en bloque va aviso: false y al final
+// se manda un solo correo con todos (POST /api/logistica/ordenes-cen/aviso-facturacion).
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params
   const id = parseInt(params.id)
@@ -34,12 +37,14 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!siesaConfigurado()) {
     return NextResponse.json({ error: 'La API de Siesa no está configurada (faltan SIESA_CLIENT_ID, SIESA_CONNI_KEY y SIESA_CONNI_TOKEN).' }, { status: 503 })
   }
-  const { confirmaAlertas } = await req.json().catch(() => ({})) as { confirmaAlertas?: boolean }
+  const { confirmaAlertas, aviso } = await req.json().catch(() => ({})) as { confirmaAlertas?: boolean; aviso?: boolean }
   try {
     const r = await enviarPedido(id, Boolean(confirmaAlertas))
     // Quién creó el pedido, para el reporte de control
     if (r.ok) await sql`UPDATE cen_ordenes SET enviado_por = ${acceso.user.name.slice(0, 120)} WHERE id = ${id}`
-    return NextResponse.json(r, { status: r.ok ? 200 : 422 })
+    // Aviso individual a facturación (si falla, el pedido igual quedó creado; se informa y se puede reintentar)
+    const avisoFacturacion = r.ok && aviso !== false ? await avisarFacturacion({ ids: [id] }, { id: acceso.user.id, name: acceso.user.name }) : null
+    return NextResponse.json({ ...r, avisoFacturacion }, { status: r.ok ? 200 : 422 })
   } catch (e) {
     return NextResponse.json({ ok: false, mensaje: e instanceof Error ? e.message : 'No se pudo enviar el pedido' }, { status: 500 })
   }

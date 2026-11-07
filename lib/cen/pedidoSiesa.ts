@@ -259,6 +259,9 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
            siesa_respuesta = ${JSON.stringify(r.cuerpo)}::jsonb, enviado_at = NOW(), updated_at = NOW()
     WHERE id = ${ordenId}
   `
+  // Motivo de retención para el aviso a facturación (columna de scripts/migrate-add-cen-aviso-facturacion.js)
+  await sql`UPDATE cen_ordenes SET siesa_retenido = ${retenido || null}, aviso_facturacion_at = NULL, aviso_facturacion_por = NULL WHERE id = ${ordenId}`
+    .catch(e => console.error('[cen] No se guardó el retenido (¿falta la migración del aviso a facturación?):', e))
   const mensaje = (consecutivo ? `Pedido ${consecutivo} creado en Siesa.` : 'Pedido creado en Siesa.') + (retenido ? ` ${retenido}` : '')
   return { ok: true, mensaje, consecutivo, retenido, respuesta: r.cuerpo, prep }
 }
@@ -284,5 +287,8 @@ export async function reversarPedido(ordenId: number): Promise<{ ok: boolean; me
            updated_at = NOW()
     WHERE id = ${ordenId}
   `
+  // El aviso a facturación era del pedido anulado: el nuevo pedido se vuelve a avisar
+  await sql`UPDATE cen_ordenes SET siesa_retenido = NULL, aviso_facturacion_at = NULL, aviso_facturacion_por = NULL WHERE id = ${ordenId}`
+    .catch(() => { /* sin la migración del aviso no hay nada que limpiar */ })
   return { ok: true, mensaje: `Orden reversada: el pedido ${orden.siesa_consecutivo ?? ''} está anulado en Siesa y la OC quedó pendiente para volver a enviarla.` }
 }

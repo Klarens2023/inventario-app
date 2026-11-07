@@ -9,6 +9,8 @@ import { recalcularRutas } from './rutas'
 import { totalesOrden } from './totales'
 import { actualizarItemsSiNecesario } from './itemsSiesa'
 import { siesaConfigurado } from '@/lib/siesa/connekta'
+import { hoyBogota } from '@/lib/fechas'
+import { logAudit } from '@/lib/audit'
 
 // Tope por ejecución para no pasar el tiempo máximo de la función en Vercel;
 // lo que quede se trae en la siguiente sincronización.
@@ -170,9 +172,38 @@ async function sincronizarFuente(fuente: FuenteEdi): Promise<ResultadoFuente> {
   return r
 }
 
+/** Quien queda como responsable de los descartes automáticos por vencimiento. */
+export const DESCARTE_AUTOMATICO = 'Automático (vencida)'
+
+/**
+ * Descarta las órdenes sin pedido cuya fecha máxima de entrega (o la de entrega, si la OC no trae máxima)
+ * ya pasó: la cadena ya no las recibe. Quedan como "Descartada" con motivo, así que salen de pendientes,
+ * totales y relaciones pero se pueden consultar en el reporte de descartadas. Corre en cada sincronización.
+ */
+export async function descartarVencidas(): Promise<string[]> {
+  const filas = await sql`
+    UPDATE cen_ordenes SET estado = 'descartada', descartada_at = NOW(), descartada_por = ${DESCARTE_AUTOMATICO},
+      motivo_descarte = 'Vencida: la fecha máxima de entrega (' || to_char(COALESCE(fecha_entrega_max, fecha_entrega), 'DD/MM/YYYY') || ') ya pasó',
+      updated_at = NOW()
+    WHERE estado IN ('pendiente', 'sin_punto', 'error')
+      AND COALESCE(fecha_entrega_max, fecha_entrega) < ${hoyBogota()}::date
+    RETURNING numero_orden`
+  const ocs = filas.map(f => f.numero_orden as string)
+  if (ocs.length) {
+    await logAudit({
+      usuarioId: null, usuarioNombre: 'Sistema', accion: 'CEN_ORDENES_VENCIDAS_DESCARTADAS',
+      descripcion: `Descartó ${ocs.length} orden(es) EDI vencida(s) (pasó la fecha máxima de entrega): ${ocs.slice(0, 50).join(', ')}${ocs.length > 50 ? '…' : ''}`,
+      datos: { ordenes: ocs },
+    })
+  }
+  return ocs
+}
+
 export async function sincronizarOrdenes(): Promise<ResultadoFuente[]> {
   const resultados: ResultadoFuente[] = []
   for (const f of FUENTES) resultados.push(await sincronizarFuente(f))
+  // Las vencidas salen antes de recalcular rutas; si falla, la sincronización sigue
+  await descartarVencidas().catch(e => console.error('[edi] No se pudieron descartar las vencidas:', e))
   await recalcularRutas()
   // Ítems de Siesa (cada 12 h) para asignar el f120_id de productos nuevos; si Siesa falla, la sincronización sigue.
   if (siesaConfigurado()) await actualizarItemsSiNecesario().catch(e => console.error('Ítems Siesa:', e))
