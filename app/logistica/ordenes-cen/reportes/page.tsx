@@ -32,14 +32,32 @@ const masDias = (f: string, n: number) => { const d = new Date(f + 'T12:00:00Z')
 const kg = (v: number | null, completo = true) => v === null ? '—' : `${fmtNumero(v, 1)} kg${completo ? '' : '*'}`
 const fechaHora = (s: string | null) => s ? new Date(s).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'
 
-function Kpi({ titulo, valor, detalle, color }: { titulo: string; valor: string | number; detalle?: string; color?: string }) {
+/** Indicador; con onClick funciona como botón de filtro (activo = borde y fondo del color). */
+function Kpi({ titulo, valor, detalle, color, onClick, activo }: { titulo: string; valor: string | number; detalle?: string; color?: string; onClick?: () => void; activo?: boolean }) {
+  const contenido = (<>
+    <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>{titulo}</div>
+    <div style={{ fontSize: 24, fontWeight: 800, color: color ?? 'var(--text)' }}>{valor}</div>
+    {detalle && <div style={{ fontSize: 12, color: 'var(--text2)' }}>{detalle}</div>}
+  </>)
+  if (!onClick) return <div className="card" style={{ padding: '12px 14px' }}>{contenido}</div>
   return (
-    <div className="card" style={{ padding: '12px 14px' }}>
-      <div style={{ fontSize: 12, color: 'var(--text2)', fontWeight: 700 }}>{titulo}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color: color ?? 'var(--text)' }}>{valor}</div>
-      {detalle && <div style={{ fontSize: 12, color: 'var(--text2)' }}>{detalle}</div>}
-    </div>
+    <button type="button" className="card" onClick={onClick} aria-pressed={activo} title={activo ? 'Quitar el filtro' : 'Ver estas órdenes'}
+      style={{ padding: '12px 14px', textAlign: 'left', cursor: 'pointer', font: 'inherit', width: '100%',
+        borderColor: activo ? color ?? 'var(--accent)' : undefined, boxShadow: activo ? `0 0 0 2px ${color ?? 'var(--accent)'}` : undefined }}>
+      {contenido}
+    </button>
   )
+}
+
+// Filtros de los indicadores de "Control y cumplimiento"
+type FiltroControl = 'todas' | 'cumplidas' | 'vencida' | 'por_vencer' | 'a_tiempo' | 'descartada'
+const FILTROS: Record<FiltroControl, { titulo: string; incluye: Cumplimiento[] | null }> = {
+  todas: { titulo: 'Órdenes del periodo', incluye: null },
+  cumplidas: { titulo: 'Cumplidas (pedido creado en Siesa)', incluye: ['cumplida_a_tiempo', 'cumplida_tarde'] },
+  vencida: { titulo: 'Vencidas sin pedido', incluye: ['vencida'] },
+  por_vencer: { titulo: 'Por vencer', incluye: ['por_vencer'] },
+  a_tiempo: { titulo: 'Abiertas a tiempo', incluye: ['a_tiempo'] },
+  descartada: { titulo: 'Descartadas', incluye: ['descartada'] },
 }
 function Etiqueta({ c }: { c: Cumplimiento }) {
   return <span style={{ background: CUMPLIMIENTO[c].bg, color: CUMPLIMIENTO[c].color, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{CUMPLIMIENTO[c].label}</span>
@@ -79,6 +97,9 @@ export default function ReportesCenPage() {
   const [relaciones, setRelaciones] = useState<Set<string>>(new Set())
   // Necesidad
   const [medida, setMedida] = useState<'peso' | 'unidades'>('peso')
+  // Control: indicador seleccionado como filtro
+  const [filtro, setFiltro] = useState<FiltroControl | null>(null)
+  const alternarFiltro = (f: FiltroControl) => setFiltro(prev => prev === f ? null : f)
 
   const cargar = useCallback(async () => {
     setCargando(true); setError('')
@@ -111,6 +132,12 @@ export default function ReportesCenPage() {
   const porEstado = useMemo(() => { const m: Record<string, number> = {}; for (const o of conCumplimiento) m[o.estado] = (m[o.estado] ?? 0) + 1; return m }, [conCumplimiento])
   const atencion = useMemo(() => conCumplimiento.filter(o => o.cumple === 'vencida' || o.cumple === 'por_vencer' || o.estado === 'error' || o.estado === 'sin_punto')
     .sort((a, b) => String(a.fecha_entrega).localeCompare(String(b.fecha_entrega))), [conCumplimiento])
+  const filtradas = useMemo(() => {
+    if (!filtro) return []
+    const incluye = FILTROS[filtro].incluye
+    return conCumplimiento.filter(o => !incluye || incluye.includes(o.cumple))
+      .sort((a, b) => String(a.fecha_entrega).localeCompare(String(b.fecha_entrega)))
+  }, [conCumplimiento, filtro])
   const descartadas = useMemo(() => conCumplimiento.filter(o => o.estado === 'descartada'), [conCumplimiento])
   const enviadas = useMemo(() => conCumplimiento.filter(o => o.estado === 'enviado'), [conCumplimiento])
 
@@ -204,13 +231,28 @@ export default function ReportesCenPage() {
       {datos && pestana === 'control' && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginBottom: 16 }}>
-            <Kpi titulo="Órdenes del periodo" valor={fmtNumero(ordenes.length)} detalle={`${fmtMoneda(totalActivas?.valor ?? 0)} · ${kg(totalActivas?.peso ?? 0, totalActivas?.pesoCompleto)}`} />
-            <Kpi titulo="Cumplidas a tiempo" valor={porCumple.cumplida_a_tiempo ?? 0} color={CUMPLIMIENTO.cumplida_a_tiempo.color} detalle={`Tarde: ${porCumple.cumplida_tarde ?? 0}`} />
-            <Kpi titulo="Vencidas sin pedido" valor={porCumple.vencida ?? 0} color={CUMPLIMIENTO.vencida.color} detalle="La fecha de entrega ya pasó" />
-            <Kpi titulo="Por vencer" valor={porCumple.por_vencer ?? 0} color={CUMPLIMIENTO.por_vencer.color} detalle="Se entregan hoy o mañana" />
-            <Kpi titulo="Abiertas a tiempo" valor={porCumple.a_tiempo ?? 0} color={CUMPLIMIENTO.a_tiempo.color} />
-            <Kpi titulo="Descartadas" valor={porCumple.descartada ?? 0} color={CUMPLIMIENTO.descartada.color} />
+            <Kpi titulo="Órdenes del periodo" valor={fmtNumero(ordenes.length)} detalle={`${fmtMoneda(totalActivas?.valor ?? 0)} · ${kg(totalActivas?.peso ?? 0, totalActivas?.pesoCompleto)}`}
+              onClick={() => alternarFiltro('todas')} activo={filtro === 'todas'} />
+            <Kpi titulo="Cumplidas a tiempo" valor={porCumple.cumplida_a_tiempo ?? 0} color={CUMPLIMIENTO.cumplida_a_tiempo.color} detalle={`Tarde: ${porCumple.cumplida_tarde ?? 0}`}
+              onClick={() => alternarFiltro('cumplidas')} activo={filtro === 'cumplidas'} />
+            <Kpi titulo="Vencidas sin pedido" valor={porCumple.vencida ?? 0} color={CUMPLIMIENTO.vencida.color} detalle="La fecha de entrega ya pasó"
+              onClick={() => alternarFiltro('vencida')} activo={filtro === 'vencida'} />
+            <Kpi titulo="Por vencer" valor={porCumple.por_vencer ?? 0} color={CUMPLIMIENTO.por_vencer.color} detalle="Se entregan hoy o mañana"
+              onClick={() => alternarFiltro('por_vencer')} activo={filtro === 'por_vencer'} />
+            <Kpi titulo="Abiertas a tiempo" valor={porCumple.a_tiempo ?? 0} color={CUMPLIMIENTO.a_tiempo.color}
+              onClick={() => alternarFiltro('a_tiempo')} activo={filtro === 'a_tiempo'} />
+            <Kpi titulo="Descartadas" valor={porCumple.descartada ?? 0} color={CUMPLIMIENTO.descartada.color}
+              onClick={() => alternarFiltro('descartada')} activo={filtro === 'descartada'} />
           </div>
+          {filtro && (
+            <Seccion titulo={`${FILTROS[filtro].titulo} (${fmtNumero(filtradas.length)})`} nota={`${periodo} · Haz clic otra vez en el indicador para quitar el filtro.`}
+              accion={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn" disabled={!filtradas.length} onClick={() => exportarExcel(`${FILTROS[filtro].titulo.split(' (')[0].replace(/\s+/g, '_')}_${desde}_a_${hasta}`, ocCols, filtradas.map(ocFila), usuario, `KLARENS  —  ${FILTROS[filtro].titulo}`)}>Descargar Excel</button>
+                <button className="btn" onClick={() => setFiltro(null)}>Quitar filtro</button>
+              </div>}>
+              <TablaOrdenes filas={filtradas} vacio="No hay órdenes en este grupo para el periodo." />
+            </Seccion>
+          )}
           <Seccion titulo="Estado de las órdenes" nota="Estado actual en la aplicación."
             accion={<button className="btn" onClick={() => exportarExcel(`Control_ordenes_EDI_${desde}_a_${hasta}`, ocCols, conCumplimiento.map(ocFila), usuario, 'KLARENS  —  Control de órdenes EDI')}>Descargar Excel (todas)</button>}>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -413,8 +455,8 @@ export default function ReportesCenPage() {
   )
 }
 
-function TablaOrdenes({ filas }: { filas: (OrdenReporte & { cumple: Cumplimiento })[] }) {
-  if (!filas.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>Nada pendiente de atención en este periodo.</div>
+function TablaOrdenes({ filas, vacio = 'Nada pendiente de atención en este periodo.' }: { filas: (OrdenReporte & { cumple: Cumplimiento })[]; vacio?: string }) {
+  if (!filas.length) return <div style={{ color: 'var(--text2)', fontSize: 13 }}>{vacio}</div>
   return (
     <div className="cen-scroll"><table className="inv-table cen-tabla cen-tarjetas">
       <thead><tr><th>OC</th><th>Cadena</th><th>Punto</th><th>Ruta</th><th>Entrega</th><th style={{ textAlign: 'right' }}>Valor</th><th>Estado</th><th>Cumplimiento</th></tr></thead>
