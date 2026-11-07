@@ -191,6 +191,14 @@ export interface DatosDocumento {
   ext1Detalle: string
 }
 
+/**
+ * Estado con que se crea el pedido (f430_ind_estado): 2 = Aprobado (0 = en elaboración, 1 = retenido).
+ * Solo se aprueba el pedido: no se envía ninguna aprobación de cartera, así que Siesa aplica sus
+ * controles (cupo, mora, margen, bloqueo, anticipo) y puede dejarlo Retenido. Eso se lee después en
+ * pedidoSiesa.ts (f430_ind_retenido_*) y se avisa en pantalla y en el correo a facturación.
+ */
+export const ESTADO_PEDIDO_APROBADO = '2'
+
 /** JSON del conector: Inicial, Pedidos, MovtoPedidoscomercial y Final, todo como texto. */
 export function armarDocumento(d: DatosDocumento): Record<string, Record<string, string>[]> {
   const { orden, co, tipoDocto, consecutivo: consec, fechaEntrega, dias, bodega, listaPrecio, indPrecio } = d
@@ -198,7 +206,7 @@ export function armarDocumento(d: DatosDocumento): Record<string, Record<string,
   const pedido: Record<string, string> = {
     F_CIA: d.cia, F_LIQUIDA_IMPUESTO: '1', F_CONSEC_AUTO_REG: '0', F_IND_CONTACTO: '1',
     f430_id_co: co, f430_id_tipo_docto: tipoDocto, f430_consec_docto: consec, f430_id_fecha: aaaammdd(d.hoy),
-    f430_id_clase_docto: '502', f430_ind_estado: '0', f430_ind_backorder: '0',
+    f430_id_clase_docto: '502', f430_ind_estado: ESTADO_PEDIDO_APROBADO, f430_ind_backorder: '0',
     f430_id_tercero_fact: orden.nit ?? '', f430_id_sucursal_fact: orden.sucursal ?? '',
     f430_id_tercero_rem: orden.nit ?? '', f430_id_sucursal_rem: orden.sucursal ?? '',
     f430_id_tipo_cli_fact: d.tipoCli, f430_id_co_fact: co,

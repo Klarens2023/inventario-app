@@ -9,6 +9,8 @@
 //     f430/f431_consec_docto = siguiente número, consultado en Siesa (API_v2_Ventas_Pedidos) justo antes de
 //     enviar. Así cada orden queda con su número de pedido (cen_ordenes.siesa_consecutivo = "PVS-N").
 //   - f430_id_fecha = fecha del día del envío; f430_id_punto_envio obligatorio.
+//   - f430_ind_estado = 2 (Aprobado), sin aprobación de cartera: Siesa puede dejarlo Retenido
+//     (cupo, mora...); se lee del pedido creado y se informa.
 //
 // Antes de enviar se valida contra Siesa:
 //   - cliente/sucursal existente y activo (API_v2_Clientes). f201_ind_estado_bloqueado NO es un
@@ -251,6 +253,7 @@ export async function enviarPedido(ordenId: number, confirmaAlertas: boolean) {
       const motivos = [['cupo', p.f430_ind_retenido_cupo], ['mora', p.f430_ind_retenido_mora], ['margen', p.f430_ind_retenido_margen],
         ['bloqueo', p.f430_ind_retenido_bloqueo], ['anticipo', p.f430_ind_retenido_anticipo]].filter(([, v]) => Number(v) === 1).map(([m]) => m)
       if (motivos.length) retenido = `Siesa dejó el pedido retenido por: ${motivos.join(', ')}.`
+      else if (Number(p.f430_ind_estado) === 1) retenido = 'Siesa dejó el pedido retenido (revisar en cartera).'
     }
   } catch { /* el pedido sí se creó; el consecutivo se puede ver en Siesa */ }
 

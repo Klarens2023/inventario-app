@@ -320,6 +320,7 @@ test('documento: encabezado del pedido (consecutivo manual, cliente, fechas y OC
   assert.equal(p.F_CONSEC_AUTO_REG, '0')
   assert.equal(p.f430_id_tipo_docto, 'PVS')
   assert.equal(p.f430_consec_docto, '125')
+  assert.equal(p.f430_ind_estado, '2') // Aprobado, sin aprobación de cartera: Siesa puede retenerlo
   assert.equal(p.f430_id_fecha, '20261103')
   assert.equal(p.f430_fecha_entrega, '20261105')
   assert.equal(p.f430_num_dias_entrega, '2')
