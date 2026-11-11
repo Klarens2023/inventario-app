@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { OrdenCen, EstadoOrdenCen, ResultadoSincronizacion } from '@/types/ordenes-cen'
 import { COMPRADORES, nombreComprador } from '@/lib/cen/compradores'
@@ -8,6 +8,7 @@ import { AsignarPuntoModal } from '@/components/ordenes-cen/AsignarPuntoModal'
 import { TotalesRutaModal } from '@/components/ordenes-cen/TotalesRutaModal'
 import { PedidosInstitucionalesModal } from '@/components/ordenes-cen/PedidosInstitucionalesModal'
 import { MenuConfiguracion } from '@/components/ordenes-cen/MenuConfiguracion'
+import { CambiarRelacionModal } from '@/components/ordenes-cen/CambiarRelacionModal'
 import { ResultadoEnvioModal, type AvisoCorreo, type FilaResultado } from '@/components/ordenes-cen/ResultadoEnvioModal'
 import { ESTADOS, fmtFecha, fmtMoneda, fmtNumero, relacion } from '@/components/ordenes-cen/utils'
 
@@ -49,6 +50,25 @@ const FECHAS_OC: Record<string, { label: string; rango: [number, number] }> = {
   semana: { label: 'OC últimos 7 días', rango: [6, 0] },
 }
 
+/** Totales de un grupo de órdenes (encabezados de ruta, de relación y de la selección). */
+function resumir(os: OrdenCen[]) {
+  return {
+    n: os.length,
+    unidades: os.reduce((s, o) => s + o.total_unidades, 0),
+    valor: os.reduce((s, o) => s + o.valor_total, 0),
+    peso: os.reduce((s, o) => s + (o.peso_kg ?? 0), 0),
+    pesoCompleto: os.every(o => o.peso_kg !== null),
+  }
+}
+const SIN_RELACION = 'Sin relación'
+/** Agrupa por relación de despacho (RUTA-MMSS), en orden; las órdenes sin ruta van al final. */
+function porRelacion(os: OrdenCen[]): { rel: string; ordenes: OrdenCen[] }[] {
+  const m = new Map<string, OrdenCen[]>()
+  for (const o of os) { const r = relacion(o.ruta, o.fecha_despacho) ?? SIN_RELACION; m.set(r, [...(m.get(r) ?? []), o]) }
+  return Array.from(m, ([rel, ordenes]) => ({ rel, ordenes })).sort((a, b) => Number(a.rel === SIN_RELACION) - Number(b.rel === SIN_RELACION) || a.rel.localeCompare(b.rel))
+}
+const kgTexto = (t: { peso: number; pesoCompleto: boolean }) => t.pesoCompleto ? `${fmtNumero(t.peso, 1)} kg` : 'peso incompleto'
+
 const sel: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }
 
 export default function OrdenesCenPage() {
@@ -70,6 +90,8 @@ export default function OrdenesCenPage() {
   const [orden, setOrden] = useState<'entrega' | 'oc'>('entrega')
   const [vista, setVista] = useState<'punto' | 'ruta'>('ruta')
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set()) // las secciones arrancan recogidas
+  // Relaciones (ruta|relación) con el estado contrario al de arranque: abiertas si la ruta tiene varias, recogida si es la única
+  const [relAlternadas, setRelAlternadas] = useState<Set<string>>(new Set())
   const [rutas, setRutas] = useState<string[]>([])
 
   const [detalleId, setDetalleId] = useState<number | null>(null)
@@ -80,7 +102,8 @@ export default function OrdenesCenPage() {
   const [avisoRuta, setAvisoRuta] = useState<{ ruta: string; aviso: AvisoCorreo } | null>(null) // resultado del aviso manual de una ruta
   const [sinAviso, setSinAviso] = useState<Set<number>>(new Set()) // pedidos en Siesa sin avisar a facturación
   const [avisando, setAvisando] = useState('')
-  const [totales, setTotales] = useState<{ titulo: string; ruta: string | null; ids: number[] } | null>(null)
+  const [totales, setTotales] = useState<{ titulo: string; ruta: string | null; ids: number[]; secciones?: { titulo: string; ids: number[] }[]; inicial?: string } | null>(null)
+  const [moverRelacion, setMoverRelacion] = useState<{ ids: number[]; actual: string | null } | null>(null)
   const [sincronizaciones, setSincronizaciones] = useState<Sincronizacion[]>([])
   const [institucional, setInstitucional] = useState(false)
 
@@ -113,6 +136,33 @@ export default function OrdenesCenPage() {
   }, [estado, comprador, fuente, desde, hasta, buscar, ruta, fechaOc, orden])
 
   useEffect(() => { cargar() }, [cargar])
+
+  // La barra de selección va fija al pie de la ventana (position: fixed), alineada con el contenido de la
+  // página: con sticky no funciona porque <main> del layout tiene overflow propio y no es el que se desplaza.
+  const paginaRef = useRef<HTMLDivElement>(null)
+  const [barra, setBarra] = useState<{ left: number; width: number } | null>(null)
+  const haySeleccion = seleccion.size > 0
+  useEffect(() => {
+    const el = paginaRef.current
+    if (!haySeleccion || !el) return
+    const medir = () => {
+      const r = el.getBoundingClientRect(), cs = getComputedStyle(el)
+      const izq = parseFloat(cs.paddingLeft) || 0, der = parseFloat(cs.paddingRight) || 0
+      setBarra({ left: r.left + izq, width: r.width - izq - der }) // mismo ancho que el contenido
+    }
+    medir()
+    const ro = new ResizeObserver(medir); ro.observe(el)
+    window.addEventListener('resize', medir)
+    return () => { ro.disconnect(); window.removeEventListener('resize', medir) }
+  }, [haySeleccion])
+
+  // Con una ventana abierta (totales, detalle...) la barra fija se oculta para no quedar encima
+  const hayVentana = Boolean(totales || moverRelacion || detalleId !== null || asignarEan || institucional || avisoRuta || (envio && !envio.enCurso))
+
+  const hayFiltros = Boolean(estado || comprador || fuente || desde || hasta || buscar || ruta || fechaOc || orden !== 'entrega')
+  function limpiarFiltros() {
+    setEstado(''); setComprador(''); setFuente(''); setDesde(''); setHasta(''); setBuscar(''); setRuta(''); setFechaOc(''); setOrden('entrega')
+  }
   useEffect(() => {
     fetch('/api/logistica/ordenes-cen/reglas').then(r => r.ok ? r.json() : []).then((rs: { ruta: string }[]) =>
       setRutas(Array.from(new Set(rs.map(r => r.ruta))).sort()))
@@ -225,12 +275,100 @@ export default function OrdenesCenPage() {
     } finally { setAvisando('') }
   }
 
+  const alternarRel = (clave: string) => setRelAlternadas(prev => {
+    const n = new Set(prev); if (n.has(clave)) n.delete(clave); else n.add(clave); return n
+  })
   const alternar = (clave: string) => setAbiertos(prev => {
     const n = new Set(prev); if (n.has(clave)) n.delete(clave); else n.add(clave); return n
   })
 
+  // Tabla de órdenes de una sección. Compacta (7 columnas) para que quepa sin desplazamiento lateral;
+  // si el espacio es angosto cada fila pasa a tarjeta (logistica.css, consulta de contenedor .cen-lista).
+  // conRuta: columna Ruta/Relación (en la vista por ruta ya la da el subgrupo de la relación).
+  const tablaOrdenes = (lista: OrdenCen[], conRuta: boolean) => (
+    <div className="cen-scroll">
+      <table className="inv-table cen-tabla cen-tarjetas cen-ordenes">
+        <thead>
+          <tr>
+            <th style={{ width: 36 }}></th><th>OC</th><th>Punto de venta</th>{conRuta && <th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th>}
+            <th>Entrega</th><th style={{ textAlign: 'right' }}>Cantidad</th><th style={{ textAlign: 'right' }}>Valor</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lista.map(o => (
+            <tr key={o.id} onClick={() => setDetalleId(o.id)} style={{ cursor: 'pointer', background: seleccion.has(o.id) ? '#EFF6FF' : undefined }}>
+              <td className="sel" data-label="" onClick={e => e.stopPropagation()}>
+                <input type="checkbox" disabled={!enviable(o) || envio?.enCurso} checked={seleccion.has(o.id)}
+                  title={enviable(o) ? 'Seleccionar para enviar a Siesa' : o.estado === 'enviado' ? 'Ya tiene pedido en Siesa' : !o.nit ? 'Sin sucursal asociada' : 'No se puede enviar'}
+                  onChange={e => marcar([o.id], e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+              </td>
+              <td data-label="OC" className="nw" data-orden={o.numero_orden}>
+                <div>
+                  <strong>{o.numero_orden}</strong>
+                  <span className="sub">{nombreComprador(o.ean_comprador)}{o.locales > 0 && ` · CEDI, ${o.locales} tiendas`}</span>
+                </div>
+              </td>
+              <td data-label="Punto" className="ancho">
+                <div>
+                  {o.razon_social ?? <span style={{ color: '#B45309' }}>Sin sucursal asociada</span>}
+                  <span className="sub">
+                    {[o.nit && `${o.nit}/${o.sucursal}`, o.ciudad, o.ean_entrega && `EAN ${o.ean_entrega}`].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              </td>
+              {conRuta && (
+                <td data-label={vista === 'ruta' ? 'Relación' : 'Ruta'} className="nw">
+                  {o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_despacho) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}
+                </td>
+              )}
+              <td data-label="Entrega" className="nw" data-orden={o.fecha_entrega ?? ''}>
+                <div>{fmtFecha(o.fecha_entrega)}<span className="sub">OC {fmtFecha(o.fecha_orden)}</span></div>
+              </td>
+              <td data-label="Cantidad" className="num" data-orden={String(o.total_unidades)}>
+                <div>{fmtNumero(o.total_unidades)} und<span className="sub">{o.peso_kg === null ? 'sin peso' : `${fmtNumero(o.peso_kg, 1)} kg`} · {o.lineas} prod.</span></div>
+              </td>
+              <td data-label="Valor" className="num">{fmtMoneda(o.valor_total)}</td>
+              <td data-label="Estado" data-orden={ESTADOS[o.estado].label}>
+                <div>
+                  <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                    {ESTADOS[o.estado].label}
+                  </span>
+                  {o.siesa_consecutivo && <span className="sub" style={{ fontWeight: 700, color: '#047857', fontSize: 12, marginTop: 3 }}>{o.siesa_consecutivo}</span>}
+                  {o.motivos.length > 0 && <div className="cen-motivos">⚠ {o.motivos.join(' · ')}</div>}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  // Cifras de un encabezado (ruta, relación): OC, unidades, peso y valor
+  const cifras = (t: ReturnType<typeof resumir>, extra?: React.ReactNode) => (
+    <div className="cen-cifras">
+      <span><strong>{t.n}</strong> OC</span>
+      <span><strong>{fmtNumero(t.unidades)}</strong> und</span>
+      <span><strong>{t.pesoCompleto ? fmtNumero(t.peso, 1) : '—'}</strong> {t.pesoCompleto ? 'kg' : 'peso incompleto'}</span>
+      <span className="cen-cifra-valor"><strong>{fmtMoneda(t.valor)}</strong></span>
+      {extra}
+    </div>
+  )
+
+  // Casilla para marcar todas las órdenes enviables de una sección
+  const casillaGrupo = (ids: number[], titulo: string) => {
+    const marcadas = ids.filter(id => seleccion.has(id)).length
+    return (
+      <input type="checkbox" title={ids.length ? `Seleccionar todas las órdenes de ${titulo} que se pueden enviar` : `Ninguna orden de ${titulo} se puede enviar`}
+        disabled={!ids.length || envio?.enCurso} checked={ids.length > 0 && marcadas === ids.length}
+        ref={el => { if (el) el.indeterminate = marcadas > 0 && marcadas < ids.length }}
+        onClick={e => e.stopPropagation()} onChange={e => marcar(ids, e.target.checked)}
+        style={{ width: 16, height: 16, cursor: 'pointer' }} />
+    )
+  }
+
   return (
-    <div className="cen-page">
+    <div className="cen-page" ref={paginaRef} style={haySeleccion ? { paddingBottom: 140 } : undefined}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 800 }}>Órdenes EDI (CEN)</h1>
@@ -350,26 +488,22 @@ export default function OrdenesCenPage() {
             </button>
           ))}
         </div>
+        {hayFiltros && <button className="btn" onClick={limpiarFiltros} title="Quitar todos los filtros y volver al orden por entrega">✕ Limpiar filtros</button>}
         {grupos.length > 0 && (
-          <button className="btn" onClick={() => setAbiertos(abiertos.size > 0 ? new Set() : new Set(grupos.map(g => g.clave)))}>
+          <button className="btn" onClick={() => {
+            if (abiertos.size > 0) { setAbiertos(new Set()); setRelAlternadas(new Set()); return }
+            setAbiertos(new Set(grupos.map(g => g.clave)))
+            // Abre también las relaciones de las rutas que tienen varias
+            setRelAlternadas(new Set(grupos.flatMap(g => {
+              const rels = vista === 'ruta' && g.ruta ? porRelacion(g.ordenes) : []
+              return rels.length > 1 ? rels.map(r => `${g.clave}|${r.rel}`) : []
+            })))
+          }}>
             {abiertos.size > 0 ? 'Recoger todas' : 'Expandir todas'}
           </button>
         )}
       </div>
 
-      {seleccion.size > 0 && (
-        <div className="card" style={{ position: 'sticky', top: 8, zIndex: 5, marginBottom: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderColor: 'var(--accent)' }}>
-          <strong style={{ fontSize: 14 }}>{seleccion.size} orden(es) seleccionada(s)</strong>
-          <span style={{ fontSize: 13, color: 'var(--text2)' }}>
-            {fmtNumero(ordenes.filter(o => seleccion.has(o.id)).reduce((s, o) => s + o.total_unidades, 0))} und ·{' '}
-            {fmtMoneda(ordenes.filter(o => seleccion.has(o.id)).reduce((s, o) => s + o.valor_total, 0))}
-          </span>
-          <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => setSeleccion(new Set())} disabled={envio?.enCurso}>Quitar selección</button>
-          <button className="btn btn-primary" onClick={enviarSeleccion} disabled={envio?.enCurso}>
-            {envio?.enCurso ? `Enviando ${envio.resultados.length + 1} de ${envio.total}...` : `Enviar ${seleccion.size} a Siesa`}
-          </button>
-        </div>
-      )}
       {envio?.enCurso && (
         <div className="card" style={{ marginBottom: 12, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -399,113 +533,127 @@ export default function OrdenesCenPage() {
         </div>
       )}
 
+      <div className="cen-lista">
       {!cargando && grupos.map(g => {
-        const unidades = g.ordenes.reduce((s, o) => s + o.total_unidades, 0)
-        const valor = g.ordenes.reduce((s, o) => s + o.valor_total, 0)
-        const pesoCompleto = g.ordenes.every(o => o.peso_kg !== null)
-        const peso = g.ordenes.reduce((s, o) => s + (o.peso_kg ?? 0), 0)
+        const t = resumir(g.ordenes)
         const recogido = !abiertos.has(g.clave)
         const porRevisar = g.ordenes.filter(o => o.motivos.length > 0).length
         const idsEnviables = g.ordenes.filter(enviable).map(o => o.id)
-        const marcadas = idsEnviables.filter(id => seleccion.has(id)).length
+        // En la vista por ruta, cada ruta se subagrupa por relación (RUTA-MMSS) con sus propios totales
+        const rels = vista === 'ruta' && g.ruta ? porRelacion(g.ordenes) : null
+        const secciones = rels?.map(r => ({ titulo: r.rel, ids: r.ordenes.map(o => o.id) }))
+        const tituloTotales = vista === 'ruta' && g.ruta ? `${g.titulo} · ${g.subtitulo}` : g.titulo
+        const nAviso = vista === 'ruta' && g.ruta ? g.ordenes.filter(o => sinAviso.has(o.id)).length : 0
         return (
-          <div key={g.clave} className="card" style={{ marginBottom: 12, padding: 0, overflow: 'hidden', borderColor: g.sinPunto ? '#F59E0B' : undefined }}>
-            <div onClick={() => alternar(g.clave)} title={recogido ? 'Expandir' : 'Recoger'}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, padding: '12px 16px', cursor: 'pointer', userSelect: 'none', background: g.sinPunto ? '#FFFBEB' : 'var(--bg)' }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <input type="checkbox" title={idsEnviables.length ? 'Seleccionar todas las órdenes de esta sección que se pueden enviar' : 'Ninguna orden de esta sección se puede enviar'}
-                  disabled={!idsEnviables.length || envio?.enCurso} checked={idsEnviables.length > 0 && marcadas === idsEnviables.length}
-                  ref={el => { if (el) el.indeterminate = marcadas > 0 && marcadas < idsEnviables.length }}
-                  onClick={e => e.stopPropagation()} onChange={e => marcar(idsEnviables, e.target.checked)}
-                  style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                <span style={{ fontSize: 12, color: 'var(--text2)', display: 'inline-block', transition: 'transform .15s', transform: recogido ? 'rotate(-90deg)' : 'none' }}>▼</span>
-                <div>
-                <div style={{ fontWeight: 800, fontSize: 15 }}>{g.titulo}</div>
-                <div style={{ fontSize: 12, color: 'var(--text2)' }}>{g.subtitulo}</div>
+          <section key={g.clave} className={`cen-grupo${g.sinPunto ? ' cen-grupo-alerta' : ''}`}>
+            <div className="cen-grupo-cab" onClick={() => alternar(g.clave)} title={recogido ? 'Expandir' : 'Recoger'} role="button" aria-expanded={!recogido}>
+              <div className="cen-cab-titulo">
+                {casillaGrupo(idsEnviables, 'esta sección')}
+                <span className="cen-chevron" data-abierto={!recogido}>▼</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="cen-grupo-nombre">{g.titulo}</div>
+                  <div className="cen-grupo-sub">
+                    {rels ? `${rels.length} relación(es): ${rels.map(r => r.rel).join(', ')}` : g.subtitulo}
+                    {porRevisar > 0 && <span style={{ color: '#B45309', fontWeight: 700 }}> · ⚠ {porRevisar} por revisar</span>}
+                  </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 13, flexWrap: 'wrap' }}>
-                <span><strong>{g.ordenes.length}</strong> OC</span>
-                {porRevisar > 0 && <span style={{ color: '#B45309', fontWeight: 700 }}>⚠ {porRevisar} por revisar</span>}
-                <span><strong>{fmtNumero(unidades)}</strong> und</span>
-                <span><strong>{pesoCompleto ? `${fmtNumero(peso, 1)} kg` : 'peso incompleto'}</strong></span>
-                <span><strong>{fmtMoneda(valor)}</strong></span>
-                <button className="btn" onClick={e => { e.stopPropagation(); setTotales({ titulo: vista === 'ruta' && g.ruta ? `${g.titulo} · ${g.subtitulo}` : g.titulo, ruta: g.ruta, ids: g.ordenes.map(o => o.id) }) }}>Totales</button>
-                {(() => {
-                  // Pedidos de la ruta sin avisar a facturación (si el aviso falló o se agregaron institucionales)
-                  const n = vista === 'ruta' && g.ruta ? g.ordenes.filter(o => sinAviso.has(o.id)).length : 0
-                  return n > 0 && (
+              {cifras(t, (
+                <span className="cen-cab-botones" onClick={e => e.stopPropagation()}>
+                  <button className="btn" onClick={() => setTotales({ titulo: tituloTotales, ruta: g.ruta, ids: g.ordenes.map(o => o.id), secciones })}>Totales</button>
+                  {nAviso > 0 && (
                     <button className="btn" disabled={avisando === g.ruta} title="Enviar el correo a facturación con los pedidos de esta ruta que aún no se han avisado"
-                      onClick={e => { e.stopPropagation(); avisarRuta(g.ruta!, n) }}>
-                      {avisando === g.ruta ? 'Avisando...' : `📧 Avisar a facturación (${n})`}
+                      onClick={() => avisarRuta(g.ruta!, nAviso)}>
+                      {avisando === g.ruta ? 'Avisando...' : `📧 Avisar (${nAviso})`}
                     </button>
-                  )
-                })()}
-                {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={e => { e.stopPropagation(); setAsignarEan(g.ean) }}>Asignar sucursal</button>}
-              </div>
+                  )}
+                  {g.sinPunto && vista === 'punto' && <button className="btn btn-primary" onClick={() => setAsignarEan(g.ean)}>Asignar sucursal</button>}
+                </span>
+              ))}
             </div>
-            {!recogido && <div className="cen-scroll">
-              <table className="inv-table cen-tabla cen-tarjetas">
-                <thead>
-                  <tr><th style={{ width: 32 }}></th><th>OC</th><th>Punto de venta</th><th>{vista === 'ruta' ? 'Relación' : 'Ruta'}</th><th>Entrega</th><th style={{ textAlign: 'right' }}>Unidades</th><th style={{ textAlign: 'right' }}>Peso</th><th style={{ textAlign: 'right' }}>Valor</th><th>Estado</th><th>Pedido</th></tr>
-                </thead>
-                <tbody>
-                  {g.ordenes.map(o => (
-                    <tr key={o.id} onClick={() => setDetalleId(o.id)} style={{ cursor: 'pointer', background: seleccion.has(o.id) ? '#EFF6FF' : undefined }}>
-                      <td className="sel" data-label="" onClick={e => e.stopPropagation()}>
-                        <input type="checkbox" disabled={!enviable(o) || envio?.enCurso} checked={seleccion.has(o.id)}
-                          title={enviable(o) ? 'Seleccionar para enviar a Siesa' : o.estado === 'enviado' ? 'Ya tiene pedido en Siesa' : !o.nit ? 'Sin sucursal asociada' : 'No se puede enviar'}
-                          onChange={e => marcar([o.id], e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
-                      </td>
-                      <td data-label="OC" className="nw">
-                        <div>
-                          <strong>{o.numero_orden}</strong>
-                          <span className="sub">{nombreComprador(o.ean_comprador)}{o.locales > 0 && ` · CEDI, ${o.locales} tiendas`}</span>
+            {!recogido && (rels
+              ? rels.map(r => {
+                  const clave = `${g.clave}|${r.rel}`
+                  // Con una sola relación arranca abierta; con varias, recogidas (clic para abrir cada una)
+                  const abierta = rels.length === 1 ? !relAlternadas.has(clave) : relAlternadas.has(clave)
+                  const tr = resumir(r.ordenes)
+                  const despachos = Array.from(new Set(r.ordenes.map(o => o.fecha_despacho).filter((d): d is string => Boolean(d)))).sort()
+                  return (
+                    <div key={r.rel} className="cen-rel">
+                      <div className="cen-rel-cab" onClick={() => alternarRel(clave)} title={abierta ? 'Recoger la relación' : 'Ver las órdenes de la relación'} role="button" aria-expanded={abierta}>
+                        <div className="cen-cab-titulo">
+                          {casillaGrupo(r.ordenes.filter(enviable).map(o => o.id), `la relación ${r.rel}`)}
+                          <span className="cen-chevron" data-abierto={abierta}>▼</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div className="cen-rel-nombre">Relación {r.rel}</div>
+                            {despachos.length > 0 && (
+                              <div className="cen-grupo-sub">
+                                Despacho {fmtFecha(despachos[0])}{despachos.length > 1 ? ` a ${fmtFecha(despachos[despachos.length - 1])}` : ''}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                      <td data-label="Punto" className="ancho">
-                        <div>
-                          {o.razon_social ?? <span style={{ color: '#B45309' }}>Sin sucursal asociada</span>}
-                          <span className="sub">
-                            {o.nit && `${o.nit}/${o.sucursal}`}{o.ciudad && ` · ${o.ciudad}`}
+                        {cifras(tr, (
+                          <span className="cen-cab-botones" onClick={e => e.stopPropagation()}>
+                            <button className="btn btn-sm" onClick={() => setTotales({ titulo: tituloTotales, ruta: g.ruta, ids: g.ordenes.map(o => o.id), secciones, inicial: r.rel })}>Totales</button>
                           </span>
-                          {o.ean_entrega && <span className="sub mono">EAN {o.ean_entrega}</span>}
-                        </div>
-                      </td>
-                      <td data-label={vista === 'ruta' ? 'Relación' : 'Ruta'} className="nw">{o.ruta ? <strong>{vista === 'ruta' ? relacion(o.ruta, o.fecha_despacho) : o.ruta}{o.ruta_manual && <span title="Asignada a mano" style={{ color: 'var(--text2)' }}> ✋</span>}</strong> : <span style={{ color: '#B45309' }}>Sin ruta</span>}</td>
-                      <td data-label="Entrega" className="nw">
-                        <div>{fmtFecha(o.fecha_entrega)}<span className="sub">OC {fmtFecha(o.fecha_orden)}</span></div>
-                      </td>
-                      <td data-label="Unidades" className="num">
-                        <div>{fmtNumero(o.total_unidades)}<span className="sub">{o.lineas} producto(s)</span></div>
-                      </td>
-                      <td data-label="Peso" className="num">{o.peso_kg === null ? '—' : `${fmtNumero(o.peso_kg, 1)} kg`}</td>
-                      <td data-label="Valor" className="num">{fmtMoneda(o.valor_total)}</td>
-                      <td data-label="Estado">
-                        <div>
-                          <span style={{ background: ESTADOS[o.estado].bg, color: ESTADOS[o.estado].color, padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                            {ESTADOS[o.estado].label}
-                          </span>
-                          {o.motivos.length > 0 && (
-                            <div style={{ fontSize: 11, color: '#B45309', marginTop: 4, maxWidth: 240 }}>⚠ {o.motivos.join(' · ')}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td data-label="Pedido" className="nw" style={{ fontWeight: 700, color: '#047857' }}>{o.siesa_consecutivo ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>}
-          </div>
+                        ))}
+                      </div>
+                      {abierta && tablaOrdenes(r.ordenes, false)}
+                    </div>
+                  )
+                })
+              : tablaOrdenes(g.ordenes, true))}
+          </section>
         )
       })}
+      </div>
+
+      {/* Selección: barra fija al pie con los totales por relación, para no tener que subir a verla */}
+      {seleccion.size > 0 && !hayVentana && (() => {
+        const lista = ordenes.filter(o => seleccion.has(o.id))
+        const ts = resumir(lista)
+        const rels = porRelacion(lista)
+        const relActual = rels.length === 1 && rels[0].rel !== SIN_RELACION ? rels[0].rel : null
+        return (
+          <div className="card" style={{ position: 'fixed', bottom: 12, zIndex: 900, left: barra?.left ?? 16, width: barra?.width ?? 'calc(100% - 32px)',
+            maxHeight: '40vh', overflowY: 'auto', borderColor: 'var(--accent)', boxShadow: '0 -4px 18px rgba(15,23,42,.18)', display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 14 }}>{ts.n} orden(es) seleccionada(s)</strong>
+              <span style={{ fontSize: 13, color: 'var(--text2)' }}>{fmtNumero(ts.unidades)} und · {kgTexto(ts)} · <strong style={{ color: 'var(--text)' }}>{fmtMoneda(ts.valor)}</strong></span>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn" onClick={() => setTotales({ titulo: 'Órdenes seleccionadas', ruta: null, ids: lista.map(o => o.id), secciones: rels.map(r => ({ titulo: r.rel, ids: r.ordenes.map(o => o.id) })) })}>Totales</button>
+                <button className="btn" disabled={envio?.enCurso} onClick={() => setMoverRelacion({ ids: lista.map(o => o.id), actual: relActual })}>Cambiar relación</button>
+                <button className="btn" onClick={() => setSeleccion(new Set())} disabled={envio?.enCurso}>Quitar selección</button>
+                <button className="btn btn-primary" onClick={enviarSeleccion} disabled={envio?.enCurso}>
+                  {envio?.enCurso ? `Enviando ${envio.resultados.length + 1} de ${envio.total}...` : `Enviar ${seleccion.size} a Siesa`}
+                </button>
+              </div>
+            </div>
+            {/* Subtotal por relación de lo seleccionado */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 12 }}>
+              {rels.map(r => {
+                const tr = resumir(r.ordenes)
+                return (
+                  <span key={r.rel} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px' }}>
+                    <strong>{r.rel}</strong>: {tr.n} OC · {fmtNumero(tr.unidades)} und · {kgTexto(tr)} · {fmtMoneda(tr.valor)}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {institucional && (
         <PedidosInstitucionalesModal onClose={() => setInstitucional(false)}
           onAgregados={n => { setAviso(`${n} pedido(s) institucional(es) agregado(s) a la ruta.`); cargar() }} />
       )}
-      {totales && <TotalesRutaModal titulo={totales.titulo} ruta={totales.ruta} ids={totales.ids} onClose={() => setTotales(null)} />}
+      {totales && <TotalesRutaModal titulo={totales.titulo} ruta={totales.ruta} ids={totales.ids} secciones={totales.secciones} inicial={totales.inicial} onClose={() => setTotales(null)} />}
+      {moverRelacion && (
+        <CambiarRelacionModal ids={moverRelacion.ids} actual={moverRelacion.actual} onClose={() => setMoverRelacion(null)}
+          onCambiado={m => { setMoverRelacion(null); setSeleccion(new Set()); setAviso(m); cargar() }} />
+      )}
       {detalleId !== null && <DetalleOrdenModal id={detalleId} onClose={() => setDetalleId(null)} onCambio={cargar} />}
       {asignarEan && (
         <AsignarPuntoModal

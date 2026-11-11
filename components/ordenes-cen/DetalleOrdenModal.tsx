@@ -7,6 +7,7 @@ import { fechaDespacho } from '@/lib/cen/relacion'
 import { PedidoSiesa } from './PedidoSiesa'
 import { AsignarPuntoModal } from './AsignarPuntoModal'
 import { ClienteSiesa } from './ClienteSiesa'
+import { CambiarRelacionModal } from './CambiarRelacionModal'
 
 export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClose: () => void; onCambio: () => void }) {
   const [detalle, setDetalle] = useState<DetalleOrdenCen | null>(null)
@@ -16,6 +17,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
   const [despachoNuevo, setDespachoNuevo] = useState('')
   const [asignando, setAsignando] = useState(false)
   const [rutas, setRutas] = useState<string[]>([])
+  const [cambiandoRelacion, setCambiandoRelacion] = useState(false)
 
   // También se llama después de asignar un ítem desde el pedido (líneas, ítem y peso cambian)
   const cargar = useCallback(() => {
@@ -118,6 +120,8 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
                 Ruta: <strong>{o.ruta ?? 'sin ruta'}</strong>
                 {o.ruta && <span style={{ color: 'var(--text2)' }}> · relación <strong>{relacion(o.ruta, o.fecha_despacho)}</strong>{institucional ? '' : o.ruta_manual ? ' · asignada a mano' : ' · sugerida por regla'}</span>}
               </span>
+              {/* Mover a otra relación (aunque sea de otra ruta); también con pedido ya creado */}
+              {o.estado !== 'descartada' && <button className="btn" onClick={() => setCambiandoRelacion(true)}>Cambiar relación</button>}
               {editable && (
                 <>
                   <input list="rutas-cen" value={rutaNueva} onChange={e => setRutaNueva(e.target.value.toUpperCase())} placeholder="Cambiar ruta..."
@@ -241,6 +245,12 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
         <div onClick={e => e.stopPropagation()}>
           <AsignarPuntoModal ean={o.ean_entrega} onClose={() => setAsignando(false)}
             onGuardado={() => { setAsignando(false); onCambio(); onClose() }} />
+        </div>
+      )}
+      {cambiandoRelacion && o && (
+        <div onClick={e => e.stopPropagation()}>
+          <CambiarRelacionModal ids={[o.id]} actual={relacion(o.ruta, o.fecha_despacho)} onClose={() => setCambiandoRelacion(false)}
+            onCambiado={() => { setCambiandoRelacion(false); onCambio(); cargar() }} />
         </div>
       )}
     </div>

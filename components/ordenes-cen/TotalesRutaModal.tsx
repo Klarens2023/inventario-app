@@ -30,7 +30,15 @@ function ordenar<T extends Ordenable>(lista: T[], o: Orden): T[] {
 // Tabla de totales de una ruta (como las hojas de relación de "BD 2026"): por ítem, o por cliente
 // (punto de venta) con sus ítems. Las columnas se ordenan con clic; los clientes arrancan recogidos.
 // La vista por defecto se guarda por ruta.
-export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: string; ruta: string | null; ids: number[]; onClose: () => void }) {
+// Con `secciones` (las relaciones de la ruta o de la selección) se puede ver el total general o el de
+// cada relación; `inicial` es la sección que se abre primero.
+export function TotalesRutaModal({ titulo, ruta, ids, secciones, inicial, onClose }: {
+  titulo: string; ruta: string | null; ids: number[]
+  secciones?: { titulo: string; ids: number[] }[]; inicial?: string
+  onClose: () => void
+}) {
+  const [seccion, setSeccion] = useState<string | null>(inicial ?? null) // null = total general
+  const idsVista = useMemo(() => (seccion && secciones?.find(x => x.titulo === seccion)?.ids) || ids, [seccion, secciones, ids])
   const [filas, setFilas] = useState<Fila[] | null>(null)
   const [modo, setModo] = useState<Modo>('item')
   const [modoRuta, setModoRuta] = useState<Modo>('item')
@@ -39,10 +47,11 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch(`/api/logistica/ordenes-cen/totales?ids=${ids.join(',')}&ruta=${encodeURIComponent(ruta ?? '')}`)
+    setFilas(null); setError('')
+    fetch(`/api/logistica/ordenes-cen/totales?ids=${idsVista.join(',')}&ruta=${encodeURIComponent(ruta ?? '')}`)
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error); setFilas(d.filas); setModo(d.modo); setModoRuta(d.modo) })
       .catch(e => setError(e.message ?? 'No se pudieron calcular los totales'))
-  }, [ids, ruta])
+  }, [idsVista, ruta])
 
   const porItem = useMemo(() => {
     const m = new Map<string, Fila[]>()
@@ -91,7 +100,7 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800 }}>Totales · {titulo}</h2>
-            <div style={{ fontSize: 12, color: 'var(--text2)' }}>{ids.length} orden(es) · vista por defecto de la ruta: por {modoRuta === 'item' ? 'ítem' : 'cliente'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>{idsVista.length} orden(es){seccion ? ` de ${seccion}` : ''} · vista por defecto de la ruta: por {modoRuta === 'item' ? 'ítem' : 'cliente'}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
@@ -111,6 +120,16 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
           </div>
         </div>
 
+        {secciones && secciones.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {[{ titulo: null as string | null, n: ids.length }, ...secciones.map(x => ({ titulo: x.titulo as string | null, n: x.ids.length }))].map(x => (
+              <button key={x.titulo ?? '__total'} onClick={() => setSeccion(x.titulo)} className="btn"
+                style={seccion === x.titulo ? { background: 'var(--accent)', color: '#fff', borderColor: 'var(--accent)' } : undefined}>
+                {x.titulo ?? 'Total'} <span style={{ fontWeight: 400 }}>({x.n})</span>
+              </button>
+            ))}
+          </div>
+        )}
         {error && <div style={{ color: 'var(--danger)', marginBottom: 12 }}>{error}</div>}
         {!filas && !error && <div style={{ padding: 30, textAlign: 'center', color: 'var(--text2)' }}>Calculando...</div>}
 
@@ -157,7 +176,7 @@ export function TotalesRutaModal({ titulo, ruta, ids, onClose }: { titulo: strin
               )}
               <tfoot>
                 <tr style={{ fontWeight: 800 }}>
-                  <td data-label="" colSpan={modo === 'item' ? 2 : 1}>Total general</td>
+                  <td data-label="" colSpan={modo === 'item' ? 2 : 1}>{seccion ? `Total ${seccion}` : 'Total general'}</td>
                   <td data-label="Cant." className="num">{fmtNumero(total.cantidad)}</td><td data-label="$ Total" className="num">{fmtMoneda(total.valor)}</td><td data-label="Peso" className="num">{peso(total)}</td>
                 </tr>
               </tfoot>
