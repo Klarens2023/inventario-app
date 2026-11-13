@@ -8,7 +8,16 @@ import type { EstadoOrdenCen } from '@/types/ordenes-cen'
 import type { ExistenciaItem } from '@/lib/cen/inventario'
 
 type Datos = { ordenes: OrdenReporte[]; lineas: LineaReporte[]; limitado: boolean }
-type Inventario = { items: ExistenciaItem[]; consultado_at: string; conexion: string }
+// Foto del inventario guardada en la app: se consulta en Siesa solo con el botón "Actualizar inventario"
+type Inventario = { items: ExistenciaItem[]; actualizado_at: string | null; actualizado_por: string | null; conexion: string | null; error?: string }
+
+/** "13 nov, 2:30 p. m. (hace 2 h)" */
+function cuando(fecha: string): string {
+  const d = new Date(fecha)
+  const min = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000))
+  const hace = min < 1 ? 'hace un momento' : min < 60 ? `hace ${min} min` : min < 48 * 60 ? `hace ${Math.round(min / 60)} h` : `hace ${Math.round(min / 1440)} días`
+  return `${d.toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} (${hace})`
+}
 
 // Bodegas que el usuario eligió para el inventario (se recuerdan en este navegador); vacío = todas
 const CLAVE_BODEGAS = 'cen-necesidad-bodegas'
@@ -39,6 +48,9 @@ export function NecesidadSemanal({ cadena, ruta, hoy, usuario }: { cadena: strin
   const [inv, setInv] = useState<Inventario | null>(null)
   const [invError, setInvError] = useState('')
   const [invCargando, setInvCargando] = useState(false)
+  const [actualizando, setActualizando] = useState(false)
+  const [invAviso, setInvAviso] = useState('')
+  const [versionInv, setVersionInv] = useState(0) // sube al actualizar para volver a leer la foto guardada
   const [bodegas, setBodegas] = useState<string[]>([])
   const [verBodegas, setVerBodegas] = useState(false)
   useEffect(() => { setBodegas(leerBodegas()) }, [])
@@ -60,26 +72,36 @@ export function NecesidadSemanal({ cadena, ruta, hoy, usuario }: { cadena: strin
     return () => { vigente = false }
   }, [sabado, viernes, cadena, ruta])
 
-  // Ítems de la semana: se consulta su existencia actual
+  // Ítems de la semana: se lee su existencia de la última foto guardada (no se consulta Siesa)
   const itemsSemana = useMemo(() => datos
     ? Array.from(new Set(necesidadSemanal(datos.ordenes, datos.lineas, dias).map(f => f.f120_id).filter((i): i is number => i !== null))).sort((a, b) => a - b)
     : [], [datos, dias])
   const clavesItems = itemsSemana.join(',')
   useEffect(() => {
-    if (!clavesItems) { setInv(null); return }
     let vigente = true
     setInvCargando(true); setInvError('')
     fetch(`/api/logistica/ordenes-cen/inventario?items=${clavesItems}`)
-      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error ?? 'No se pudo consultar el inventario'); if (vigente) setInv(d) })
+      .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error ?? 'No se pudo leer el inventario'); if (vigente) { setInv(d); if (d.error) setInvError(d.error) } })
       .catch(e => { if (vigente) { setInv(null); setInvError(e instanceof Error ? e.message : 'Error') } })
       .finally(() => { if (vigente) setInvCargando(false) })
     return () => { vigente = false }
-  }, [clavesItems])
+  }, [clavesItems, versionInv])
+
+  // Consulta manual: trae TODO el inventario de Siesa (~15 s) y reemplaza la foto guardada para todos
+  async function actualizarInventario() {
+    setActualizando(true); setInvError(''); setInvAviso('')
+    try {
+      const res = await fetch('/api/logistica/ordenes-cen/inventario', { method: 'POST' })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) setInvError(d.error ?? 'No se pudo actualizar el inventario')
+      else { setInvAviso(d.mensaje ?? 'Inventario actualizado.'); setVersionInv(v => v + 1) }
+    } finally { setActualizando(false) }
+  }
 
   const todasBodegas = useMemo(() => Array.from(new Set((inv?.items ?? []).flatMap(i => Object.keys(i.porBodega)))).sort(), [inv])
   const bodegasActivas = useMemo(() => bodegas.filter(b => todasBodegas.includes(b)), [bodegas, todasBodegas])
   const inventario = useMemo(() => {
-    if (!inv) return undefined
+    if (!inv?.actualizado_at) return undefined // nunca se ha actualizado: sin diferencia
     const elegidas = bodegasActivas.length ? new Set(bodegasActivas) : null
     return new Map(inv.items.map(i => [i.f120_id, {
       unidad: i.unidad,
@@ -129,16 +151,23 @@ export function NecesidadSemanal({ cadena, ruta, hoy, usuario }: { cadena: strin
 
       {error && <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>{error}</div>}
       {/* Inventario actual de Siesa y bodegas que cuentan */}
-      {(inv || invCargando || invError) && (
+      {datos && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '6px 10px', marginBottom: 10, color: '#92400E', position: 'relative' }}>
-          {invCargando && <span>Consultando el inventario en Siesa...</span>}
+          <button className="btn" style={{ padding: '4px 12px', fontSize: 12, fontWeight: 700 }} onClick={actualizarInventario} disabled={actualizando}
+            title="Consulta ahora las existencias en Siesa. El inventario solo se actualiza con este botón.">
+            {actualizando ? 'Consultando Siesa...' : '⟳ Actualizar inventario'}
+          </button>
+          <span>
+            {inv?.actualizado_at
+              ? <><strong>Última actualización:</strong> {cuando(inv.actualizado_at)}{inv.actualizado_por ? ` por ${inv.actualizado_por}` : ''}{inv.conexion === 'qa' ? ' · Siesa QA' : ''}</>
+              : <strong>El inventario aún no se ha consultado: presiona Actualizar inventario.</strong>}
+            {inv?.actualizado_at && !esActual && ' · es la existencia de esa fecha, no la de la semana elegida'}
+          </span>
+          {invCargando && <span>Leyendo...</span>}
+          {invAviso && !actualizando && <span style={{ color: '#047857', fontWeight: 700 }}>✓ {invAviso}</span>}
           {invError && <span style={{ color: 'var(--danger)' }}>{invError}</span>}
-          {inv && !invCargando && (
+          {inv?.actualizado_at && !invCargando && (
             <>
-              <span>
-                <strong>Inventario actual de Siesa</strong>{inv.conexion === 'qa' ? ' (QA)' : ''} · consultado {new Date(inv.consultado_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
-                {!esActual && ' · es la existencia de hoy, no la de esa semana'}
-              </span>
               <button className="btn" style={{ padding: '3px 10px', fontSize: 12 }} onClick={() => setVerBodegas(v => !v)}>
                 Bodegas: {bodegasActivas.length ? `${bodegasActivas.length} de ${todasBodegas.length}` : 'todas'} ▾
               </button>
