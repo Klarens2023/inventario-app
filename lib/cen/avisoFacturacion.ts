@@ -15,7 +15,7 @@ import { logAudit } from '@/lib/audit'
 import { codigoRelacion } from './relacion'
 import { nombreComprador } from './compradores'
 import { FUENTE_INSTITUCIONAL } from './institucional'
-import { armarCorreoFacturacion, type PedidoAviso } from './correoFacturacion'
+import { armarCorreoFacturacion, type LineaAviso, type PedidoAviso } from './correoFacturacion'
 
 /** Pedido incluido en el correo, para mostrarlo en pantalla (ResultadoEnvioModal). */
 export type PedidoAvisado = Pick<PedidoAviso, 'id' | 'pedido' | 'oc' | 'institucional' | 'razon_social' | 'relacion' | 'valor' | 'retenido'>
@@ -78,13 +78,21 @@ async function pedidosSinAviso(filtro: { ids?: number[]; rutas?: string[] }): Pr
   })
 }
 
+/** Qué avisar: pedidos puntuales o todo lo pendiente de una ruta. */
+export interface SeleccionAviso {
+  ids?: number[]
+  ruta?: string
+  soloSeleccion?: boolean // true: solo los pedidos indicados (los PVK se eligen a mano en la selección)
+  totales?: boolean // incluir en el correo los totales por ítem y por cliente de cada relación
+}
+
 /**
- * Pedidos a avisar: los indicados (por id o todos los pendientes de una ruta) más los institucionales
- * sin avisar de las mismas relaciones.
+ * Pedidos a avisar: los indicados (por id o todos los pendientes de una ruta) más, salvo soloSeleccion,
+ * los institucionales sin avisar de las mismas relaciones.
  */
-export async function seleccionarParaAviso(sel: { ids?: number[]; ruta?: string }): Promise<PedidoAviso[]> {
+export async function seleccionarParaAviso(sel: SeleccionAviso): Promise<PedidoAviso[]> {
   const base = sel.ids ? await pedidosSinAviso({ ids: sel.ids }) : sel.ruta ? await pedidosSinAviso({ rutas: [sel.ruta] }) : []
-  if (!base.length) return []
+  if (!base.length || sel.soloSeleccion) return base
   const rutas = Array.from(new Set(base.map(p => p.ruta).filter((r): r is string => Boolean(r))))
   const relaciones = new Set(base.map(p => p.relacion))
   const yaEstan = new Set(base.map(p => p.id))
@@ -94,15 +102,36 @@ export async function seleccionarParaAviso(sel: { ids?: number[]; ruta?: string 
   return [...base, ...institucionales]
 }
 
+// Líneas de los pedidos para los totales por ítem y por cliente (ítem y peso del maestro, vista cen_lineas_producto)
+async function lineasDePedidos(ids: number[]): Promise<LineaAviso[]> {
+  const filas = await sql`
+    SELECT l.orden_id, l.ean_item, p.f120_id, COALESCE(p.descripcion, l.descripcion, l.ean_item) AS descripcion,
+           l.cantidad::float AS cantidad, l.precio::float AS precio, l.unidad, p.peso_kg::float AS peso_unitario
+    FROM cen_orden_lineas l JOIN cen_lineas_producto p ON p.linea_id = l.id
+    WHERE l.orden_id = ANY(${ids}::int[])
+    ORDER BY l.orden_id, l.nro_linea`
+  return filas.map(f => {
+    const item = (f.f120_id as number | null) ?? (Number(/^SIESA-(\d+)$/.exec(String(f.ean_item))?.[1]) || null)
+    const enKg = String(f.unidad ?? '').toUpperCase() === 'KG'
+    const cantidad = Number(f.cantidad) || 0
+    return {
+      orden_id: f.orden_id as number, item, descripcion: String(f.descripcion), unidad: enKg ? 'KG' : 'UND',
+      cantidad, valor: cantidad * (Number(f.precio) || 0),
+      kg: enKg ? cantidad : f.peso_unitario === null ? null : cantidad * Number(f.peso_unitario),
+    }
+  })
+}
+
 /** Envía el correo y marca los pedidos como avisados. Nunca lanza: devuelve el resultado para mostrarlo. */
-export async function avisarFacturacion(sel: { ids?: number[]; ruta?: string }, usuario: { id: string | null; name: string }): Promise<ResultadoAviso> {
+export async function avisarFacturacion(sel: SeleccionAviso, usuario: { id: string | null; name: string }): Promise<ResultadoAviso> {
   const falta = avisoNoDisponible()
   if (falta) return { ok: false, mensaje: `No se avisó a facturación: ${falta}`, pedidos: [] }
   try {
     const pedidos = await seleccionarParaAviso(sel)
     if (!pedidos.length) return { ok: true, mensaje: 'No hay pedidos pendientes de avisar a facturación.', pedidos: [] }
     const { para, cc } = destinatariosFacturacion()
-    const correo = armarCorreoFacturacion(pedidos, { avisadoPor: usuario.name, urlApp: process.env.NEXTAUTH_URL })
+    const lineas = sel.totales ? await lineasDePedidos(pedidos.map(p => p.id)) : undefined
+    const correo = armarCorreoFacturacion(pedidos, { avisadoPor: usuario.name, urlApp: process.env.NEXTAUTH_URL, lineas })
     await enviarCorreo({ para, cc, ...correo })
     const ids = pedidos.map(p => p.id)
     await sql`UPDATE cen_ordenes SET aviso_facturacion_at = NOW(), aviso_facturacion_por = ${usuario.name.slice(0, 120)}

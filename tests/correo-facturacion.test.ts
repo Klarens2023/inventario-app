@@ -1,7 +1,7 @@
 // Pruebas del correo de aviso a facturación (lib/cen/correoFacturacion.ts). Datos sintéticos.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { armarCorreoFacturacion, asuntoAviso, porRelacion, type PedidoAviso } from '../lib/cen/correoFacturacion.ts'
+import { armarCorreoFacturacion, asuntoAviso, porRelacion, totalesPorCliente, totalesPorItem, type LineaAviso, type PedidoAviso } from '../lib/cen/correoFacturacion.ts'
 
 const base: PedidoAviso = {
   id: 1, pedido: 'PVS-10', oc: '4504006920', institucional: false, cadena: 'Ara', razon_social: 'CLIENTE PRUEBA SAS',
@@ -32,4 +32,24 @@ test('escapa los datos en el HTML', () => {
   const c = armarCorreoFacturacion([{ ...base, razon_social: '<img src=x onerror=alert(1)>' }], { avisadoPor: 'Prueba' })
   assert.ok(!c.html.includes('<img'))
   assert.match(c.html, /&lt;img/)
+})
+
+test('totales por ítem y por cliente (opcionales en el correo)', () => {
+  const ps = [base, { ...base, id: 2, pedido: 'PVK-5', oc: null, institucional: true, razon_social: 'COLEGIO', nit: '800000002' }]
+  const lineas: LineaAviso[] = [
+    { orden_id: 1, item: 10, descripcion: 'LECHE', unidad: 'UND', cantidad: 10, kg: 9, valor: 1000 },
+    { orden_id: 2, item: 10, descripcion: 'LECHE', unidad: 'UND', cantidad: 5, kg: null, valor: 500 },
+    { orden_id: 2, item: 20, descripcion: 'QUESO', unidad: 'KG', cantidad: 2.5, kg: 2.5, valor: 300 },
+  ]
+  const items = totalesPorItem(lineas)
+  assert.deepEqual(items.map(i => [i.item, i.unidades, i.kg, i.kgCompleto, i.valor]), [[10, 15, 9, false, 1500], [20, 0, 2.5, true, 300]])
+  const clientes = totalesPorCliente(ps, lineas)
+  assert.deepEqual(clientes.map(c => [c.cliente, c.pedidos, c.valor, c.items.length]), [['CLIENTE PRUEBA SAS', 1, 1000, 1], ['COLEGIO', 1, 800, 2]])
+  const sin = armarCorreoFacturacion(ps, { avisadoPor: 'Prueba' })
+  assert.ok(!sin.html.includes('Totales por ítem'))
+  const con = armarCorreoFacturacion(ps, { avisadoPor: 'Prueba', lineas })
+  assert.match(con.html, /Totales por ítem · ARA-1146/)
+  assert.match(con.html, /Totales por cliente/)
+  assert.match(con.html, /Kilos incompletos/)
+  assert.match(con.texto, /Totales por ítem:/)
 })

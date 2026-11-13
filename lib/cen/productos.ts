@@ -37,6 +37,7 @@ export async function recalcularPesoOrdenes(ean: string) {
       WHERE l.orden_id IN (SELECT orden_id FROM cen_orden_lineas WHERE ean_item = ${ean})
       GROUP BY l.orden_id
     ) x
-    WHERE o.id = x.orden_id AND o.estado <> 'enviado'
+    -- Las enviadas no se tocan, salvo los pedidos institucionales (su peso solo sirve para rutas y reportes)
+    WHERE o.id = x.orden_id AND (o.estado <> 'enviado' OR o.fuente = 'institucional')
   `
 }

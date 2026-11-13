@@ -53,10 +53,57 @@ export function asuntoAviso(pedidos: PedidoAviso[]): string {
   return partes.join(' · ')
 }
 
+/** Línea de un pedido para los totales por ítem y por cliente (opcional en el correo). */
+export interface LineaAviso {
+  orden_id: number
+  item: number | null // ítem de Siesa
+  descripcion: string
+  unidad: 'UND' | 'KG'
+  cantidad: number
+  kg: number | null // null si el producto no tiene peso en el maestro
+  valor: number
+}
+
+export interface TotalItem { item: number | null; descripcion: string; unidades: number; kg: number; kgCompleto: boolean; valor: number }
+
+/** Totales por ítem de Siesa (las líneas en kilos no suman a unidades). Ordenados por valor. */
+export function totalesPorItem(lineas: LineaAviso[]): TotalItem[] {
+  const m = new Map<string, TotalItem>()
+  for (const l of lineas) {
+    const k = l.item !== null ? `I${l.item}` : l.descripcion
+    const t = m.get(k) ?? { item: l.item, descripcion: l.descripcion, unidades: 0, kg: 0, kgCompleto: true, valor: 0 }
+    if (l.unidad !== 'KG') t.unidades += l.cantidad
+    if (l.kg === null) t.kgCompleto = false; else t.kg += l.kg
+    t.valor += l.valor
+    m.set(k, t)
+  }
+  return Array.from(m.values()).sort((a, b) => b.valor - a.valor)
+}
+
+export interface TotalCliente { cliente: string; detalle: string; pedidos: number; unidades: number; kg: number; kgCompleto: boolean; valor: number; items: TotalItem[] }
+
+/** Totales por cliente (razón social + NIT/sucursal) con sus ítems. Ordenados por valor. */
+export function totalesPorCliente(pedidos: PedidoAviso[], lineas: LineaAviso[]): TotalCliente[] {
+  const m = new Map<string, { cliente: string; detalle: string; ids: Set<number> }>()
+  for (const p of pedidos) {
+    const k = `${p.razon_social}|${p.nit ?? ''}|${p.sucursal ?? ''}`
+    const c = m.get(k) ?? { cliente: p.razon_social, detalle: [p.nit && `${p.nit}/${p.sucursal ?? ''}`, p.ciudad].filter(Boolean).join(' · '), ids: new Set<number>() }
+    c.ids.add(p.id); m.set(k, c)
+  }
+  return Array.from(m.values()).map(c => {
+    const items = totalesPorItem(lineas.filter(l => c.ids.has(l.orden_id)))
+    return {
+      cliente: c.cliente, detalle: c.detalle, pedidos: c.ids.size, items,
+      unidades: items.reduce((s, i) => s + i.unidades, 0), kg: items.reduce((s, i) => s + i.kg, 0),
+      kgCompleto: items.every(i => i.kgCompleto), valor: items.reduce((s, i) => s + i.valor, 0),
+    }
+  }).sort((a, b) => b.valor - a.valor)
+}
+
 // Paleta del correo
 const C = { azul: '#1E3A8A', azulClaro: '#EEF4FF', borde: '#E2E8F0', texto: '#0F172A', gris: '#64748B', fondo: '#F1F5F9', rojo: '#B91C1C', rojoClaro: '#FEF2F2', morado: '#6D28D9', moradoClaro: '#F3EEFF' }
 
-export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlApp?: string; avisadoPor: string }): { asunto: string; html: string; texto: string } {
+export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlApp?: string; avisadoPor: string; lineas?: LineaAviso[] }): { asunto: string; html: string; texto: string } {
   const grupos = porRelacion(pedidos)
   const total = (ps: PedidoAviso[]) => ({
     valor: ps.reduce((s, p) => s + p.valor, 0),
@@ -73,6 +120,7 @@ export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlAp
   const td = `padding:10px 12px;border-bottom:1px solid ${C.borde};font-size:13px;vertical-align:top;color:${C.texto}`
   const th = `padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:${C.gris};text-align:left;border-bottom:2px solid ${C.borde}`
   const der = ';text-align:right;white-space:nowrap'
+  const tdc = `padding:5px 10px;border-bottom:1px solid ${C.borde};font-size:12px;vertical-align:top;color:${C.texto}`
   const etiqueta = (txt: string, fg: string, bg: string) =>
     `<span style="display:inline-block;margin-top:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.03em;color:${fg};background:${bg}">${txt}</span>`
 
@@ -88,8 +136,37 @@ export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlAp
     indicador(moneda(tg.valor), 'valor antes de IVA'),
   ].join('<td style="width:8px"></td>')
 
+  // Totales por ítem y por cliente (si se pidieron): tablas compactas debajo de cada relación
+  const kgTxt = (kg: number, completo: boolean) => `${numero(kg, 1)} kg${completo ? '' : '*'}`
+  const tablaItems = (items: TotalItem[], titulo: string) => `
+      <tr><td style="padding:14px 0 6px;font-size:13px;font-weight:800;color:${C.texto}">${esc(titulo)}</td></tr>
+      <tr><td>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ${C.borde}">
+          <thead><tr><th style="${th}">Ítem</th><th style="${th}">Producto</th><th style="${th};text-align:right">Unidades</th><th style="${th};text-align:right">Kilos</th><th style="${th};text-align:right">Valor</th></tr></thead>
+          <tbody>${items.map(i => `<tr><td style="${tdc}">${i.item ?? '—'}</td><td style="${tdc}">${esc(i.descripcion)}</td>
+            <td style="${tdc}${der}">${i.unidades ? numero(i.unidades, 1) : '—'}</td><td style="${tdc}${der}">${kgTxt(i.kg, i.kgCompleto)}</td><td style="${tdc}${der}">${moneda(i.valor)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr style="background:${C.fondo}"><td colspan="2" style="${tdc};font-weight:700">Total</td>
+            <td style="${tdc}${der};font-weight:700">${numero(items.reduce((s, i) => s + i.unidades, 0), 1)}</td>
+            <td style="${tdc}${der};font-weight:700">${kgTxt(items.reduce((s, i) => s + i.kg, 0), items.every(i => i.kgCompleto))}</td>
+            <td style="${tdc}${der};font-weight:700">${moneda(items.reduce((s, i) => s + i.valor, 0))}</td></tr></tfoot>
+        </table>
+      </td></tr>`
+  const tablaClientes = (clientes: TotalCliente[]) => `
+      <tr><td style="padding:14px 0 6px;font-size:13px;font-weight:800;color:${C.texto}">Totales por cliente</td></tr>
+      <tr><td>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ${C.borde}">
+          <thead><tr><th style="${th}">Cliente / producto</th><th style="${th};text-align:right">Unidades</th><th style="${th};text-align:right">Kilos</th><th style="${th};text-align:right">Valor</th></tr></thead>
+          <tbody>${clientes.map(c => `<tr style="background:${C.azulClaro}"><td style="${tdc};font-weight:700">${esc(c.cliente)}<span style="font-weight:400;color:${C.gris}"> · ${plural(c.pedidos, 'pedido', 'pedidos')}${c.detalle ? ` · ${esc(c.detalle)}` : ''}</span></td>
+            <td style="${tdc}${der};font-weight:700">${numero(c.unidades, 1)}</td><td style="${tdc}${der};font-weight:700">${kgTxt(c.kg, c.kgCompleto)}</td><td style="${tdc}${der};font-weight:700">${moneda(c.valor)}</td></tr>` +
+            c.items.map(i => `<tr><td style="${tdc};padding-left:22px;color:${C.gris}">${i.item ? `${i.item} · ` : ''}${esc(i.descripcion)}</td>
+            <td style="${tdc}${der};color:${C.gris}">${i.unidades ? numero(i.unidades, 1) : '—'}</td><td style="${tdc}${der};color:${C.gris}">${kgTxt(i.kg, i.kgCompleto)}</td><td style="${tdc}${der};color:${C.gris}">${moneda(i.valor)}</td></tr>`).join('')).join('')}</tbody>
+        </table>
+      </td></tr>`
+  const lineasDe = (ps: PedidoAviso[]) => { const ids = new Set(ps.map(p => p.id)); return (opciones.lineas ?? []).filter(l => ids.has(l.orden_id)) }
+
   const secciones = grupos.map(([rel, ps]) => {
     const t = total(ps)
+    const totales = opciones.lineas ? tablaItems(totalesPorItem(lineasDe(ps)), `Totales por ítem · ${rel}`) + tablaClientes(totalesPorCliente(ps, lineasDe(ps))) : ''
     const filas = ps.map(p => {
       const cliente = [p.nit && `NIT ${p.nit}${p.sucursal ? ` · suc. ${p.sucursal}` : ''}`, p.ciudad].filter(Boolean).join(' · ')
       return `
@@ -119,8 +196,8 @@ export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlAp
             <td style="${td}${der};font-weight:800;border-bottom:none">${moneda(t.valor)}</td>
           </tr></tfoot>
         </table>
-      </td></tr>`
-  }).join('')
+      </td></tr>${totales}`
+  }).join('') + (opciones.lineas && grupos.length > 1 ? tablaItems(totalesPorItem(opciones.lineas), 'Total por ítem de todas las relaciones') : '')
 
   const resumen = `${plural(pedidos.length, 'pedido quedó creado', 'pedidos quedaron creados')} en Siesa${institucionales ? `, de los cuales ${plural(institucionales, 'es institucional', 'son institucionales')}` : ''}.`
 
@@ -154,7 +231,7 @@ export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlAp
         </td></tr>
         <tr><td style="background:${C.fondo};padding:14px 24px;font-size:11px;line-height:1.5;color:${C.gris}">
           Enviado por ${esc(opciones.avisadoPor)} desde la app de Operaciones${opciones.urlApp ? ` · <a href="${esc(opciones.urlApp)}/logistica/ordenes-cen" style="color:${C.azul}">Ver órdenes EDI</a>` : ''}.<br>
-          Valores antes de IVA.${institucionales ? ' Los pedidos INSTITUCIONALES se crearon directamente en Siesa y se agregaron a la ruta.' : ''}
+          Valores antes de IVA.${opciones.lineas?.some(l => l.kg === null) ? ' * Kilos incompletos: hay productos sin peso en el maestro.' : ''}${institucionales ? ' Los pedidos INSTITUCIONALES se crearon directamente en Siesa y se agregaron a la ruta.' : ''}
         </td></tr>
       </table>
     </td></tr>
@@ -170,6 +247,8 @@ export function armarCorreoFacturacion(pedidos: PedidoAviso[], opciones: { urlAp
     ...(retenidos.length ? ['', `ATENCIÓN: ${plural(retenidos.length, 'pedido retenido', 'pedidos retenidos')} en Siesa, revisar antes de facturar.`] : []),
     ...grupos.flatMap(([rel, ps]) => ['', `Relación ${rel} (${moneda(total(ps).valor)}):`, ...ps.map(p =>
       `- ${p.pedido}${p.institucional ? ' (INSTITUCIONAL)' : ` · OC ${p.oc}`} · ${p.razon_social} · entrega ${fecha(p.fecha_entrega)} · ${moneda(p.valor)}${p.retenido ? ` · ⚠ ${p.retenido}` : ''}`)]),
+    ...(opciones.lineas ? ['', 'Totales por ítem:', ...totalesPorItem(opciones.lineas).map(i =>
+      `- ${i.item ?? ''} ${i.descripcion}: ${i.unidades ? `${numero(i.unidades, 1)} und · ` : ''}${kgTxt(i.kg, i.kgCompleto)} · ${moneda(i.valor)}`)] : []),
     '', 'Quedamos atentos a cualquier novedad. Gracias.',
     '', `Enviado por ${opciones.avisadoPor} desde la app de Operaciones.`,
   ].join('\n')

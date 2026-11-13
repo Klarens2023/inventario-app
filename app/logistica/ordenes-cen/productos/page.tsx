@@ -70,7 +70,7 @@ export default function ProductosCenPage() {
           <tbody>
             {visibles.map(p => (
               <tr key={p.ean} style={{ background: p.en_maestro ? undefined : '#FFF7ED' }}>
-                <td style={{ fontFamily: 'monospace' }}>{p.ean}</td>
+                <td style={{ fontFamily: 'monospace' }}>{p.ean.startsWith('SIESA-') ? <span title="Producto de pedidos institucionales: llega sin código de barras, se identifica por el ítem de Siesa">Ítem {p.ean.slice(6)} <span style={{ fontSize: 11, color: 'var(--text2)' }}>(PVK)</span></span> : p.ean}</td>
                 <td>{p.descripcion ?? '—'}</td>
                 <td>{p.f120_id ? <><strong>{p.f120_id}</strong>{p.descripcion_siesa && <div style={{ fontSize: 11, color: 'var(--text2)' }}>{p.descripcion_siesa}</div>}</> : <span style={{ color: '#B45309', fontWeight: 600 }}>Sin asignar</span>}</td>
                 <td style={{ color: 'var(--text2)' }}>{p.codigo_bd ?? '—'}</td>
@@ -78,7 +78,7 @@ export default function ProductosCenPage() {
                 <td style={{ textAlign: 'right' }}>{p.und_caja ?? '—'}</td>
                 <td style={{ textAlign: 'right' }}>{p.ordenes}</td>
                 <td>
-                  <button className="btn" onClick={() => { setError(''); setForm({ ean: p.ean, f120_id: p.f120_id?.toString() ?? '', descripcion: p.descripcion ?? '', peso_kg: p.peso_kg?.toString() ?? '', und_caja: p.und_caja?.toString() ?? '', nuevo: !p.en_maestro }) }}>
+                  <button className="btn" onClick={() => { setError(''); setForm({ ean: p.ean, f120_id: p.f120_id?.toString() ?? (p.ean.startsWith('SIESA-') ? p.ean.slice(6) : ''), descripcion: p.descripcion ?? '', peso_kg: p.peso_kg?.toString() ?? '', und_caja: p.und_caja?.toString() ?? '', nuevo: !p.en_maestro }) }}>
                     {p.en_maestro ? 'Editar' : 'Agregar'}
                   </button>
                 </td>
@@ -92,12 +92,18 @@ export default function ProductosCenPage() {
         <div onClick={() => setForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 560 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>{form.nuevo ? 'Agregar al maestro' : 'Editar producto'}</h2>
-            <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 14 }}>EAN <strong>{form.ean}</strong></p>
+            <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 14 }}>
+              {form.ean.startsWith('SIESA-')
+                ? <>Ítem de Siesa <strong>{form.ean.slice(6)}</strong> de pedidos institucionales (PVK): llega sin código de barras. Con el peso, sus pedidos dejan de salir con &quot;peso incompleto&quot;.</>
+                : <>EAN <strong>{form.ean}</strong></>}
+            </p>
             <div style={{ display: 'grid', gap: 12, fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>
               <label>DESCRIPCIÓN<input style={inp} value={form.descripcion} onChange={e => setForm({ ...form, descripcion: e.target.value })} /></label>
-              <div>ÍTEM DE SIESA {form.f120_id ? <span style={{ color: 'var(--text)' }}>· seleccionado: <strong>{form.f120_id}</strong></span> : '· sin asignar'}
-                <ItemSiesaPicker value={form.f120_id} onChange={id => setForm({ ...form, f120_id: id })} sugerencia={form.descripcion.split(' ').slice(0, 2).join(' ')} />
-              </div>
+              {!form.ean.startsWith('SIESA-') && (
+                <div>ÍTEM DE SIESA {form.f120_id ? <span style={{ color: 'var(--text)' }}>· seleccionado: <strong>{form.f120_id}</strong></span> : '· sin asignar'}
+                  <ItemSiesaPicker value={form.f120_id} onChange={id => setForm({ ...form, f120_id: id })} sugerencia={form.descripcion.split(' ').slice(0, 2).join(' ')} />
+                </div>
+              )}
               <label>PESO POR UNIDAD (kg)<input style={inp} value={form.peso_kg} onChange={e => setForm({ ...form, peso_kg: e.target.value })} placeholder="ej. 0.2" /></label>
               <label>UNIDADES POR CAJA<input style={inp} value={form.und_caja} onChange={e => setForm({ ...form, und_caja: e.target.value.replace(/\D/g, '') })} /></label>
             </div>

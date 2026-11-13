@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  agruparOrdenes, cajasLinea, cumplimiento, diasEntre, lineasRelacion, necesidadPorProducto, pesoLinea, semanaIso, tiemposPorCadena,
+  agruparOrdenes, cajasLinea, cumplimiento, diasDeSemana, diasEntre, lineasRelacion, necesidadPorProducto, necesidadSemanal, pesoLinea, sabadoDeSemana, semanaIso, tiemposPorCadena,
   type LineaReporte, type OrdenReporte,
 } from '../lib/cen/reportes.ts'
 import { codigoRelacion } from '../lib/cen/relacion.ts'
@@ -121,4 +121,61 @@ test('tiempos por cadena: anticipación, demora de lectura y envíos a tiempo', 
   assert.equal(t.envioDiasProm, 2)
   assert.equal(t.enviadas, 1)
   assert.equal(t.aTiempo, 1)
+})
+
+// ── Necesidad semanal ───────────────────────────────────────────────────────
+
+test('semana de necesidad: sábado a viernes', () => {
+  assert.equal(sabadoDeSemana('2026-11-07'), '2026-11-07') // sábado
+  assert.equal(sabadoDeSemana('2026-11-08'), '2026-11-07') // domingo
+  assert.equal(sabadoDeSemana('2026-11-13'), '2026-11-07') // viernes
+  assert.equal(sabadoDeSemana('2026-11-14'), '2026-11-14') // el sábado siguiente empieza otra
+  assert.deepEqual(diasDeSemana('2026-11-07'), ['2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13'])
+})
+
+test('necesidad semanal: por fecha de llegada, por ítem, con inventario y 20 % de margen', () => {
+  const dias = diasDeSemana('2026-11-07')
+  const ordenes = [
+    orden({ id: 1, fecha_orden: '2026-11-07' }),
+    orden({ id: 2, fecha_orden: '2026-11-13', fuente: 'institucional' }),
+    orden({ id: 3, fecha_orden: '2026-11-14' }), // semana siguiente: no entra
+    orden({ id: 4, fecha_orden: '2026-11-09', estado: 'descartada' }), // descartada: no entra
+  ]
+  const lineas = [
+    linea({ orden_id: 1, cantidad: 10 }), // 10 und · 5 kg
+    linea({ orden_id: 2, ean_item: 'SIESA-10', f120_id: null, cantidad: 4, peso_unitario: null }), // mismo ítem 10, sin peso
+    linea({ orden_id: 3, cantidad: 100 }),
+    linea({ orden_id: 4, cantidad: 100 }),
+    linea({ orden_id: 1, ean_item: 'P2', f120_id: 20, descripcion: 'QUESO', cantidad: 7.5, unidad: 'KG', peso_unitario: null }),
+  ]
+  const filas = necesidadSemanal(ordenes, lineas, dias, new Map([[10, { existencia: 3, unidad: 'UND' }], [20, { existencia: 10, unidad: 'KG' }]]))
+  const p1 = filas.find(f => f.f120_id === 10)!
+  assert.equal(p1.unidades, 14)
+  assert.equal(p1.ordenes, 2)
+  assert.equal(p1.kgCompleto, false)
+  assert.deepEqual(Object.keys(p1.porDia).sort(), ['2026-11-07', '2026-11-13'])
+  assert.equal(p1.medida, 'UND')
+  assert.equal(p1.diferencia, 11) // 14 − 3
+  assert.equal(p1.sugerido, 14) // 11 × 1,2 = 13,2 → 14
+  const queso = filas.find(f => f.f120_id === 20)!
+  assert.equal(queso.medida, 'KG')
+  assert.equal(queso.unidades, 0)
+  assert.equal(queso.kg, 7.5)
+  assert.equal(queso.diferencia, 0) // hay más inventario que pedido
+  assert.equal(necesidadSemanal(ordenes, lineas, dias)[0].inventario, null) // sin inventario: no calcula diferencia
+})
+
+test('necesidad semanal: se compara en la unidad de inventario de Siesa', () => {
+  const dias = diasDeSemana('2026-11-07')
+  const ordenes = [orden({ id: 1, fecha_orden: '2026-11-08' })]
+  const lineas = [linea({ orden_id: 1, cantidad: 10, peso_unitario: 2.5 })] // 10 und = 25 kg
+  // El ítem se pidió en unidades pero Siesa lo inventaría en kilos: se comparan los 25 kg
+  const [f] = necesidadSemanal(ordenes, lineas, dias, new Map([[10, { existencia: 5, unidad: 'KG' }]]))
+  assert.equal(f.medida, 'KG')
+  assert.equal(f.diferencia, 20)
+  assert.equal(f.sugerido, 24)
+  // Sin existencia en Siesa cuenta como 0
+  const [g] = necesidadSemanal(ordenes, lineas, dias, new Map())
+  assert.equal(g.inventario, 0)
+  assert.equal(g.diferencia, 10)
 })

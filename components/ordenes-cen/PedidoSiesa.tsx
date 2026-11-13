@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { OrdenCen } from '@/types/ordenes-cen'
 import { ItemSiesaPicker, type ItemSiesa } from './ItemSiesaPicker'
 import { ResultadoEnvioModal, type AvisoCorreo, type FilaResultado } from './ResultadoEnvioModal'
+import { ElegirAvisoModal, type ModoAviso } from './ElegirAvisoModal'
 
 type Aviso = { nivel: 'bloqueo' | 'alerta' | 'info'; mensaje: string }
 type SinItem = { ean: string; descripcion: string | null; peso_kg: number | null; lineas: number[] }
@@ -42,6 +43,7 @@ function SeccionPedido({ orden, onEnviado, onAsignarPunto, onProductoAsignado, o
   const [prep, setPrep] = useState<Prep | null>(null)
   const [cargando, setCargando] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const [preguntando, setPreguntando] = useState(false) // un solo pedido: ¿correo solo o con el consolidado de la ruta?
   const [confirma, setConfirma] = useState(false)
   const [verJson, setVerJson] = useState(false)
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string; detalle?: unknown } | null>(null)
@@ -56,11 +58,15 @@ function SeccionPedido({ orden, onEnviado, onAsignarPunto, onProductoAsignado, o
     } finally { setCargando(false) }
   }
 
-  async function enviar() {
+  async function enviar(modo: ModoAviso) {
+    setPreguntando(false)
+    // Misma preferencia de la barra de selección: totales por ítem y cliente en el correo
+    let totales = true
+    try { totales = localStorage.getItem('cen-correo-totales') !== '0' } catch { /* sin almacenamiento */ }
     setEnviando(true); setMensaje(null)
     try {
       const res = await fetch(`/api/logistica/ordenes-cen/${orden.id}/pedido`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmaAlertas: confirma }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmaAlertas: confirma, aviso_modo: modo, totales }),
       })
       const data = await res.json()
       // Al crear el pedido se avisa a facturación por correo: se muestra si salió o por qué no
@@ -148,7 +154,7 @@ function SeccionPedido({ orden, onEnviado, onAsignarPunto, onProductoAsignado, o
                   Revisé las {alertas} alerta(s) y quiero crear el pedido así
                 </label>
               )}
-              <button className="btn btn-primary" onClick={enviar} disabled={enviando || (alertas > 0 && !confirma)} style={{ marginLeft: 'auto' }}>
+              <button className="btn btn-primary" onClick={() => setPreguntando(true)} disabled={enviando || (alertas > 0 && !confirma)} style={{ marginLeft: 'auto' }}>
                 {enviando ? 'Enviando a Siesa...' : 'Crear pedido en Siesa'}
               </button>
             </div>
@@ -156,6 +162,10 @@ function SeccionPedido({ orden, onEnviado, onAsignarPunto, onProductoAsignado, o
         </div>
       )}
 
+      {preguntando && (
+        <ElegirAvisoModal oc={orden.numero_orden} cliente={orden.razon_social} ruta={orden.ruta}
+          onElegir={m => { if (m) enviar(m); else setPreguntando(false) }} />
+      )}
       {mensaje && (
         <div style={{ ...estiloAviso(mensaje.ok ? 'info' : 'bloqueo'), marginTop: 8 }}>
           {mensaje.texto}

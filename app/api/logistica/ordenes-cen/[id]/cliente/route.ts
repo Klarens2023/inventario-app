@@ -20,7 +20,19 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   const [punto] = await sql`SELECT bodega, ciudad, departamento FROM cen_puntos_ean WHERE ean = ${orden.ean_entrega}`
   const [config] = await sql`SELECT id_co, tipo_docto, lista_precio, cond_pago, bodega, ind_precio FROM cen_config_clientes WHERE nit = ${orden.nit}`
-  const app = { bodega: punto?.bodega ?? null, ciudad: punto?.ciudad ?? null, departamento: punto?.departamento ?? null, config: config ?? null }
+  // Dirección y ciudad de la sucursal (base importada de Siesa) y los EAN que el sistema tiene asociados a
+  // esa sucursal, para comparar con el EAN del punto de entrega de la orden.
+  const [direccion] = await sql`SELECT direccion, ciudad, departamento FROM cen_sucursales_siesa WHERE nit = ${orden.nit} AND sucursal = ${orden.sucursal}`
+    .catch(() => [] as Record<string, unknown>[])
+  const eans = await sql`SELECT ean FROM cen_puntos_ean WHERE nit = ${orden.nit} AND sucursal = ${orden.sucursal} AND activo ORDER BY ean`
+  const app = {
+    bodega: punto?.bodega ?? null, config: config ?? null,
+    direccion: (direccion?.direccion as string | null) ?? null,
+    ciudad: (direccion?.ciudad as string | null) ?? punto?.ciudad ?? null,
+    departamento: (direccion?.departamento as string | null) ?? punto?.departamento ?? null,
+    ean_orden: orden.ean_entrega as string,
+    eans: eans.map(e => e.ean as string),
+  }
 
   if (!siesaConfigurado()) return NextResponse.json({ asociada: true, app, siesa: null, error: 'La API de Siesa no está configurada.' })
   try {

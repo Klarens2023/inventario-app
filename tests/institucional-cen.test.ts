@@ -2,7 +2,7 @@
 // líneas por pedido y la orden que se guarda. Datos sintéticos.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agruparPedidos, armarOrdenInstitucional, condicionBusqueda, condicionPedido } from '../lib/cen/institucional.ts'
+import { agruparPedidos, armarOrdenInstitucional, clienteDelPedido, codigoCiudad, condicionAutomatica, condicionBusqueda, condicionPedido } from '../lib/cen/institucional.ts'
 
 const DESDE = '2026-10-29'
 const BASE = "f430_id_fecha >= ''20261029'' AND f430_ind_estado <> 9"
@@ -68,4 +68,29 @@ test('orden institucional: ítem del maestro, peso y líneas sin maestro', () =>
   assert.equal(conPeso.peso_kg, 3.5) // 4 × 0,25 + 2,5 kg
   // Sin peso en el maestro para un producto en unidades: peso incompleto
   assert.equal(armarOrdenInstitucional(p, new Map()).peso_kg, null)
+})
+
+test('automático: cliente por NIT y ciudad del punto de envío', () => {
+  const clientes = [
+    { nit: '900040299', nombre: 'ATLANTIC FS SAS', ciudades: ['08-001', '13-001'], ruta: 'DISTRYCAR', activo: true },
+    { nit: '890929877', nombre: 'NEWREST', ciudades: ['44-035'], ruta: 'DISTRYCAR', activo: false },
+  ]
+  assert.equal(codigoCiudad('8', '1'), '08-001')
+  assert.equal(codigoCiudad('', '001'), null)
+  assert.equal(clienteDelPedido({ nit: '900040299', ciudad: '08-001', tipo: 'PVK' }, clientes)?.nombre, 'ATLANTIC FS SAS')
+  assert.equal(clienteDelPedido({ nit: '900040299', ciudad: '11-001', tipo: 'PVK' }, clientes), null) // Atlantic Bogotá: no va
+  assert.equal(clienteDelPedido({ nit: '900040299', ciudad: '13-001', tipo: 'CTV' }, clientes), null) // solo PVK
+  assert.equal(clienteDelPedido({ nit: '890929877', ciudad: '44-035', tipo: 'PVK' }, clientes), null) // pausado
+  assert.equal(condicionAutomatica(['900040299', '9.000-40299', 'x'], DESDE),
+    "f430_id_fecha >= ''20261029'' AND f430_ind_estado <> 9 AND f430_id_tipo_docto = ''PVK'' AND f200_nit_pedido_fact IN (''900040299'')")
+  assert.equal(condicionAutomatica([], DESDE), null)
+})
+
+test('agrupa la ciudad del punto de envío (o la de la sucursal)', () => {
+  const base = { f430_id_co: '001', f430_id_tipo_docto: 'PVK', f430_consec_docto: 1, f430_id_fecha: '2026-11-06T00:00:00', f430_ind_estado: 2,
+    f200_nit_pedido_fact: '900040299', f430_id_sucursal_pedido_fact: '002', f200_razon_social_pedido_fact: 'ATLANTIC FS SAS' }
+  const [a] = agruparPedidos([{ ...base, f015_id_depto_pe: '08', f015_id_ciudad_pe: '001', f015_id_depto_fact: '11', f015_id_ciudad_fact: '001' }])
+  assert.equal(a.ciudad, '08-001')
+  const [b] = agruparPedidos([{ ...base, f015_id_depto_fact: '13', f015_id_ciudad_fact: '001' }])
+  assert.equal(b.ciudad, '13-001')
 })

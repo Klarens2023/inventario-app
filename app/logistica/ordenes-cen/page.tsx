@@ -9,6 +9,7 @@ import { TotalesRutaModal } from '@/components/ordenes-cen/TotalesRutaModal'
 import { PedidosInstitucionalesModal } from '@/components/ordenes-cen/PedidosInstitucionalesModal'
 import { MenuConfiguracion } from '@/components/ordenes-cen/MenuConfiguracion'
 import { CambiarRelacionModal } from '@/components/ordenes-cen/CambiarRelacionModal'
+import { ElegirAvisoModal, type ModoAviso } from '@/components/ordenes-cen/ElegirAvisoModal'
 import { ResultadoEnvioModal, type AvisoCorreo, type FilaResultado } from '@/components/ordenes-cen/ResultadoEnvioModal'
 import { ESTADOS, fmtFecha, fmtMoneda, fmtNumero, relacion } from '@/components/ordenes-cen/utils'
 
@@ -67,7 +68,12 @@ function porRelacion(os: OrdenCen[]): { rel: string; ordenes: OrdenCen[] }[] {
   for (const o of os) { const r = relacion(o.ruta, o.fecha_despacho) ?? SIN_RELACION; m.set(r, [...(m.get(r) ?? []), o]) }
   return Array.from(m, ([rel, ordenes]) => ({ rel, ordenes })).sort((a, b) => Number(a.rel === SIN_RELACION) - Number(b.rel === SIN_RELACION) || a.rel.localeCompare(b.rel))
 }
-const kgTexto = (t: { peso: number; pesoCompleto: boolean }) => t.pesoCompleto ? `${fmtNumero(t.peso, 1)} kg` : 'peso incompleto'
+// Con productos sin peso en el maestro se muestra lo que se conoce con * (no "peso incompleto")
+const kgTexto = (t: { peso: number; pesoCompleto: boolean }) => `${fmtNumero(t.peso, 1)} kg${t.pesoCompleto ? '' : '*'}`
+const TITULO_PESO = 'Peso parcial: hay productos sin peso en el maestro (Configuración → Productos)'
+
+// Preferencia: incluir los totales por ítem y por cliente en el correo a facturación (se recuerda en el navegador)
+const CLAVE_TOTALES = 'cen-correo-totales'
 
 const sel: React.CSSProperties = { padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: '#fff' }
 
@@ -103,6 +109,7 @@ export default function OrdenesCenPage() {
   const [sinAviso, setSinAviso] = useState<Set<number>>(new Set()) // pedidos en Siesa sin avisar a facturación
   const [avisando, setAvisando] = useState('')
   const [totales, setTotales] = useState<{ titulo: string; ruta: string | null; ids: number[]; secciones?: { titulo: string; ids: number[] }[]; inicial?: string } | null>(null)
+  const [preguntaUno, setPreguntaUno] = useState<OrdenCen | null>(null)
   const [moverRelacion, setMoverRelacion] = useState<{ ids: number[]; actual: string | null } | null>(null)
   const [sincronizaciones, setSincronizaciones] = useState<Sincronizacion[]>([])
   const [institucional, setInstitucional] = useState(false)
@@ -124,9 +131,10 @@ export default function OrdenesCenPage() {
       const res = await fetch(`/api/logistica/ordenes-cen?${qs}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'No se pudieron cargar las órdenes')
-      setOrdenes(data.ordenes); setResumen(data.resumen); setSinAviso(new Set(data.sin_aviso ?? []))
-      // Quita de la selección lo que ya no está visible o ya no se puede enviar
-      const visibles = new Set((data.ordenes as OrdenCen[]).filter(enviable).map(o => o.id))
+      const pendientesAviso = new Set<number>(data.sin_aviso ?? [])
+      setOrdenes(data.ordenes); setResumen(data.resumen); setSinAviso(pendientesAviso)
+      // Quita de la selección lo que ya no está visible o ya no se puede enviar ni avisar
+      const visibles = new Set((data.ordenes as OrdenCen[]).filter(o => enviable(o) || (o.fuente === 'institucional' && pendientesAviso.has(o.id))).map(o => o.id))
       setSeleccion(prev => new Set(Array.from(prev).filter(id => visibles.has(id))))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error')
@@ -157,7 +165,7 @@ export default function OrdenesCenPage() {
   }, [haySeleccion])
 
   // Con una ventana abierta (totales, detalle...) la barra fija se oculta para no quedar encima
-  const hayVentana = Boolean(totales || moverRelacion || detalleId !== null || asignarEan || institucional || avisoRuta || (envio && !envio.enCurso))
+  const hayVentana = Boolean(totales || moverRelacion || preguntaUno || detalleId !== null || asignarEan || institucional || avisoRuta || (envio && !envio.enCurso))
 
   const hayFiltros = Boolean(estado || comprador || fuente || desde || hasta || buscar || ruta || fechaOc || orden !== 'entrega')
   function limpiarFiltros() {
@@ -216,15 +224,36 @@ export default function OrdenesCenPage() {
     return Array.from(m.values()).sort((a, b) => Number(b.sinPunto) - Number(a.sinPunto) || a.titulo.localeCompare(b.titulo))
   }, [ordenes, vista])
 
+  // Se puede seleccionar: lo que se envía a Siesa y los PVK institucionales que aún no se han avisado
+  // (no se envían a Siesa, ya existen allá: solo se incluyen en el correo a facturación)
+  const esPvk = (o: OrdenCen) => o.fuente === 'institucional'
+  const seleccionable = (o: OrdenCen) => enviable(o) || (esPvk(o) && sinAviso.has(o.id))
+
+  const [totalesCorreo, setTotalesCorreo] = useState(true)
+  useEffect(() => { try { setTotalesCorreo(localStorage.getItem(CLAVE_TOTALES) !== '0') } catch { /* sin almacenamiento */ } }, [])
+  function cambiarTotalesCorreo(v: boolean) {
+    setTotalesCorreo(v)
+    try { localStorage.setItem(CLAVE_TOTALES, v ? '1' : '0') } catch { /* solo por esta vez */ }
+  }
+
   const marcar = (ids: number[], marcado: boolean) => setSeleccion(prev => {
     const n = new Set(prev); for (const id of ids) { if (marcado) n.add(id); else n.delete(id) } return n
   })
 
-  // Envía a Siesa las órdenes seleccionadas, una por una (cada pedido se valida igual que en el detalle).
-  async function enviarSeleccion() {
-    const lista = ordenes.filter(o => seleccion.has(o.id))
-    if (!lista.length) return
-    if (!window.confirm(`Se crearán ${lista.length} pedido(s) en Siesa.\n\nLas alertas (precio, bodega por defecto, fecha vencida...) se darán por revisadas; las órdenes con bloqueos no se envían.\n\n¿Continuar?`)) return
+  // Envía a Siesa las órdenes seleccionadas, una por una (cada pedido se valida igual que en el detalle), y
+  // al final un solo correo a facturación con los creados y los PVK institucionales seleccionados.
+  async function enviarSeleccion(modoUno?: ModoAviso) {
+    const elegidas = ordenes.filter(o => seleccion.has(o.id))
+    const lista = elegidas.filter(enviable)
+    const pvk = elegidas.filter(o => esPvk(o) && sinAviso.has(o.id))
+    if (!lista.length && !pvk.length) return
+    // Un solo pedido: se avisa y se pregunta si el correo va solo o con el consolidado de su ruta
+    if (lista.length === 1 && !pvk.length && !modoUno) { setPreguntaUno(lista[0]); return }
+    const textoPvk = pvk.length ? `\n\n${pvk.length} pedido(s) institucional(es) (PVK) van solo en el correo a facturación: ya existen en Siesa.` : ''
+    const pregunta = lista.length
+      ? `Se crearán ${lista.length} pedido(s) en Siesa.\n\nLas alertas (precio, bodega por defecto, fecha vencida...) se darán por revisadas; las órdenes con bloqueos no se envían.${textoPvk}\n\n¿Continuar?`
+      : `Se enviará el correo a facturación con ${pvk.length} pedido(s) institucional(es) (PVK).\n\n¿Continuar?`
+    if (!modoUno && !window.confirm(pregunta)) return
     setEnvio({ total: lista.length, resultados: [], enCurso: true })
     const resultados: FilaResultado[] = []
     for (const o of lista) {
@@ -244,12 +273,15 @@ export default function OrdenesCenPage() {
       resultados.push(r)
       setEnvio(prev => prev && { ...prev, resultados: [...prev.resultados, r] })
     }
-    // Un solo correo a facturación con todos los pedidos creados (y los institucionales de esas relaciones)
-    const creados = resultados.filter(r => r.ok).map(r => r.id)
+    // Un solo correo a facturación: los pedidos creados y los PVK seleccionados (solo esos)
+    const paraAviso = [...resultados.filter(r => r.ok).map(r => r.id), ...pvk.map(o => o.id)]
     let aviso: AvisoCorreo | null = null
-    if (creados.length) {
+    if (paraAviso.length) {
       aviso = await fetch('/api/logistica/ordenes-cen/aviso-facturacion', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: creados }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(modoUno === 'ruta' && lista[0]?.ruta
+          ? { ruta: lista[0].ruta, totales: totalesCorreo } // consolidado de la ruta (incluye el recién creado)
+          : { ids: paraAviso, solo_seleccion: true, totales: totalesCorreo }),
       }).then(r => r.json()).then(d => ({ ...d, ok: Boolean(d.ok), mensaje: d.mensaje ?? d.error ?? 'Respuesta desconocida' }))
         .catch(() => ({ ok: false, mensaje: 'No se pudo enviar el aviso a facturación: usa "Avisar a facturación" en la ruta para reintentar.' }))
     }
@@ -266,7 +298,7 @@ export default function OrdenesCenPage() {
     setAvisando(ruta); setAviso('')
     try {
       const d = await fetch('/api/logistica/ordenes-cen/aviso-facturacion', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ruta }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ruta, totales: totalesCorreo }),
       }).then(r => r.json())
       setAvisoRuta({ ruta, aviso: { ...d, ok: Boolean(d.ok), mensaje: d.mensaje ?? d.error ?? 'Respuesta desconocida' } })
       await cargar()
@@ -298,8 +330,9 @@ export default function OrdenesCenPage() {
           {lista.map(o => (
             <tr key={o.id} onClick={() => setDetalleId(o.id)} style={{ cursor: 'pointer', background: seleccion.has(o.id) ? '#EFF6FF' : undefined }}>
               <td className="sel" data-label="" onClick={e => e.stopPropagation()}>
-                <input type="checkbox" disabled={!enviable(o) || envio?.enCurso} checked={seleccion.has(o.id)}
-                  title={enviable(o) ? 'Seleccionar para enviar a Siesa' : o.estado === 'enviado' ? 'Ya tiene pedido en Siesa' : !o.nit ? 'Sin sucursal asociada' : 'No se puede enviar'}
+                <input type="checkbox" disabled={!seleccionable(o) || envio?.enCurso} checked={seleccion.has(o.id)}
+                  title={enviable(o) ? 'Seleccionar para enviar a Siesa' : esPvk(o) ? (sinAviso.has(o.id) ? 'Incluir en el correo a facturación' : 'Ya se avisó a facturación')
+                    : o.estado === 'enviado' ? 'Ya tiene pedido en Siesa' : !o.nit ? 'Sin sucursal asociada' : 'No se puede enviar'}
                   onChange={e => marcar([o.id], e.target.checked)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
               </td>
               <td data-label="OC" className="nw" data-orden={o.numero_orden}>
@@ -349,17 +382,17 @@ export default function OrdenesCenPage() {
     <div className="cen-cifras">
       <span><strong>{t.n}</strong> OC</span>
       <span><strong>{fmtNumero(t.unidades)}</strong> und</span>
-      <span><strong>{t.pesoCompleto ? fmtNumero(t.peso, 1) : '—'}</strong> {t.pesoCompleto ? 'kg' : 'peso incompleto'}</span>
+      <span title={t.pesoCompleto ? undefined : TITULO_PESO}><strong>{fmtNumero(t.peso, 1)}</strong> kg{!t.pesoCompleto && <strong style={{ color: '#B45309' }}>*</strong>}</span>
       <span className="cen-cifra-valor"><strong>{fmtMoneda(t.valor)}</strong></span>
       {extra}
     </div>
   )
 
-  // Casilla para marcar todas las órdenes enviables de una sección
+  // Casilla para marcar todas las órdenes seleccionables de una sección (por enviar a Siesa y PVK sin avisar)
   const casillaGrupo = (ids: number[], titulo: string) => {
     const marcadas = ids.filter(id => seleccion.has(id)).length
     return (
-      <input type="checkbox" title={ids.length ? `Seleccionar todas las órdenes de ${titulo} que se pueden enviar` : `Ninguna orden de ${titulo} se puede enviar`}
+      <input type="checkbox" title={ids.length ? `Seleccionar las órdenes de ${titulo} que se pueden enviar o avisar` : `Nada de ${titulo} se puede enviar ni avisar`}
         disabled={!ids.length || envio?.enCurso} checked={ids.length > 0 && marcadas === ids.length}
         ref={el => { if (el) el.indeterminate = marcadas > 0 && marcadas < ids.length }}
         onClick={e => e.stopPropagation()} onChange={e => marcar(ids, e.target.checked)}
@@ -519,7 +552,7 @@ export default function OrdenesCenPage() {
       )}
       {envio && !envio.enCurso && (
         <ResultadoEnvioModal
-          titulo={`Envío a Siesa terminado: ${envio.resultados.filter(r => r.ok).length} de ${envio.total} pedido(s) creado(s)`}
+          titulo={envio.total ? `Envío a Siesa terminado: ${envio.resultados.filter(r => r.ok).length} de ${envio.total} pedido(s) creado(s)` : 'Aviso a facturación de pedidos institucionales'}
           filas={envio.resultados} aviso={envio.aviso} onClose={() => setEnvio(null)} />
       )}
       {avisoRuta && (
@@ -538,7 +571,7 @@ export default function OrdenesCenPage() {
         const t = resumir(g.ordenes)
         const recogido = !abiertos.has(g.clave)
         const porRevisar = g.ordenes.filter(o => o.motivos.length > 0).length
-        const idsEnviables = g.ordenes.filter(enviable).map(o => o.id)
+        const idsEnviables = g.ordenes.filter(seleccionable).map(o => o.id)
         // En la vista por ruta, cada ruta se subagrupa por relación (RUTA-MMSS) con sus propios totales
         const rels = vista === 'ruta' && g.ruta ? porRelacion(g.ordenes) : null
         const secciones = rels?.map(r => ({ titulo: r.rel, ids: r.ordenes.map(o => o.id) }))
@@ -582,7 +615,7 @@ export default function OrdenesCenPage() {
                     <div key={r.rel} className="cen-rel">
                       <div className="cen-rel-cab" onClick={() => alternarRel(clave)} title={abierta ? 'Recoger la relación' : 'Ver las órdenes de la relación'} role="button" aria-expanded={abierta}>
                         <div className="cen-cab-titulo">
-                          {casillaGrupo(r.ordenes.filter(enviable).map(o => o.id), `la relación ${r.rel}`)}
+                          {casillaGrupo(r.ordenes.filter(seleccionable).map(o => o.id), `la relación ${r.rel}`)}
                           <span className="cen-chevron" data-abierto={abierta}>▼</span>
                           <div style={{ minWidth: 0 }}>
                             <div className="cen-rel-nombre">Relación {r.rel}</div>
@@ -615,18 +648,24 @@ export default function OrdenesCenPage() {
         const ts = resumir(lista)
         const rels = porRelacion(lista)
         const relActual = rels.length === 1 && rels[0].rel !== SIN_RELACION ? rels[0].rel : null
+        const nPvk = lista.filter(esPvk).length, nSiesa = lista.filter(enviable).length
         return (
           <div className="card" style={{ position: 'fixed', bottom: 12, zIndex: 900, left: barra?.left ?? 16, width: barra?.width ?? 'calc(100% - 32px)',
             maxHeight: '40vh', overflowY: 'auto', borderColor: 'var(--accent)', boxShadow: '0 -4px 18px rgba(15,23,42,.18)', display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
               <strong style={{ fontSize: 14 }}>{ts.n} orden(es) seleccionada(s)</strong>
-              <span style={{ fontSize: 13, color: 'var(--text2)' }}>{fmtNumero(ts.unidades)} und · {kgTexto(ts)} · <strong style={{ color: 'var(--text)' }}>{fmtMoneda(ts.valor)}</strong></span>
+              <span style={{ fontSize: 13, color: 'var(--text2)' }} title={ts.pesoCompleto ? undefined : TITULO_PESO}>{fmtNumero(ts.unidades)} und · {kgTexto(ts)} · <strong style={{ color: 'var(--text)' }}>{fmtMoneda(ts.valor)}</strong></span>
+              {nPvk > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: '#6D28D9', background: '#F3EEFF', borderRadius: 999, padding: '2px 8px' }}>{nPvk} PVK solo para el correo</span>}
+              <label style={{ fontSize: 12, display: 'flex', gap: 5, alignItems: 'center', color: 'var(--text2)' }} title="Agrega al correo a facturación las tablas de totales por ítem y por cliente de cada relación">
+                <input type="checkbox" checked={totalesCorreo} onChange={e => cambiarTotalesCorreo(e.target.checked)} /> Totales por ítem y cliente en el correo
+              </label>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button className="btn" onClick={() => setTotales({ titulo: 'Órdenes seleccionadas', ruta: null, ids: lista.map(o => o.id), secciones: rels.map(r => ({ titulo: r.rel, ids: r.ordenes.map(o => o.id) })) })}>Totales</button>
                 <button className="btn" disabled={envio?.enCurso} onClick={() => setMoverRelacion({ ids: lista.map(o => o.id), actual: relActual })}>Cambiar relación</button>
                 <button className="btn" onClick={() => setSeleccion(new Set())} disabled={envio?.enCurso}>Quitar selección</button>
-                <button className="btn btn-primary" onClick={enviarSeleccion} disabled={envio?.enCurso}>
-                  {envio?.enCurso ? `Enviando ${envio.resultados.length + 1} de ${envio.total}...` : `Enviar ${seleccion.size} a Siesa`}
+                <button className="btn btn-primary" onClick={() => enviarSeleccion()} disabled={envio?.enCurso}>
+                  {envio?.enCurso ? `Enviando ${Math.min(envio.resultados.length + 1, envio.total)} de ${envio.total}...`
+                    : nSiesa ? `Enviar ${nSiesa} a Siesa${nPvk ? ` + ${nPvk} PVK al correo` : ''}` : `📧 Avisar a facturación (${nPvk})`}
                 </button>
               </div>
             </div>
@@ -650,6 +689,10 @@ export default function OrdenesCenPage() {
           onAgregados={n => { setAviso(`${n} pedido(s) institucional(es) agregado(s) a la ruta.`); cargar() }} />
       )}
       {totales && <TotalesRutaModal titulo={totales.titulo} ruta={totales.ruta} ids={totales.ids} secciones={totales.secciones} inicial={totales.inicial} onClose={() => setTotales(null)} />}
+      {preguntaUno && (
+        <ElegirAvisoModal oc={preguntaUno.numero_orden} cliente={preguntaUno.razon_social} ruta={preguntaUno.ruta}
+          onElegir={m => { setPreguntaUno(null); if (m) enviarSeleccion(m) }} />
+      )}
       {moverRelacion && (
         <CambiarRelacionModal ids={moverRelacion.ids} actual={moverRelacion.actual} onClose={() => setMoverRelacion(null)}
           onCambiado={m => { setMoverRelacion(null); setSeleccion(new Set()); setAviso(m); cargar() }} />

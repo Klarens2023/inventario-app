@@ -43,36 +43,56 @@
    abierto o en pantallas medianas), no solo según la pantalla. */
 .cen-lista { container: lista / inline-size; }
 
-.cen-grupo { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
-.cen-grupo-alerta { border-color: #F59E0B; }
+/* Tres niveles con tonos bien distintos:
+   1) RUTA: franja azul oscuro con texto blanco.
+   2) RELACIÓN: fondo blanco con sangría y una barra azul a la izquierda.
+   3) ÓRDENES: encabezado gris claro, filas blancas, dentro de la sangría de su relación. */
+.cen-grupo { background: var(--bg2); border: 1px solid #C7D2E3; border-radius: 12px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 3px rgba(15, 23, 42, .06); }
 .cen-grupo-cab, .cen-rel-cab {
   display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px;
   cursor: pointer; user-select: none;
 }
-.cen-grupo-cab { padding: 12px 16px; background: var(--bg); }
-.cen-grupo-alerta .cen-grupo-cab { background: #FFFBEB; }
-.cen-grupo-cab:hover { background: #EEF4FF; }
 .cen-cab-titulo { display: flex; gap: 10px; align-items: center; min-width: 0; flex: 1 1 260px; }
-.cen-grupo-nombre { font-weight: 800; font-size: 15px; }
-.cen-grupo-sub { font-size: 12px; color: var(--text2); overflow-wrap: anywhere; }
-.cen-chevron { font-size: 11px; color: var(--text2); display: inline-block; transition: transform .15s; transform: rotate(-90deg); flex-shrink: 0; }
+.cen-chevron { font-size: 11px; display: inline-block; transition: transform .15s; transform: rotate(-90deg); flex-shrink: 0; }
 .cen-chevron[data-abierto="true"] { transform: none; }
-
-.cen-cifras { display: flex; gap: 6px 16px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text2); }
-.cen-cifras strong { color: var(--text); }
+.cen-cifras { display: flex; gap: 6px 16px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .cen-cifra-valor strong { font-size: 14px; }
 .cen-cab-botones { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .cen-cab-botones .btn-sm { padding: 4px 10px; font-size: 12px; }
 
-/* Relación: franja dentro de la ruta, con sangría */
-.cen-rel { border-top: 1px solid var(--border); }
-.cen-rel-cab { padding: 8px 16px 8px 30px; background: #F7FAFF; border-left: 4px solid #93C5FD; }
-.cen-rel-cab:hover { background: #EEF4FF; }
-.cen-rel-nombre { font-weight: 800; font-size: 14px; color: #1E3A8A; }
-.cen-rel .cen-scroll { border-left: 4px solid #DBEAFE; }
+/* 1) Ruta */
+.cen-grupo-cab { padding: 9px 14px; background: #1E3A8A; color: #fff; }
+.cen-grupo-cab:hover { background: #1E40AF; }
+.cen-grupo-nombre { font-weight: 800; font-size: 16px; color: #fff; }
+.cen-grupo-cab .cen-grupo-sub { color: #BFDBFE; }
+.cen-grupo-cab .cen-chevron { color: #BFDBFE; }
+.cen-grupo-cab .cen-cifras { color: #BFDBFE; }
+.cen-grupo-cab .cen-cifras strong { color: #fff; }
+/* Rutas que requieren atención (sin ruta / punto sin sucursal): franja ámbar */
+.cen-grupo-alerta { border-color: #F59E0B; }
+.cen-grupo-alerta .cen-grupo-cab { background: #92400E; }
+.cen-grupo-alerta .cen-grupo-cab:hover { background: #B45309; }
+.cen-grupo-alerta .cen-grupo-cab .cen-grupo-sub, .cen-grupo-alerta .cen-grupo-cab .cen-cifras { color: #FDE68A; }
+.cen-grupo-sub { font-size: 12px; color: var(--text2); overflow-wrap: anywhere; }
+
+/* 2) Relación */
+.cen-rel + .cen-rel { border-top: 1px solid #E2E8F0; }
+.cen-rel-cab { padding: 6px 14px 6px 26px; background: #fff; border-left: 5px solid #3B82F6; }
+.cen-rel-cab:hover { background: #F3F7FF; }
+.cen-rel-cab .cen-chevron { color: #3B82F6; }
+.cen-rel-nombre { font-weight: 800; font-size: 14px; color: #1D4ED8; }
+.cen-rel-cab .cen-cifras { color: var(--text2); }
+.cen-rel-cab .cen-cifras strong { color: var(--text); }
+
+/* 3) Órdenes de una relación: misma sangría que su relación, encabezado gris */
+.cen-rel .cen-scroll { border-left: 5px solid #BFDBFE; margin-left: 0; background: #fff; }
+.cen-rel .cen-ordenes th { background: #F1F5F9; color: #475569; font-size: 11px; }
+.cen-rel .cen-ordenes tbody tr:hover { background: #F8FAFC; }
 
 /* Tabla de órdenes: ocupa el ancho disponible sin desplazamiento lateral */
 .cen-ordenes { width: 100%; }
+.cen-ordenes th { padding: 7px 10px; }
+.cen-ordenes td { padding: 6px 10px; }
 .cen-ordenes .ancho { min-width: 180px; max-width: none; }
 .cen-ordenes .ancho .sub { white-space: normal; }
 .cen-motivos { font-size: 11px; color: #B45309; margin-top: 4px; max-width: 240px; white-space: normal; }
@@ -98,4 +118,31 @@
   .cen-tarjetas tr { grid-template-columns: 1fr 1fr; }
   .cen-tarjetas td.ancho { grid-column: 1 / -1; }
   .cen-rel-cab { padding-left: 16px; }
+}
+
+/* ── Reporte: necesidad por producto semanal ─────────────────────────────────────
+   Cabe en la pantalla (7 días + totales, compacta). Si no alcanza el ancho (celular), se desplaza
+   dentro de su caja con la columna del producto fija a la izquierda y el encabezado fijo arriba. */
+.cen-necesidad { overflow: auto; max-height: 72vh; border: 1px solid var(--border); border-radius: 8px; }
+.cen-necesidad table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+.cen-necesidad th, .cen-necesidad td { padding: 7px 8px; border-bottom: 1px solid #E2E8F0; white-space: nowrap; }
+.cen-necesidad th { position: sticky; top: 0; z-index: 2; background: #1E3A8A; color: #fff; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+.cen-necesidad .num { text-align: right; }
+.cen-necesidad .sub { display: block; font-size: 10.5px; color: var(--text2); }
+.cen-necesidad tbody tr { cursor: pointer; background: #fff; }
+.cen-necesidad tbody tr:hover td { background: #F3F7FF; }
+/* Columna del producto fija */
+.cen-necesidad .cen-fija { position: sticky; left: 0; z-index: 1; background: #fff; min-width: 190px; max-width: 280px; white-space: normal; box-shadow: 1px 0 0 #CBD5E1; }
+.cen-necesidad th.cen-fija { z-index: 3; background: #1E3A8A; }
+.cen-necesidad .cen-prod { font-weight: 700; line-height: 1.25; }
+/* Totales y comparación con inventario, con su propio fondo */
+.cen-necesidad td.cen-col-total { border-left: 2px solid #CBD5E1; }
+.cen-necesidad td.cen-col-inv { background: #FFFBEB; }
+.cen-necesidad tbody tr:hover td.cen-col-inv { background: #FEF3C7; }
+.cen-necesidad th.cen-col-inv { background: #92400E; }
+.cen-necesidad tfoot td { position: sticky; bottom: 0; background: #F1F5F9; font-weight: 700; border-top: 2px solid #CBD5E1; }
+.cen-necesidad tfoot td.cen-fija { z-index: 2; background: #F1F5F9; }
+@media (max-width: 768px) {
+  .cen-necesidad .cen-fija { min-width: 140px; max-width: 170px; }
+  .cen-necesidad th, .cen-necesidad td { padding: 6px; }
 }

@@ -172,6 +172,95 @@ export function necesidadPorProducto(ordenes: OrdenReporte[], lineas: LineaRepor
   return { dias, filas: Array.from(filas.values()).sort((a, b) => b.total.peso - a.total.peso || b.total.unidades - a.total.unidades) }
 }
 
+// ── Necesidad semanal (sábado a viernes) ─────────────────────────────────
+
+/** Sábado (AAAA-MM-DD) de la semana de necesidad a la que pertenece la fecha: las semanas van de sábado a viernes. */
+export function sabadoDeSemana(fecha: string): string {
+  const d = new Date(fecha + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 1) % 7)) // sáb=6 → 0, dom=0 → 1, … vie=5 → 6
+  return d.toISOString().slice(0, 10)
+}
+/** Los 7 días (sábado a viernes) de la semana que empieza en `sabado`. */
+export function diasDeSemana(sabado: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => { const d = new Date(sabado + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + i); return d.toISOString().slice(0, 10) })
+}
+
+// Líneas institucionales cuyo ítem no está en el maestro: "SIESA-<ítem>" (lib/cen/institucional.ts)
+function itemDeLinea(l: Pick<LineaReporte, 'f120_id' | 'ean_item'>): number | null {
+  if (l.f120_id !== null) return l.f120_id
+  const m = /^SIESA-(\d+)$/.exec(l.ean_item)
+  return m ? Number(m[1]) : null
+}
+
+export type DiaNecesidad = { unidades: number; kg: number; kgCompleto: boolean }
+export type FilaNecesidadSemanal = {
+  clave: string // "I<ítem Siesa>" o el EAN si no tiene ítem
+  f120_id: number | null
+  ean: string // un EAN del producto (el primero que aparece)
+  descripcion: string
+  medida: 'UND' | 'KG' // en qué se compara con el inventario: la unidad de inventario de Siesa; sin ella, KG si todo se pidió en kilos
+  porDia: Record<string, DiaNecesidad>
+  unidades: number // cantidades pedidas en unidades (las líneas en kilos no suman aquí)
+  kg: number
+  kgCompleto: boolean // false si alguna línea no tiene peso en el maestro
+  valor: number
+  ordenes: number
+  ordenIds: number[]
+  inventario: number | null // existencia en Siesa (misma medida); null = sin dato
+  diferencia: number | null // lo que falta producir: necesidad − inventario (nunca negativo)
+  sugerido: number | null // diferencia + 20 % de margen, redondeado hacia arriba
+}
+
+/** Margen sobre la diferencia para cubrir pedidos que aún no han llegado. */
+export const MARGEN_PRODUCCION = 0.2
+
+/**
+ * Necesidad por producto de una semana (sábado a viernes) según la fecha en que llegó el pedido (fecha de la
+ * OC o del pedido PVK), sin descartadas, agrupada por ítem de Siesa. Con el inventario por ítem calcula lo que
+ * falta producir y la sugerencia con el 20 % de margen.
+ */
+export function necesidadSemanal(
+  ordenes: OrdenReporte[], lineas: LineaReporte[], dias: string[],
+  inventario?: Map<number, { existencia: number; unidad: string }>,
+): FilaNecesidadSemanal[] {
+  const ordenPorId = new Map(ordenes.map(o => [o.id, o]))
+  const enSemana = new Set(dias)
+  const filas = new Map<string, FilaNecesidadSemanal & { _ids: Set<number>; _todoKg: boolean }>()
+  for (const l of lineas) {
+    const o = ordenPorId.get(l.orden_id)
+    if (!o || o.estado === 'descartada' || !o.fecha_orden || !enSemana.has(o.fecha_orden)) continue
+    const item = itemDeLinea(l)
+    const clave = item !== null ? `I${item}` : l.ean_item
+    let f = filas.get(clave)
+    if (!f) {
+      f = { clave, f120_id: item, ean: l.ean_item, descripcion: l.descripcion, medida: 'UND', porDia: {}, unidades: 0, kg: 0, kgCompleto: true, valor: 0,
+        ordenes: 0, ordenIds: [], inventario: null, diferencia: null, sugerido: null, _ids: new Set(), _todoKg: true }
+      filas.set(clave, f)
+    }
+    const enKg = l.unidad === 'KG'
+    const peso = pesoLinea(l)
+    const d = f.porDia[o.fecha_orden] ?? { unidades: 0, kg: 0, kgCompleto: true }
+    if (!enKg) { d.unidades += l.cantidad; f.unidades += l.cantidad; f._todoKg = false }
+    if (peso === null) { d.kgCompleto = false; f.kgCompleto = false } else { d.kg += peso; f.kg += peso }
+    f.porDia[o.fecha_orden] = d
+    f.valor += l.cantidad * l.precio
+    f._ids.add(o.id)
+  }
+  return Array.from(filas.values()).map(({ _ids, _todoKg, ...f }) => {
+    // Sin existencia en Siesa el ítem cuenta con 0; sin consulta de inventario no se calcula nada
+    const existencia = f.f120_id !== null && inventario ? inventario.get(f.f120_id) ?? { existencia: 0, unidad: '' } : null
+    const medida: 'UND' | 'KG' = existencia?.unidad === 'KG' ? 'KG' : existencia?.unidad === 'UND' ? 'UND' : _todoKg ? 'KG' : 'UND'
+    const necesidad = medida === 'KG' ? f.kg : f.unidades
+    const inv = existencia === null ? null : Math.round(existencia.existencia * 100) / 100
+    const diferencia = inv === null ? null : Math.max(0, Math.round((necesidad - inv) * 100) / 100)
+    return {
+      ...f, medida, ordenes: _ids.size, ordenIds: Array.from(_ids),
+      inventario: inv, diferencia,
+      sugerido: diferencia === null ? null : Math.ceil(diferencia * (1 + MARGEN_PRODUCCION)),
+    }
+  }).sort((a, b) => b.kg - a.kg || b.unidades - a.unidades || a.descripcion.localeCompare(b.descripcion))
+}
+
 export type FilaRelacion = {
   relacion: string; ruta: string; numero_orden: string; cadena: string; razon_social: string; nit: string; sucursal: string
   fecha_entrega: string | null; fecha_entrega_max: string | null; fecha_despacho: string | null; ciudad: string; ean_entrega: string

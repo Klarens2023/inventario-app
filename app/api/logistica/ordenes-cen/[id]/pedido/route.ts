@@ -37,13 +37,23 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (!siesaConfigurado()) {
     return NextResponse.json({ error: 'La API de Siesa no está configurada (faltan SIESA_CLIENT_ID, SIESA_CONNI_KEY y SIESA_CONNI_TOKEN).' }, { status: 503 })
   }
-  const { confirmaAlertas, aviso } = await req.json().catch(() => ({})) as { confirmaAlertas?: boolean; aviso?: boolean }
+  // aviso_modo: 'solo' = el correo lleva solo este pedido; 'ruta' = este más el consolidado de su ruta
+  // (todo lo que ya está en Siesa y no se ha avisado). Sin modo: este pedido y los PVK de su relación.
+  const { confirmaAlertas, aviso, aviso_modo, totales } = await req.json().catch(() => ({})) as
+    { confirmaAlertas?: boolean; aviso?: boolean; aviso_modo?: 'solo' | 'ruta'; totales?: boolean }
   try {
     const r = await enviarPedido(id, Boolean(confirmaAlertas))
     // Quién creó el pedido, para el reporte de control
     if (r.ok) await sql`UPDATE cen_ordenes SET enviado_por = ${acceso.user.name.slice(0, 120)} WHERE id = ${id}`
     // Aviso individual a facturación (si falla, el pedido igual quedó creado; se informa y se puede reintentar)
-    const avisoFacturacion = r.ok && aviso !== false ? await avisarFacturacion({ ids: [id] }, { id: acceso.user.id, name: acceso.user.name }) : null
+    let avisoFacturacion = null
+    if (r.ok && aviso !== false) {
+      const usuario = { id: acceso.user.id, name: acceso.user.name }
+      const [o] = aviso_modo === 'ruta' ? await sql`SELECT ruta FROM cen_ordenes WHERE id = ${id}` : []
+      avisoFacturacion = o?.ruta
+        ? await avisarFacturacion({ ruta: o.ruta as string, totales: totales === true }, usuario)
+        : await avisarFacturacion({ ids: [id], soloSeleccion: aviso_modo === 'solo', totales: totales === true }, usuario)
+    }
     return NextResponse.json({ ...r, avisoFacturacion }, { status: r.ok ? 200 : 422 })
   } catch (e) {
     return NextResponse.json({ ok: false, mensaje: e instanceof Error ? e.message : 'No se pudo enviar el pedido' }, { status: 500 })

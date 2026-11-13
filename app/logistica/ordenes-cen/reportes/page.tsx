@@ -5,12 +5,13 @@ import { useSession } from 'next-auth/react'
 import { COMPRADORES } from '@/lib/cen/compradores'
 import { codigoRelacion } from '@/lib/cen/relacion'
 import {
-  agruparLineas, agruparOrdenes, cajasLinea, CUMPLIMIENTO, cumplimiento, lineasRelacion, necesidadPorProducto, pesoLinea, semanaIso, tiemposPorCadena,
+  agruparLineas, agruparOrdenes, cajasLinea, CUMPLIMIENTO, cumplimiento, lineasRelacion, pesoLinea, semanaIso, tiemposPorCadena,
   type Cumplimiento, type LineaReporte, type OrdenReporte,
 } from '@/lib/cen/reportes'
 import { exportarExcel, type Valor } from '@/lib/exportExcel'
 import { excelRelacion } from '@/lib/cen/excelRelacion'
 import { ESTADOS, fmtFecha, fmtMoneda, fmtNumero } from '@/components/ordenes-cen/utils'
+import { NecesidadSemanal } from '@/components/ordenes-cen/NecesidadSemanal'
 import type { EstadoOrdenCen } from '@/types/ordenes-cen'
 
 type Datos = { hoy: string; desde: string; hasta: string; campo: string; limitado: boolean; ordenes: OrdenReporte[]; lineas: LineaReporte[] }
@@ -95,8 +96,6 @@ export default function ReportesCenPage() {
   const [error, setError] = useState('')
   // Relación de despacho
   const [relaciones, setRelaciones] = useState<Set<string>>(new Set())
-  // Necesidad
-  const [medida, setMedida] = useState<'peso' | 'unidades'>('peso')
   // Control: indicador seleccionado como filtro
   const [filtro, setFiltro] = useState<FiltroControl | null>(null)
   const alternarFiltro = (f: FiltroControl) => setFiltro(prev => prev === f ? null : f)
@@ -153,7 +152,6 @@ export default function ReportesCenPage() {
   }, [relacion])
   const relacionSel = useMemo(() => relacion.filter(f => relaciones.has(f.relacion)), [relacion, relaciones])
 
-  const necesidad = useMemo(() => necesidadPorProducto(ordenes, lineas), [ordenes, lineas])
   const porCadena = useMemo(() => Array.from(agruparOrdenes(activas, o => o.cadena)).sort((a, b) => b[1].valor - a[1].valor), [activas])
   const semanas = useMemo(() => {
     const m = new Map<string, Map<string, number>>()
@@ -318,24 +316,8 @@ export default function ReportesCenPage() {
         </Seccion>
       )}
 
-      {datos && pestana === 'necesidad' && (
-        <Seccion titulo="Necesidad por producto" nota="Lo que piden las cadenas por producto y día de entrega (sin descartadas), para planear producción y cargue. * = hay líneas sin peso en el maestro."
-          accion={<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <select value={medida} onChange={e => setMedida(e.target.value as 'peso' | 'unidades')} style={sel}><option value="peso">Kilos</option><option value="unidades">Unidades</option></select>
-            <button className="btn" onClick={() => exportarExcel(`Necesidad_${medida}_${desde}_a_${hasta}`, ['Ítem Siesa', 'EAN', 'Descripción', ...necesidad.dias.map(d => `${medida === 'peso' ? 'Kg' : 'Cant.'} ${d}`), medida === 'peso' ? 'Total kg' : 'Cantidad total', 'Valor total', 'OC'],
-              necesidad.filas.map(f => [f.f120_id, f.ean, f.descripcion, ...necesidad.dias.map(d => medida === 'peso' ? f.porDia[d]?.peso ?? null : f.porDia[d]?.unidades ?? null), medida === 'peso' ? f.total.peso : f.total.unidades, f.total.valor, f.total.ordenes]),
-              usuario, 'KLARENS  —  Necesidad por producto')}>Descargar Excel</button>
-          </div>}>
-          <div className="cen-scroll"><table className="inv-table cen-tabla">
-            <thead><tr><th>Producto</th>{necesidad.dias.map(d => <th key={d} style={{ textAlign: 'right' }}>{fmtFecha(d)}</th>)}<th style={{ textAlign: 'right' }}>Total</th><th style={{ textAlign: 'right' }}>Valor</th><th style={{ textAlign: 'right' }}>OC</th></tr></thead>
-            <tbody>{necesidad.filas.map(f => (
-              <tr key={f.ean}><td className="ancho"><div>{f.descripcion}<span className="sub mono">{f.f120_id ? `Ítem ${f.f120_id} · ` : ''}EAN {f.ean}</span></div></td>
-                {necesidad.dias.map(d => { const x = f.porDia[d]; return <td key={d} className="num">{!x ? '' : medida === 'peso' ? (x.peso === null ? '—' : fmtNumero(x.peso, 1)) : fmtNumero(x.unidades)}</td> })}
-                <td className="num"><strong>{medida === 'peso' ? kg(f.total.peso, f.total.pesoCompleto) : fmtNumero(f.total.unidades)}</strong></td><td className="num">{fmtMoneda(f.total.valor)}</td><td className="num">{f.total.ordenes}</td></tr>
-            ))}</tbody>
-          </table></div>
-        </Seccion>
-      )}
+      {/* Necesidad: semana de sábado a viernes con su propia consulta (respeta cadena y ruta) */}
+      {pestana === 'necesidad' && <NecesidadSemanal cadena={cadena} ruta={ruta} hoy={hoyLocal} usuario={usuario} />}
 
       {datos && pestana === 'cadenas' && (() => {
         const maxValor = Math.max(1, ...porCadena.map(([, t]) => t.valor))

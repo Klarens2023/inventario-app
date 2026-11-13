@@ -6,6 +6,7 @@ import { sql } from '@/lib/db'
 import { parsearOrden, type FuenteEdi, type OrdenEdi } from './parser'
 import { conSftp, fuenteConfigurada, FUENTES } from './sftp'
 import { recalcularRutas } from './rutas'
+import { traerInstitucionalesAutomaticos } from './pedidosInstitucionales'
 import { totalesOrden } from './totales'
 import { actualizarItemsSiNecesario } from './itemsSiesa'
 import { siesaConfigurado } from '@/lib/siesa/connekta'
@@ -204,6 +205,8 @@ export async function sincronizarOrdenes(): Promise<ResultadoFuente[]> {
   for (const f of FUENTES) resultados.push(await sincronizarFuente(f))
   // Las vencidas salen antes de recalcular rutas; si falla, la sincronización sigue
   await descartarVencidas().catch(e => console.error('[edi] No se pudieron descartar las vencidas:', e))
+  // Pedidos PVK de los clientes institucionales configurados: se agregan solos a su ruta
+  await traerInstitucionalesAutomaticos()
   await recalcularRutas()
   // Ítems de Siesa (cada 12 h) para asignar el f120_id de productos nuevos; si Siesa falla, la sincronización sigue.
   if (siesaConfigurado()) await actualizarItemsSiNecesario().catch(e => console.error('Ítems Siesa:', e))

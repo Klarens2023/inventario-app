@@ -75,6 +75,9 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   if (accion === 'quitar') {
     if (!institucional) return NextResponse.json({ error: 'Solo se quitan los pedidos institucionales' }, { status: 409 })
     await sql`DELETE FROM cen_ordenes WHERE id = ${id} AND fuente = ${FUENTE_INSTITUCIONAL}`
+    // Para que la búsqueda automática de institucionales no lo vuelva a traer (tabla de scripts/migrate-add-cen-institucionales-auto.js)
+    await sql`INSERT INTO cen_institucional_ignorados (pedido, quitado_por) VALUES (${orden.numero_orden}, ${acceso.user.name.slice(0, 120)})
+              ON CONFLICT (pedido) DO NOTHING`.catch(() => {})
     await logAudit({
       usuarioId: acceso.user.id, usuarioNombre: acceso.user.name, accion: 'CEN_INSTITUCIONAL_QUITADO',
       descripcion: `Quitó el pedido institucional ${orden.numero_orden} de la ruta ${orden.ruta ?? '(sin ruta)'}`,

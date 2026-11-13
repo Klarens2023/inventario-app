@@ -42,6 +42,7 @@ export interface PedidoSiesaResumen {
   usuario: string | null
   nit: string
   sucursal: string
+  ciudad: string // "DD-CCC" (departamento-ciudad, códigos DANE) del punto de envío; si no viene, el de la sucursal
   razon_social: string
   referencia: string // documento de referencia (OC del cliente, si la tiene)
   notas: string
@@ -77,6 +78,51 @@ export function condicionBusqueda(texto: string, desde: string): string | null {
   return `${base} AND f200_razon_social_pedido_fact LIKE ''%${limpio}%''`
 }
 
+// ── Institucionales automáticos ────────────────────────────────────────────────────────────────
+// En cada sincronización se traen solos los pedidos PVK de los clientes institucionales configurados
+// (tabla cen_clientes_institucionales) cuyo punto de envío está en una de las ciudades del cliente: un
+// mismo cliente tiene sucursales en otras ciudades que no van en la ruta (ej. Atlantic en Bogotá).
+
+/** Tipo de documento de los pedidos institucionales que se traen solos. */
+export const TIPO_INSTITUCIONAL = 'PVK'
+
+/** Ciudades (códigos DANE departamento-ciudad, como los devuelve Siesa) con su nombre. */
+export const CIUDADES: Record<string, string> = {
+  '08-001': 'Barranquilla', '08-758': 'Soledad', '08-433': 'Malambo', '08-296': 'Galapa', '08-573': 'Puerto Colombia',
+  '13-001': 'Cartagena de Indias', '13-836': 'Turbaco',
+  '47-001': 'Santa Marta', '47-189': 'Ciénaga',
+  '44-001': 'Riohacha', '44-035': 'Albania', '44-430': 'Maicao',
+  '20-001': 'Valledupar', '20-250': 'El Paso',
+  '23-001': 'Montería', '70-001': 'Sincelejo', '11-001': 'Bogotá',
+}
+export const nombreCiudad = (codigo: string) => CIUDADES[codigo] ?? codigo
+
+/** "08", "1" → "08-001"; null si falta algún código. */
+export function codigoCiudad(depto: unknown, ciudad: unknown): string | null {
+  const d = txt(depto), c = txt(ciudad)
+  if (!/^\d{1,2}$/.test(d) || !/^\d{1,3}$/.test(c)) return null
+  return `${d.padStart(2, '0')}-${c.padStart(3, '0')}`
+}
+
+export interface ClienteInstitucional { nit: string; nombre: string; ciudades: string[]; ruta: string; activo: boolean }
+
+const soloDigitos = (v: string) => v.replace(/\D/g, '')
+
+/** El cliente configurado al que corresponde el pedido (por NIT y ciudad del punto de envío), o null. */
+export function clienteDelPedido(p: Pick<PedidoSiesaResumen, 'nit' | 'ciudad' | 'tipo'>, clientes: ClienteInstitucional[]): ClienteInstitucional | null {
+  if (p.tipo !== TIPO_INSTITUCIONAL || !p.ciudad) return null
+  const nit = soloDigitos(p.nit)
+  return clientes.find(c => c.activo && soloDigitos(c.nit) === nit && c.ciudades.includes(p.ciudad)) ?? null
+}
+
+/** Condición para API_v2_Ventas_Pedidos: pedidos PVK no anulados de esos NIT desde la fecha dada. */
+export function condicionAutomatica(nits: string[], desde: string): string | null {
+  const lista = Array.from(new Set(nits.map(soloDigitos).filter(n => n.length >= 5 && n.length <= 15)))
+  if (!lista.length) return null
+  return `f430_id_fecha >= ''${compacta(desde)}'' AND f430_ind_estado <> 9 AND f430_id_tipo_docto = ''${TIPO_INSTITUCIONAL}''` +
+    ` AND f200_nit_pedido_fact IN (${lista.map(n => `''${n}''`).join(',')})`
+}
+
 // Condición para traer un pedido puntual (al agregarlo se vuelve a leer de Siesa, no se confía en el navegador).
 export function condicionPedido(id: string): string | null {
   const m = id.match(/^([A-Z0-9]{1,3})\|([A-Z]{1,4})\|(\d{1,9})$/)
@@ -99,6 +145,7 @@ export function agruparPedidos(filas: Record<string, unknown>[]): PedidoSiesaRes
         fecha: fecha(f.f430_id_fecha) ?? '', fecha_entrega: fecha(f.f430_fecha_entrega), creado: txt(f.f430_fecha_ts_creacion).slice(0, 19) || null,
         usuario: txt(f.f430_usuario_creacion) || null,
         nit: txt(f.f200_nit_pedido_fact), sucursal: txt(f.f430_id_sucursal_pedido_fact), razon_social: txt(f.f200_razon_social_pedido_fact),
+        ciudad: codigoCiudad(f.f015_id_depto_pe, f.f015_id_ciudad_pe) ?? codigoCiudad(f.f015_id_depto_fact, f.f015_id_ciudad_fact) ?? '',
         referencia: txt(f.f430_num_docto_referencia), notas: txt(f.f430_notas),
         estado, estado_label: ESTADOS_PEDIDO_SIESA[estado] ?? `Estado ${estado}`,
         lineas: [], unidades: 0, valor: 0,

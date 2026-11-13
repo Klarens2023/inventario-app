@@ -9,6 +9,7 @@ const OPCIONES = [
   { href: '/logistica/ordenes-cen/sucursales', titulo: 'Sucursales', detalle: 'Puntos de entrega (EAN) y su sucursal de Siesa' },
   { href: '/logistica/ordenes-cen/productos', titulo: 'Productos', detalle: 'Maestro: ítem de Siesa, peso y unidades por caja' },
   { href: '/logistica/ordenes-cen/clientes', titulo: 'Clientes', detalle: 'CO, lista de precios, bodega y condición de pago' },
+  { href: '/logistica/ordenes-cen/institucionales', titulo: 'Clientes institucionales', detalle: 'Pedidos PVK que se agregan solos a la ruta, por ciudad' },
 ]
 
 export function MenuConfiguracion() {

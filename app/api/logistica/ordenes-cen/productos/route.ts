@@ -28,10 +28,12 @@ export async function PUT(req: NextRequest) {
   const acceso = await verificarAcceso(req)
   if ('respuesta' in acceso) return acceso.respuesta
   const b = await req.json() as { ean?: string; f120_id?: string | number | null; descripcion?: string; peso_kg?: string | number | null; und_caja?: string | number | null }
-  const ean = String(b.ean ?? '').trim()
-  if (!/^\d{8,14}$/.test(ean)) return NextResponse.json({ error: 'EAN inválido' }, { status: 400 })
+  const ean = String(b.ean ?? '').trim().toUpperCase()
+  // Productos de pedidos institucionales sin código de barras: "SIESA-<ítem>" (lib/cen/institucional.ts)
+  const itemInstitucional = /^SIESA-(\d{1,9})$/.exec(ean)
+  if (!/^\d{8,14}$/.test(ean) && !itemInstitucional) return NextResponse.json({ error: 'EAN inválido' }, { status: 400 })
   const entero = (v: unknown) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(v))
-  const f120 = entero(b.f120_id), und = entero(b.und_caja)
+  const f120 = itemInstitucional ? Number(itemInstitucional[1]) : entero(b.f120_id), und = entero(b.und_caja)
   const peso = b.peso_kg === null || b.peso_kg === undefined || String(b.peso_kg).trim() === '' ? 0 : Number(String(b.peso_kg).replace(',', '.'))
   if (f120 !== null && (!Number.isInteger(f120) || f120 <= 0)) return NextResponse.json({ error: 'El ítem de Siesa debe ser un número entero' }, { status: 400 })
   if (!Number.isFinite(peso) || peso < 0) return NextResponse.json({ error: 'Peso inválido' }, { status: 400 })

@@ -44,7 +44,7 @@ export function DetalleOrdenModal({ id, onClose, onCambio }: { id: number; onClo
   }, [detalle])
 
   async function cambiarEstado(accion: 'descartar' | 'reactivar' | 'ruta' | 'reversar' | 'despacho' | 'quitar', ruta?: string, fecha?: string) {
-    if (accion === 'quitar' && !window.confirm('¿Quitar este pedido institucional de la ruta?\n\nSolo se borra de este sistema; el pedido sigue igual en Siesa y se puede volver a agregar.')) return
+    if (accion === 'quitar' && !window.confirm('¿Quitar este pedido institucional de la ruta?\n\nSolo se borra de este sistema: el pedido sigue igual en Siesa. La búsqueda automática ya no lo vuelve a traer, pero se puede agregar a mano con + Pedido institucional.')) return
     if (accion === 'reversar' && !window.confirm('Reversar el pedido de esta orden?\n\nPrimero debe estar ANULADO en Siesa. La orden vuelve a Pendiente para crear el pedido de nuevo (PVS).')) return
     // El motivo del descarte queda en el reporte de órdenes descartadas
     let motivo: string | undefined
